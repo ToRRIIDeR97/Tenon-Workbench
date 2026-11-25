@@ -12,7 +12,6 @@ export interface TabsV2Props extends ComponentProps<typeof Kobalte> {
 export interface TabsV2ListProps extends ComponentProps<typeof Kobalte.List> {}
 export interface TabsV2TriggerProps extends ComponentProps<typeof Kobalte.Trigger> {
   onMiddleClick?: () => void
-  /** Optional subtext shown beside the primary content (muted style) */
   subtext?: JSX.Element | string
 }
 export interface TabsV2CloseButtonProps extends ComponentProps<"div"> {}
@@ -38,7 +37,6 @@ function TabsV2Root(props: TabsV2Props) {
 function TabsV2List(props: TabsV2ListProps) {
   const [split, rest] = splitProps(props, ["class", "classList", "children"])
   const [indicator, setIndicator] = createSignal<HTMLElement>()
-  // The list is the indicator's parent, so a caller's `ref` on the list still reaches Kobalte untouched.
   const placed = createTabsIndicator(() => indicator()?.parentElement ?? undefined)
   return (
     <Kobalte.List
@@ -56,12 +54,6 @@ function TabsV2List(props: TabsV2ListProps) {
   )
 }
 
-/**
- * The selected-tab highlight of the pill and settings variants slides between tabs: the list measures the
- * selected trigger and positions one indicator (`--tabs-v2-indicator-*`). The normal variant keeps its
- * static underline, because its tabs can be dragged to reorder and move by transform meanwhile. Returns
- * whether the indicator is placed; until then each selected tab draws its own highlight.
- */
 function createTabsIndicator(list: () => HTMLElement | undefined) {
   return createSlidingIndicator({
     container: list,

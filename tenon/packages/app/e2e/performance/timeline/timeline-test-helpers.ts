@@ -47,9 +47,7 @@ export async function installStressSessionTabs(page: Page, input?: { draftID?: s
           lastProject: { local: directory },
         }),
       )
-      // Sidebar thread groups start expanded so benchmarks can click thread rows.
       localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
-      // Legacy tab keys: unsent drafts are imported into the drafts store on startup.
       localStorage.setItem(
         "tenon.window.browser.dat:tabs",
         JSON.stringify([

@@ -110,8 +110,6 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
   const fixture = await setupTimelineBenchmark(page, {
     historyTurns,
     eventBatch,
-    // Turn diffs exercise timeline data cost; the pane-open scenario serves the same
-    // diffs through the default git mode so it works across review implementations.
     turnDiffs: options.reviewDiffs ? diffs : undefined,
     vcsDiff: options.reviewPane ? diffs : undefined,
   })
@@ -180,8 +178,6 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
 }
 
 async function measureReviewPaneLoad(page: Page, file: string) {
-  // Default git mode reads the mocked /vcs/diff data, so opening the pane is enough
-  // and the flow works across review pane implementations.
   await installReviewPaneProbe(page, { file })
   await startReviewPaneProbe(page)
   await page.getByRole("button", { name: "Toggle review" }).click()

@@ -5,19 +5,13 @@ import { Effect } from "effect"
 import { Database } from "../database/database"
 import { PartTable, SessionMessageTable, SessionTable } from "../session/sql"
 
-// Which thread produced a PR (#331): the first thread in the Project's folder whose messages carry the PR's URL.
-// `gh pr create` prints it, and agents cite it, so a harness thread and a built-in one both leave it in their
-// stored messages (v2 `session_message` and v1 `part`). Read-only; nothing is recorded at tool time.
-
 export type Mention = { sessionID: string; title: string; time: number; text: string }
 export type Thread = { id: string; title: string }
 
-/** How many message rows one lookup reads at most, oldest first, per store. */
 const ROW_LIMIT = 2_000
 
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-/** PR number → the earliest thread mentioning `https://github.com/<repo>/pull/<n>` (owner/name ignore case). */
 export function pullThreads(mentions: ReadonlyArray<Mention>, repo: string) {
   const pattern = new RegExp(`https?://(?:www\\.)?github\\.com/${escape(repo)}/pull/(\\d+)(?!\\d)`, "gi")
   const threads = new Map<number, Thread>()
@@ -30,7 +24,6 @@ export function pullThreads(mentions: ReadonlyArray<Mention>, repo: string) {
   return threads
 }
 
-/** The PRs with the thread that produced each, where one is known. */
 export function attach<P extends { number: number }>(
   pulls: ReadonlyArray<P>,
   threads: ReadonlyMap<number, Thread>,
@@ -41,10 +34,8 @@ export function attach<P extends { number: number }>(
   })
 }
 
-/** Messages of the folder's threads that mention one of `repo`'s PRs, from both message stores. */
 export const mentions = Effect.fn("GithubThreads.mentions")(function* (directory: string, repo: string) {
   const db = (yield* Database.Service).db
-  // LIKE is a cheap pre-filter (case-insensitive for ASCII); `pullThreads` matches the URL exactly.
   const needle = `%github.com/${repo}/pull/%`
   const v2 = yield* db
     .select({

@@ -29,12 +29,6 @@ import "./settings-v2.css"
 
 type View = "rules" | "markdown"
 
-/**
- * Settings → Model profiles: rules that counter a model's known mistakes, from the tor-model-profile skill. A
- * switched-on profile goes with a thread's first message, and again when the thread changes model, in every harness.
- * Profiles are folding rows like Settings → Harnesses: the model, its rule count and its switch; an open row shows
- * its rules as rows (Rules) or its profile.md to edit as Markdown, behind the same switch Built-in harness uses.
- */
 export const SettingsModelProfilesV2: Component = () => {
   const language = useLanguage()
   const settings = useSettings()
@@ -62,7 +56,6 @@ export const SettingsModelProfilesV2: Component = () => {
   let file: HTMLInputElement | undefined
   let search: HTMLInputElement | undefined
 
-  // Add profile searches the models you have; a typed id that matches none can still be added as it is.
   const matches = createMemo(() => profileModelMatches(catalog.list(), state.model, models()))
   const add = (id = state.model.trim()) => {
     if (!id) return
@@ -82,7 +75,6 @@ export const SettingsModelProfilesV2: Component = () => {
       setState({ open: parsed.model, view: "rules" })
     })
   }
-  // Benchmarks cost money, so this only opens a draft: nothing runs until the user sends it.
   const build = (model: string) => {
     const directory = layout.home.workspace()
     if (!directory) return

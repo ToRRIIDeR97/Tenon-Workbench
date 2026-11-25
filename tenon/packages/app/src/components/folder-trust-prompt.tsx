@@ -11,7 +11,6 @@ import { showToast } from "@/utils/toast"
 type Client = Parameters<typeof approveFolder>[0]
 type Language = ReturnType<typeof useLanguage>
 
-// Folders asked about this run. "Not now" leaves the folder as it is until the next launch.
 const asked = new Set<string>()
 
 const withheldLabel = (language: Language, key: string) => {
@@ -73,10 +72,6 @@ function DialogFolderTrust(props: { client: Client; trust: FolderTrust }) {
   )
 }
 
-/**
- * Asks once per run when an unapproved folder's config wants something that stays off. Opening a
- * folder, by deep link or otherwise, never approves it: only the button here does.
- */
 export function FolderTrustPrompt(props: { directory: string }) {
   const dialog = useDialog()
   const platform = usePlatform()
@@ -92,7 +87,6 @@ export function FolderTrustPrompt(props: { directory: string }) {
         asked.add(key)
         void dialog.show(() => <DialogFolderTrust client={client} trust={trust} />)
       })
-      // An older server has no trust route, and a failed check leaves the folder unapproved.
       .catch(() => undefined)
   })
 

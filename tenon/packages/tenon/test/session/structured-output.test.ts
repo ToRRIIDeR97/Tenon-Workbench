@@ -27,7 +27,7 @@ describe("structured-output.OutputFormat", () => {
     if (Exit.isSuccess(result)) {
       expect(result.value.type).toBe("json_schema")
       if (result.value.type === "json_schema") {
-        expect(result.value.retryCount).toBe(2) // default value
+        expect(result.value.retryCount).toBe(2)
       }
     }
   })
@@ -187,7 +187,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       onSuccess: () => {},
     })
 
-    // AI SDK wraps schema in { jsonSchema: {...} }
     expect(tool.inputSchema).toBeDefined()
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.company).toBeDefined()
@@ -206,7 +205,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       onSuccess: () => {},
     })
 
-    // AI SDK wraps schema in { jsonSchema: {...} }
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.$schema).toBeUndefined()
   })
@@ -235,9 +233,6 @@ describe("structured-output.createStructuredOutputTool", () => {
   })
 
   test("AI SDK validates schema before execute - missing required field", async () => {
-    // Note: The AI SDK validates the input against the schema BEFORE calling execute()
-    // So invalid inputs never reach the tool's execute function
-    // This test documents the expected schema behavior
     const tool = SessionPrompt.createStructuredOutputTool({
       schema: {
         type: "object",
@@ -250,7 +245,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       onSuccess: () => {},
     })
 
-    // The schema requires both 'name' and 'age'
     expect(tool.inputSchema).toBeDefined()
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.required).toContain("name")
@@ -258,9 +252,6 @@ describe("structured-output.createStructuredOutputTool", () => {
   })
 
   test("AI SDK validates schema types before execute - wrong type", async () => {
-    // Note: The AI SDK validates the input against the schema BEFORE calling execute()
-    // So invalid inputs never reach the tool's execute function
-    // This test documents the expected schema behavior
     const tool = SessionPrompt.createStructuredOutputTool({
       schema: {
         type: "object",
@@ -272,7 +263,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       onSuccess: () => {},
     })
 
-    // The schema defines 'count' as a number
     expect(tool.inputSchema).toBeDefined()
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.count?.type).toBe("number")
@@ -301,7 +291,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       },
     })
 
-    // Valid nested object - AI SDK validates before calling execute()
     const validResult = await tool.execute!(
       { user: { name: "John", email: "john@test.com" } },
       {
@@ -314,7 +303,6 @@ describe("structured-output.createStructuredOutputTool", () => {
     expect(capturedOutput).toEqual({ user: { name: "John", email: "john@test.com" } })
     expect(validResult.metadata.valid).toBe(true)
 
-    // Verify schema has correct nested structure
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.user?.type).toBe("object")
     expect(inputSchema.jsonSchema?.properties?.user?.properties?.name?.type).toBe("string")
@@ -340,7 +328,6 @@ describe("structured-output.createStructuredOutputTool", () => {
       },
     })
 
-    // Valid array - AI SDK validates before calling execute()
     const validResult = await tool.execute!(
       { tags: ["a", "b", "c"] },
       {
@@ -353,7 +340,6 @@ describe("structured-output.createStructuredOutputTool", () => {
     expect(capturedOutput).toEqual({ tags: ["a", "b", "c"] })
     expect(validResult.metadata.valid).toBe(true)
 
-    // Verify schema has correct array structure
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.tags?.type).toBe("array")
     expect(inputSchema.jsonSchema?.properties?.tags?.items?.type).toBe("string")
@@ -380,8 +366,4 @@ describe("structured-output.createStructuredOutputTool", () => {
     if (modelOutput.type !== "text") throw new Error("expected text model output")
     expect(modelOutput.value).toBe("Test output")
   })
-
-  // Note: Retry behavior is handled by the AI SDK and the prompt loop, not the tool itself
-  // The tool simply calls onSuccess when execute() is called with valid args
-  // See prompt.ts loop() for actual retry logic
 })

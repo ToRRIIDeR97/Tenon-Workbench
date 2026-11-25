@@ -139,7 +139,6 @@ describe("card order for previous and next thread", () => {
 })
 
 describe("linked child threads", () => {
-  // A root in a collapsed Project: the index drops children, so only the links know about them.
   const collapsed = [node("root"), node("quiet")]
   const parents = { child: "root", grandchild: "child" }
   const linkedFrom = (active: Record<string, ThreadState>, links: Record<string, string> = parents) => {

@@ -452,39 +452,15 @@ describe("session.compaction.isOverflow", () => {
     ),
   )
 
-  // ─── Bug reproduction tests ───────────────────────────────────────────
-  // These tests demonstrate that when limit.input is set, isOverflow()
-  // does not subtract any headroom for the next model response. This means
-  // compaction only triggers AFTER we've already consumed the full input
-  // budget, leaving zero room for the next API call's output tokens.
-  //
-  // Compare: without limit.input, usable = context - output (reserves space).
-  // With limit.input, usable = limit.input (reserves nothing).
-  //
-  // Related issues: #10634, #8089, #11086, #12621
-  // Open PRs: #6875, #12924
-
   it.live(
     "BUG: no headroom when limit.input is set — compaction should trigger near boundary but does not",
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const compact = yield* SessionCompaction.Service
-        // Simulate Claude with prompt caching: input limit = 200K, output limit = 32K
         const model = createModel({ context: 200_000, input: 200_000, output: 32_000 })
 
-        // We've used 198K tokens total. Only 2K under the input limit.
-        // On the next turn, the full conversation (198K) becomes input,
-        // plus the model needs room to generate output — this WILL overflow.
         const tokens = { input: 180_000, output: 15_000, reasoning: 0, cache: { read: 3_000, write: 0 } }
-        // count = 180K + 3K + 15K = 198K
-        // usable = limit.input = 200K (no output subtracted!)
-        // 198K > 200K = false → no compaction triggered
 
-        // WITHOUT limit.input: usable = 200K - 32K = 168K, and 198K > 168K = true ✓
-        // WITH limit.input: usable = 200K, and 198K > 200K = false ✗
-
-        // With 198K used and only 2K headroom, the next turn will overflow.
-        // Compaction MUST trigger here.
         expect(yield* compact.isOverflow({ tokens, model })).toBe(true)
       }),
     ),
@@ -495,17 +471,12 @@ describe("session.compaction.isOverflow", () => {
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const compact = yield* SessionCompaction.Service
-        // Same model but without limit.input — uses context - output instead
         const model = createModel({ context: 200_000, output: 32_000 })
 
-        // Same token usage as above
         const tokens = { input: 180_000, output: 15_000, reasoning: 0, cache: { read: 3_000, write: 0 } }
-        // count = 198K
-        // usable = context - output = 200K - 32K = 168K
-        // 198K > 168K = true → compaction correctly triggered
 
         const result = yield* compact.isOverflow({ tokens, model })
-        expect(result).toBe(true) // ← Correct: headroom is reserved
+        expect(result).toBe(true)
       }),
     ),
   )
@@ -515,19 +486,16 @@ describe("session.compaction.isOverflow", () => {
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const compact = yield* SessionCompaction.Service
-        // Two models with identical context/output limits, differing only in limit.input
         const withInputLimit = createModel({ context: 200_000, input: 200_000, output: 32_000 })
         const withoutInputLimit = createModel({ context: 200_000, output: 32_000 })
 
-        // 170K total tokens — well above context-output (168K) but below input limit (200K)
         const tokens = { input: 166_000, output: 10_000, reasoning: 0, cache: { read: 5_000, write: 0 } }
 
         const withLimit = yield* compact.isOverflow({ tokens, model: withInputLimit })
         const withoutLimit = yield* compact.isOverflow({ tokens, model: withoutInputLimit })
 
-        // Both models have identical real capacity — they should agree:
-        expect(withLimit).toBe(true) // should compact (170K leaves no room for 32K output)
-        expect(withoutLimit).toBe(true) // correctly compacts (170K > 168K)
+        expect(withLimit).toBe(true)
+        expect(withoutLimit).toBe(true)
       }),
     ),
   )
@@ -1299,9 +1267,6 @@ describe("session.compaction.process", () => {
   itCompaction.instance(
     "silently drops reasoning-delta arriving without prior reasoning-start",
     () => {
-      // Regression: PR initially auto-created a reasoning Part for orphan deltas (no preceding
-      // reasoning-start). Reverted to match dev — drop silently. Pinned here so any future
-      // change to processor.ts reasoning-delta handling triggers this test.
       const stub = llm()
       stub.push(
         Stream.make(
@@ -1329,7 +1294,6 @@ describe("session.compaction.process", () => {
           (item) => item.info.role === "assistant" && item.info.summary,
         )
         expect(summary?.parts.some((part) => part.type === "reasoning")).toBe(false)
-        // Sanity: the text part still got through.
         expect(summary?.parts.some((part) => part.type === "text" && part.text === "summary")).toBe(true)
       }).pipe(withCompaction({ llm: stub.llmLayer }))
     },
@@ -1721,7 +1685,6 @@ describe("SessionNs.getUsage", () => {
 
   test("subtracts cached tokens for anthropic provider", () => {
     const model = createModel({ context: 100_000, output: 32_000 })
-    // AI SDK v6 normalizes inputTokens to include cached tokens for all providers
     const result = SessionNs.getUsage({
       model,
       usage: usage({ inputTokens: 1000, outputTokens: 500, totalTokens: 1500, cacheReadInputTokens: 200 }),
@@ -1908,7 +1871,6 @@ describe("SessionNs.getUsage", () => {
     "computes total from components for %s models",
     (npm) => {
       const model = createModel({ context: 100_000, output: 32_000, npm })
-      // AI SDK v6: inputTokens includes cached tokens for all providers
       const item = usage({
         inputTokens: 1000,
         outputTokens: 500,
@@ -1928,11 +1890,9 @@ describe("SessionNs.getUsage", () => {
           },
         })
 
-        // inputTokens (1000) includes cache, so adjusted = 1000 - 200 - 300 = 500
         expect(result.tokens.input).toBe(500)
         expect(result.tokens.cache.read).toBe(200)
         expect(result.tokens.cache.write).toBe(300)
-        // total = adjusted (500) + output (500) + cacheRead (200) + cacheWrite (300)
         expect(result.tokens.total).toBe(1500)
         return
       }
@@ -1947,11 +1907,9 @@ describe("SessionNs.getUsage", () => {
         },
       })
 
-      // inputTokens (1000) includes cache, so adjusted = 1000 - 200 - 300 = 500
       expect(result.tokens.input).toBe(500)
       expect(result.tokens.cache.read).toBe(200)
       expect(result.tokens.cache.write).toBe(300)
-      // total = adjusted (500) + output (500) + cacheRead (200) + cacheWrite (300)
       expect(result.tokens.total).toBe(1500)
     },
   )

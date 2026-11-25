@@ -9,10 +9,6 @@ const KEYS = {
   external_directory: "secondBrain.permission.external",
 } as const
 
-/**
- * The one-line headline for an approval: its kind and how many commands, files or addresses it covers.
- * Reaching outside the folder is the risky kind, shown in the warning tone without an "always" choice.
- */
 export function permissionSummary(request: Pick<PermissionRequest, "permission" | "patterns">) {
   const kind = request.permission as keyof typeof KEYS
   return {

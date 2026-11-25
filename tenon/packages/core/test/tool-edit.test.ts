@@ -68,7 +68,6 @@ const filesystem = Layer.effect(
           ),
       writeWithDirs: (target, content, mode) =>
         Effect.sync(() => writes.push(target)).pipe(Effect.andThen(fs.writeWithDirs(target, content, mode))),
-      // FileMutation commits a replacement by renaming a synced temp file over the target.
       rename: (from, to) => Effect.sync(() => writes.push(to)).pipe(Effect.andThen(fs.rename(from, to))),
     })
   }),
@@ -412,8 +411,11 @@ describe("EditTool", () => {
   )
 })
 
-test("keeps the locked edit schema, semantics docstring, and deferred TODOs visible", async () => {
-  const source = (await fs.readFile(new URL("../src/tool/edit.ts", import.meta.url), "utf8")).replaceAll("\r\n", "\n")
+test("keeps the locked edit schema, semantics, and deferred TODOs visible in docs/deferred-work.md", async () => {
+  const source = (await fs.readFile(new URL("../../../../docs/deferred-work.md", import.meta.url), "utf8")).replaceAll(
+    "\r\n",
+    "\n",
+  )
   const definition = await Effect.runPromise(
     withTool(path.dirname(fileURLToPath(import.meta.url)), (registry) => toolDefinitions(registry)),
   )
@@ -421,7 +423,7 @@ test("keeps the locked edit schema, semantics docstring, and deferred TODOs visi
 
   expect(Object.keys(schema.properties ?? {}).sort()).toEqual(["newString", "oldString", "path", "replaceAll"])
   expect(source).toContain(
-    "absolute external paths retain mutation capability through a separate\n * external_directory approval before edit approval.",
+    "absolute external paths retain mutation capability through a separate\nexternal_directory approval before edit approval.",
   )
   for (const todo of [
     "Port V1 fuzzy correction strategies only after exact-edit behavior is established: line-trimmed matching, block-anchor fallback, indentation correction, and similarity-threshold review.",

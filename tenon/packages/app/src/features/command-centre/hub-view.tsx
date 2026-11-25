@@ -38,7 +38,6 @@ import { rememberedHarnesses } from "@/utils/server"
 import { sessionTitle } from "@/utils/session-title"
 import { getRelativeTime } from "@/utils/time"
 
-// Product names for harnesses the remembered list doesn't know yet; the built-in loop's name is translated.
 const HARNESS_NAMES: Record<string, string> = {
   [Harness.OpenCodeAcp]: "OpenCode",
   [Harness.ClaudeCode]: "Claude Code",
@@ -47,12 +46,6 @@ const HARNESS_NAMES: Record<string, string> = {
 const NEEDS_SHOWN = 3
 const CARD = "rounded-[16px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
 
-/**
- * The Command Centre's hub (Hub A): what the Command Centre runs on its own, what needs you (answered here), and a
- * card per Project. A card opens the Project (Project A): the Command Centre's plan for it, then a card per agent
- * working there (harness logo and model as its name, the thread title under it), Activity beside them, and an
- * agent's details in a panel. Chat comes second: the composer at the foot opens the latest Command Centre thread.
- */
 export function CommandHub(props: {
   ctrl: SidebarController
   queue: WaitingRequest[]
@@ -90,8 +83,6 @@ export function CommandHub(props: {
     id
   const logo = (id: string, size = "size-4") => <HarnessIcon instance={{ id, name: harnessName(id) }} class={size} />
 
-  // Every Project's root threads as the hub reads them, from the sidebar's lists and the synced run state, plus the
-  // delegates of a Project's lead, which run as the lead's children.
   const threads = createMemo(() => {
     const data = serverSync().session.data
     const untitled = language.t("secondBrain.commandCentre.threads.untitled")
@@ -152,8 +143,6 @@ export function CommandHub(props: {
       commandCentreHarness: lead() ? sessionHarness(lead()!.session, Harness.OpenCode).harness : undefined,
     }),
   )
-  // Cards and agents are listed by id and looked up, so an update rewrites a card in place instead of remounting it
-  // (which would replay its entrance).
   const sameIDs = (left: string[], right: string[]) =>
     left.length === right.length && left.every((id, index) => id === right[index])
   const cardIDs = createMemo(() => cards().map((item) => item.id), [], { equals: sameIDs })
@@ -171,7 +160,6 @@ export function CommandHub(props: {
       instances: catalogue(),
     }),
   )
-  // Working agents (needing you, then running) sit above finished ones.
   const groups = createMemo(() => crewGroups(crew().agents))
   const workingIDs = createMemo(() => groups().working.map((agent) => agent.id), [], { equals: sameIDs })
   const finishedIDs = createMemo(() => groups().finished.map((agent) => agent.id), [], { equals: sameIDs })
@@ -179,7 +167,6 @@ export function CommandHub(props: {
   const directoryOf = (id: string) =>
     (threads()[props.project ?? ""] ?? []).find((thread) => thread.id === id)?.directory
 
-  // Steps come from each thread's checklist, loaded once per thread on screen.
   const asked = new Set<string>()
   createEffect(() => {
     const ids = [...crew().agents.map((agent) => agent.id), ...(crew().lead ? [crew().lead!.id] : [])]
@@ -189,7 +176,6 @@ export function CommandHub(props: {
       void serverSync().session.todo(id)
     }
   })
-  // The opened agent's latest reply needs its messages.
   createEffect(
     on(
       () => state.agent,
@@ -203,7 +189,6 @@ export function CommandHub(props: {
       { defer: true },
     ),
   )
-  // Esc closes the agent panel; the sheet takes Esc first while it is open.
   createEffect(() => {
     if (!state.agent) return
     const close = (event: KeyboardEvent) => {
@@ -249,7 +234,6 @@ export function CommandHub(props: {
   const totals = createMemo(() => ({
     projects: cards().filter((item) => item.working + item.needs > 0).length,
     agents: cards().reduce((sum, item) => sum + item.working, 0),
-    // Tasks delegated without a Project run in the Command Centre folder, so no card counts them.
     tasks: centre
       .tasks()
       .filter((task) => agentRunStatus(serverSync().session.data.session_status[task.id], 0) === "running").length,
@@ -297,7 +281,6 @@ export function CommandHub(props: {
       />
     </div>
   )
-  // Who: the harness logo, then the model as the agent's name; under it the line the caller passes.
   const Who = (who: { harness: string; name: string; sub: string }) => (
     <div class="flex min-w-0 items-center gap-2.5">
       <span class="flex size-7 shrink-0 items-center justify-center rounded-[8px] bg-v2-background-bg-layer-02">
@@ -385,7 +368,6 @@ export function CommandHub(props: {
         <ul class="flex flex-col gap-1.5">
           <For each={waiting().slice(0, NEEDS_SHOWN)}>
             {(entry) => {
-              // What it asks, as the thread's approval card heads it, then what it would run or read.
               const asks = () => {
                 const detail =
                   entry.permission?.patterns.join(" · ") ||
@@ -587,7 +569,6 @@ export function CommandHub(props: {
       {(value) => {
         const todos = () => serverSync().session.data.todo[value().id] ?? []
         const now = () => todoStep(todos())
-        // A Project's own lead reports its run state; an older Project's lead is a Command Centre thread.
         const working = () => (value().project ? value().state === "running" : centre.working(value().id))
         return (
           <section data-component="hub-lead" class={`${CARD} animate-enter flex flex-col gap-3 px-[18px] py-4`}>
@@ -1004,7 +985,6 @@ export function CommandHub(props: {
   )
 }
 
-/** A checklist item's mark: a filled check when done, the spinner while in progress, a dashed circle to come. */
 function StepMark(props: { status: string }) {
   return (
     <Switch

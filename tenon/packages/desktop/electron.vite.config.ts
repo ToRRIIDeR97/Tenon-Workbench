@@ -39,8 +39,6 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: { index: "src/main/index.ts", sidecar: "src/main/sidecar.ts" },
-        // Keep this identical to electron-vite's Node 20.11+ shim. Its regex insertion can
-        // corrupt bundled TypeScript, while a Rollup banner places the shim safely.
         output: {
           banner: `
 // -- CommonJS Shims --
@@ -51,7 +49,6 @@ const require = __cjs_mod__.createRequire(import.meta.url);
 `,
         },
       },
-      // Bundled so tree-shaking drops the barrel's unused modules; externals load whole from the asar.
       externalizeDeps: { include: [nodePtyPkg], exclude: ["effect"] },
     },
     plugins: [
@@ -95,12 +92,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
     plugins: [appPlugin, sentry],
     publicDir: "../../../app/public",
     root: "src/renderer",
-    // Release builds upload no maps, so keepNames is what leaves logged renderer stacks readable.
     esbuild: { keepNames: true },
     build: {
       minify: "esbuild",
-      // Hidden maps stay available for Sentry upload but carry no
-      // sourceMappingURL; electron-builder also leaves *.map out of the asar.
       sourcemap: "hidden",
       rollupOptions: {
         input: {

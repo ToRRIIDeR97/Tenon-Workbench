@@ -9,7 +9,6 @@ import { SessionPrompt } from "../../src/session/prompt"
 import { MessageV2 } from "../../src/session/message-v2"
 import { testEffect } from "../lib/effect"
 
-// Skip tests if no API key is available
 const hasApiKey = !!process.env.ANTHROPIC_API_KEY
 const it = testEffect(AppNodeBuilder.build(LayerNode.group([SessionPrompt.node, Session.node, Ripgrep.node])))
 const live = hasApiKey ? it.instance : it.instance.skip
@@ -45,7 +44,6 @@ describe("StructuredOutput Integration", () => {
           },
         })
 
-        // Verify structured output was captured (only on assistant messages)
         expect(result.info.role).toBe("assistant")
         if (result.info.role === "assistant") {
           expect(result.info.structured).toBeDefined()
@@ -54,12 +52,8 @@ describe("StructuredOutput Integration", () => {
           const output = result.info.structured as any
           expect(output.answer).toBe(4)
 
-          // Verify no error was set
           expect(result.info.error).toBeUndefined()
         }
-
-        // Clean up
-        // Note: Not removing session to avoid race with background SessionSummary.summarize
       }),
     { git: true },
     60000,
@@ -105,7 +99,6 @@ describe("StructuredOutput Integration", () => {
           },
         })
 
-        // Verify structured output was captured (only on assistant messages)
         expect(result.info.role).toBe("assistant")
         if (result.info.role === "assistant") {
           expect(result.info.structured).toBeDefined()
@@ -119,12 +112,8 @@ describe("StructuredOutput Integration", () => {
             expect(Array.isArray(output.products)).toBe(true)
           }
 
-          // Verify no error was set
           expect(result.info.error).toBeUndefined()
         }
-
-        // Clean up
-        // Note: Not removing session to avoid race with background SessionSummary.summarize
       }),
     { git: true },
     60000,
@@ -151,18 +140,13 @@ describe("StructuredOutput Integration", () => {
           },
         })
 
-        // Verify no structured output (text mode) and no error
         expect(result.info.role).toBe("assistant")
         if (result.info.role === "assistant") {
           expect(result.info.structured).toBeUndefined()
           expect(result.info.error).toBeUndefined()
         }
 
-        // Verify we got a response with parts
         expect(result.parts.length).toBeGreaterThan(0)
-
-        // Clean up
-        // Note: Not removing session to avoid race with background SessionSummary.summarize
       }),
     { git: true },
     60000,
@@ -197,11 +181,9 @@ describe("StructuredOutput Integration", () => {
           },
         })
 
-        // Get all messages from session
         const messages = yield* sessions.messages({ sessionID: session.id })
         const userMessage = messages.find((m) => m.info.role === "user")
 
-        // Verify outputFormat was stored on user message
         expect(userMessage).toBeDefined()
         if (userMessage?.info.role === "user") {
           expect(userMessage.info.format).toBeDefined()
@@ -210,9 +192,6 @@ describe("StructuredOutput Integration", () => {
             expect(userMessage.info.format.retryCount).toBe(3)
           }
         }
-
-        // Clean up
-        // Note: Not removing session to avoid race with background SessionSummary.summarize
       }),
     { git: true },
     60000,

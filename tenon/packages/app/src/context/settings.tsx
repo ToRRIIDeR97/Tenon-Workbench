@@ -18,13 +18,11 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
-  /** 2 once the Soft set replaced the earlier Tenon defaults; see `migrateSounds`. */
   defaults?: number
 }
 
 export type ThreadWidth = "narrow" | "medium" | "wide" | "full"
 
-/** The thread column's maximum width for each choice; "full" fills the thread panel. */
 export const threadWidthValue: Record<ThreadWidth, string> = {
   narrow: "640px",
   medium: "800px",
@@ -36,7 +34,6 @@ export interface Settings {
   general: {
     autoSave: boolean
     followup: "queue" | "steer"
-    /** How an agent's steps show in a thread: one card with same-kind steps merged, or a line per step. */
     workSteps: "grouped" | "rows"
     showFileTree: boolean
     showNavigation: boolean
@@ -51,7 +48,6 @@ export interface Settings {
   }
   appearance: {
     fontSize: number
-    /** How wide the thread's column (messages and composer) is on a desktop-width window. */
     threadWidth?: ThreadWidth
     mono: string
     sans: string
@@ -66,42 +62,27 @@ export interface Settings {
   calendar?: CalendarSyncSettings
   commandCentre?: Partial<CommandCentreSettings>
   dictation?: {
-    /** The spoken language: "app" follows the app's language, "auto" lets the model detect it, else an ISO 639 code. */
     language?: string
   }
   harnesses?: {
-    /** Model IDs left out of each harness's picker, by harness instance ID. New models show by default. */
     hiddenModels?: Record<string, string[]>
-    /** Provider prefixes (the part of a model ID before "/") left out of each harness's picker, new models included. */
     hiddenProviders?: Record<string, string[]>
-    /** The first-run agent setup dialog was shown once, so Home doesn't open it again. */
     setupPrompted?: boolean
-    /** What new threads and Home start with. "last" reuses the last harness a prompt was sent with. */
     defaults?: HarnessDefaults
-    /** The harness, model and reasoning of the last prompt sent, for `defaults.mode === "last"`. */
     lastUsed?: HarnessChoice
-    /** How each harness compacts a thread, by harness instance ID. */
     compaction?: Record<string, CompactionSetting>
   }
-  /** Rules added to a model's instructions, by model id (full or without the provider). */
   modelProfiles?: Record<string, ModelProfile>
 }
 
-/**
- * Compacting a thread whose prompt cache has gone cold reloads its whole history into the model, so a thread idle
- * for `coldMinutes` compacts on the cheaper `model` instead of its own.
- */
 export type CompactionSetting = {
-  /** A model ID from the harness's list; unset compacts on the thread's own model. */
   model?: string
   reasoningEffort?: string
   coldMinutes: number
 }
 
-/** Anthropic's prompt cache lasts five minutes by default and an hour at most; 29 minutes is the user's default. */
 export const DEFAULT_COLD_MINUTES = 29
 
-/** The model `/compact` runs on: the cheap one once the thread has idled past the cold limit, else the thread's own. */
 export function compactionModel(
   setting: CompactionSetting | undefined,
   idleMinutes: number,
@@ -111,11 +92,9 @@ export function compactionModel(
 }
 
 export type CalendarSyncSettings = {
-  /** Pull Google accounts in the background, whatever page is open. */
   autoSync: boolean
   intervalMinutes: number
   onOpen: boolean
-  /** When the window regains focus and the last sync is older than two minutes. */
   onFocus: boolean
 }
 
@@ -127,19 +106,14 @@ export const defaultCalendarSync: CalendarSyncSettings = {
 }
 
 export type CommandCentreSettings = {
-  /** The harness Command Centre threads start with; undefined is the built-in agent. */
   harnessID?: string
-  /** A harness model id (`provider/model`); undefined is the harness default. */
   modelID?: string
-  /** Threads last updated longer ago than this are summarised into memory and deleted (1–365). */
   memoryDays: number
-  /** When this renderer last asked the server to compact memory (epoch ms); compaction runs at most daily. */
   compactedAt?: number
 }
 
 export const defaultCommandCentre: CommandCentreSettings = { memoryDays: 45 }
 
-/** Clamp a memory age to whole days between 1 and 365; anything unreadable is the default. */
 export function memoryDays(value: unknown) {
   const number = typeof value === "number" ? value : Number(value)
   if (!Number.isFinite(number)) return defaultCommandCentre.memoryDays
@@ -152,10 +126,6 @@ export type HarnessChoice = {
 }
 export type HarnessDefaults = HarnessChoice & { mode: "fixed" | "last" }
 
-/**
- * The harness a new thread starts with. Until a default is saved in Settings › Harnesses, new threads start
- * from the last one used, as with "Start from the last one I used"; undefined means the built-in agent.
- */
 export function newThreadChoice(harnesses: { defaults?: HarnessDefaults; lastUsed?: HarnessChoice } | undefined) {
   const defaults = harnesses?.defaults
   if (!defaults) return harnesses?.lastUsed
@@ -163,7 +133,6 @@ export function newThreadChoice(harnesses: { defaults?: HarnessDefaults; lastUse
   return defaults
 }
 
-/** A harness with the models the user hid in Settings left out. */
 export function withVisibleModels<T extends { id: string; models: ReadonlyArray<{ id: string }> }>(
   instance: T,
   hidden: ReadonlyArray<string> | undefined,
@@ -178,7 +147,6 @@ export function withVisibleModels<T extends { id: string; models: ReadonlyArray<
   }
 }
 
-/** The provider prefix of a model ID such as "openrouter/anthropic/claude", or undefined for unprefixed IDs. */
 export function modelProvider(modelID: string) {
   const index = modelID.indexOf("/")
   return index > 0 ? modelID.slice(0, index) : undefined
@@ -276,8 +244,6 @@ const defaultSettings: Settings = {
     permissions: true,
     errors: false,
   },
-  // Tenon's own sounds, the Soft set. "Finished" is off by default: it fires often, so it's opt-in. A sound the user
-  // picked is kept; only unset ones follow the defaults.
   sounds: {
     agentEnabled: false,
     agent: "tenon-soft-done",
@@ -289,14 +255,8 @@ const defaultSettings: Settings = {
   },
 }
 
-// The sounds Tenon used before the Soft set, by setting.
 const EARLIER_SOUNDS = { agent: "tenon-done", permissions: "tenon-attention", errors: "tenon-error" } as const
 
-/**
- * Settings are saved whole on first run, so a profile from before the Soft set holds the earlier defaults as if picked.
- * Once per profile, a sound still on its earlier default moves to Soft; any other pick is kept, and a later pick of
- * the earlier sound sticks, since the profile is then marked.
- */
 export function migrateSounds(value: unknown) {
   if (!value || typeof value !== "object" || !("sounds" in value)) return value
   const sounds = value.sounds
@@ -520,7 +480,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       },
       modelProfiles: {
         all: () => store.modelProfiles ?? {},
-        /** The switched-on profile for a model id, if any. */
         for: (modelID: string | undefined) => profileFor(store.modelProfiles, modelID),
         set(model: string, profile: Omit<ModelProfile, "updatedAt">) {
           setStore("modelProfiles", (current) => ({ ...current, [model]: { ...profile, updatedAt: Date.now() } }))
@@ -540,7 +499,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setDefaults(value: HarnessDefaults | undefined) {
           setStore("harnesses", (current) => ({ ...current, defaults: value }))
         },
-        /** The harness a new thread starts with, or undefined to use the built-in agent. */
         newThreadChoice: () => newThreadChoice(store.harnesses),
         setLastUsed(value: HarnessChoice) {
           setStore("harnesses", (current) => ({ ...current, lastUsed: value }))

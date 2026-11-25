@@ -32,14 +32,7 @@ function hasTaskTool(agent?: Agent.Info) {
 export interface Interface {
   readonly cleanup: () => Effect.Effect<void>
   readonly write: (text: string) => Effect.Effect<string>
-  /**
-   * Returns output unchanged when it fits within the limits, otherwise writes the full text
-   * to the truncation directory and returns a preview plus a hint to inspect the saved file.
-   */
   readonly output: (text: string, options?: Options, agent?: Agent.Info) => Effect.Effect<Result>
-  /**
-   * Resolved truncation limits: values from `tool_output` in Tenon config, or MAX_LINES / MAX_BYTES if unset.
-   */
   readonly limits: () => Effect.Effect<{ maxLines: number; maxBytes: number }>
 }
 

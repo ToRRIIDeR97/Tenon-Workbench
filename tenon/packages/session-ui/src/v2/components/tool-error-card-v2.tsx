@@ -21,7 +21,6 @@ function BanIcon() {
   )
 }
 
-/** duo-progress-25: faint track ring + ~25% solid arc (Figma OpenCode DS) */
 function LoaderIcon() {
   const r = 5.9
   return (
@@ -84,7 +83,6 @@ export interface ToolErrorCardV2Props extends Omit<ComponentProps<"div">, "child
   open?: boolean
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
-  /** When set, subtitle renders as a link (clicks do not toggle expand). */
   subtitleHref?: string
 }
 

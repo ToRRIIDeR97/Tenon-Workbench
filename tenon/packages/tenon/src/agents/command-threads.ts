@@ -17,7 +17,6 @@ import { ProviderV2 } from "@tenon/core/provider"
 import { Effect, Schema, Stream } from "effect"
 import { CommandMemory } from "./command-memory"
 
-/** The Command Centre's model, as the renderer's Settings › Command Centre stores it (`provider/model`). */
 export const ModelChoice = Schema.Struct({ providerID: Schema.String, modelID: Schema.String })
 export type ModelChoice = typeof ModelChoice.Type
 
@@ -33,7 +32,6 @@ const SUMMARY_AGENT: Agent.Info = {
 const summaryLimit = 24_000
 const summaryGap = "\n\n[... middle of the conversation left out ...]\n\n"
 
-/** What the summariser sees of a thread: all of it, or the start and end of a long one, where conclusions sit. */
 export function excerpt(text: string, limit = summaryLimit) {
   if (text.length <= limit) return text
   const side = Math.floor((limit - summaryGap.length) / 2)
@@ -46,10 +44,6 @@ const modelRef = (model?: ModelChoice) =>
 const refused =
   "This is an unattended routine, so nobody can approve this. Carry on without it and say what you skipped."
 
-/**
- * Answer no to every permission prompt of the run in `root` and its subagents, telling the model why. Without
- * this a run would wait forever on a prompt nobody sees. `denied` names what was refused; `stop` ends the watch.
- */
 export const refusePrompts = Effect.fnUntraced(function* (root: SessionID) {
   const events = yield* EventV2Bridge.Service
   const permission = yield* Permission.Service
@@ -61,7 +55,6 @@ export const refusePrompts = Effect.fnUntraced(function* (root: SessionID) {
       ? Effect.succeed(true)
       : sessions.get(id).pipe(
           Effect.flatMap((session) => {
-            // A task the run delegated into a Project has no parent but links back through `origin`.
             const origin = isRecord(session.metadata?.origin) ? session.metadata.origin : undefined
             const delegatedBy =
               origin && origin.handOff !== true && typeof origin.sessionID === "string" ? origin.sessionID : undefined
@@ -85,11 +78,6 @@ export const refusePrompts = Effect.fnUntraced(function* (root: SessionID) {
   return { denied, stop }
 })
 
-/**
- * Start an unattended Command Centre thread with `prompt`: a routine run, which nobody is watching. Returns
- * at once with the thread id; `reply` runs the turn and resolves with the assistant's text and the
- * permissions that were refused because nobody could answer them.
- */
 export const start = Effect.fn("CommandThreads.start")(function* (input: {
   prompt: string
   title?: string
@@ -100,7 +88,6 @@ export const start = Effect.fn("CommandThreads.start")(function* (input: {
   const sessions = yield* Session.Service
   const prompts = yield* SessionPrompt.Service
   const inCommandCentre = <A, E, R>(effect: Effect.Effect<A, E, R>) => store.provide({ directory: folder }, effect)
-  // Nobody can answer a question or a switch to plan mode either; both tools would wait forever.
   const info = yield* inCommandCentre(
     sessions.create({
       ...(input.title ? { title: input.title } : {}),
@@ -121,14 +108,10 @@ export const start = Effect.fn("CommandThreads.start")(function* (input: {
         denied: [...watch.denied],
       }
     }),
-  ).pipe(
-    // The prompt only waits on the session's run, so stopping the wait has to stop the run too.
-    Effect.onInterrupt(() => inCommandCentre(prompts.cancel(info.id))),
-  )
+  ).pipe(Effect.onInterrupt(() => inCommandCentre(prompts.cancel(info.id))))
   return { threadId: info.id as string, reply }
 })
 
-/** The production summariser for `CommandMemory.compact`: one model call per thread. */
 export const summarizer = Effect.fn("CommandThreads.summarizer")(function* (choice?: ModelChoice) {
   const llm = yield* LLM.Service
   const provider = yield* Provider.Service

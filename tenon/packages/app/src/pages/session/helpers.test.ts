@@ -262,7 +262,6 @@ describe("createSessionTabs", () => {
     expect(section(DEVICE_TAB)).toEqual({ section: "device", closable: undefined })
     expect(section(SESSION_OPEN_FILE_TAB)).toEqual({ section: "files", closable: SESSION_OPEN_FILE_TAB })
     expect(section("file://src/a.ts", ["file://src/a.ts"])).toEqual({ section: "files", closable: "file://src/a.ts" })
-    // A file tab stays open while another section shows, and only Files can close it.
     expect(section(AGENTS_TAB, ["file://src/a.ts"])).toEqual({ section: "agents", closable: undefined })
     expect(Object.entries(SECTION_TAB).map(([name, tab]) => section(tab).section === name)).not.toContain(false)
   })

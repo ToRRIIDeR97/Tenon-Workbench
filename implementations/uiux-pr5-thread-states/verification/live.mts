@@ -1,5 +1,3 @@
-// UI/UX PR5 verification: mounts the real DiffChanges and Markdown components from the dev server.
-// Run from tenon/packages/app as e2e/.uiux-pr5.mts: node --experimental-strip-types e2e/.uiux-pr5.mts <outdir>
 import { chromium } from "@playwright/test"
 
 const OUT = process.argv[2]!

@@ -16,19 +16,10 @@ import { DESIGN_INSPECT } from "@tenon/session-ui/design-inspect"
 import { motionDuration } from "@tenon/ui/v2/motion"
 import { useLanguage } from "@/context/language"
 
-// At most 8 frames a second reach the sandbox; the newest source always goes in the next one.
 const FRAME_INTERVAL = 125
 
-/**
- * A canvas design drawn while it streams, in one sandboxed frame for its whole life: the frame loads
- * `liveDesignDocument` once and gets the healed markup so far by `postMessage`; when the design is done
- * the frame swaps to `designDocument(source)` once, so the page's own scripts run only then.
- * Mount it only for a design that is streaming; the caller shows the size-cap notice.
- */
-/** Inspect mode for the canvas's notes (#326): the frame's picker is told on/off, and its replies come back here. */
 type Inspect = { inspect?: boolean; onInspect?: (data: unknown) => void }
 
-/** Sends the picker its on/off state on load and on change, and passes on only this frame's own messages. */
 function connectInspect(frame: () => HTMLIFrameElement | undefined, props: Inspect) {
   const tell = () => frame()?.contentWindow?.postMessage({ type: DESIGN_INSPECT, on: !!props.inspect }, "*")
   createEffect(on(() => props.inspect, tell, { defer: true }))
@@ -76,9 +67,7 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
   return (
     <iframe
       ref={(el) => {
-        // Sandboxed before the document is set and before the frame is attached.
         el.setAttribute("sandbox", DESIGN_SANDBOX)
-        // The frame can't read the app's tokens, so their values go into its document.
         const style = getComputedStyle(document.documentElement)
         el.srcdoc = liveDesignDocument({
           duration: motionDuration("medium"),
@@ -100,7 +89,6 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
   )
 }
 
-/** A finished design in a sandboxed frame (see design-fence.ts), or a notice when it is over the size cap. */
 export function DesignFrame(
   props: {
     design: Design
@@ -124,7 +112,6 @@ export function DesignFrame(
     >
       <iframe
         ref={(el) => {
-          // Sandboxed before the document is set and before the frame is attached.
           el.setAttribute("sandbox", DESIGN_SANDBOX)
           el.srcdoc = designDocument(props.design.source, { inspect: props.onInspect !== undefined })
           el.addEventListener("load", tell)

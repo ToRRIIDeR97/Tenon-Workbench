@@ -65,9 +65,6 @@ const appLocales = [
   "uz",
 ] as const
 const desktopLocales = appLocales
-// New Second Brain, harness, dictation and folder trust surfaces intentionally use English until translations are commissioned.
-// The runtime merges that base into every locale before localized values, so these keys never render raw IDs.
-// Their plural families only need English "one"/"other"; other categories fall back to "other".
 const englishFallbackPrefixes = ["secondBrain.", "harness.", "dictation.", "folderTrust."]
 const pluralCategories = new Map(
   appLocales.map(

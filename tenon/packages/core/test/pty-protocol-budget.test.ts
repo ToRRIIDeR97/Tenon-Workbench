@@ -11,6 +11,5 @@ test("pending PTY output closes once past the limit, then drops", () => {
   const draining = PtyProtocol.pendingBudget(10)
   expect(draining.admit("12345678")).toBe("send")
   draining.sent("12345678")
-  // Sent output no longer counts, so a client that keeps up is never closed.
   expect(draining.admit("1234567890")).toBe("send")
 })

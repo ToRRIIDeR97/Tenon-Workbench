@@ -33,8 +33,6 @@ import { threadSubagents } from "./subagent-list"
 import { useCommand } from "@/context/command"
 import { Reveal } from "@tenon/ui/v2/reveal"
 
-// User and assistant turns share one "Messages" segment. The Environment window's shades (one step of the accent
-// or grey per kind), so the parts differ in lightness as well as hue and both context bars read the same.
 type BreakdownGroup = "system" | "messages" | "tool" | "other"
 const BREAKDOWN_SHADE: Record<BreakdownGroup, string> = {
   messages: "bg-v2-icon-icon-accent",
@@ -161,7 +159,6 @@ export function SessionContextTab() {
   const ctx = createMemo(() =>
     getSessionContext(messages(), [...providers.all().values()], selectedHarness(), (id) => sync().data.part[id]),
   )
-  // The same readout as the composer's ring and its menu (#310): a share only for a reported context in a known window.
   const readout = createMemo(() => contextReadout(ctx()))
   const share = () => {
     const value = readout()
@@ -169,7 +166,6 @@ export function SessionContextTab() {
   }
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
 
-  // The server's whole-session totals have no per-harness split, so one harness's rows sum the loaded messages.
   const perHarness = () => harnesses().length > 1
   const usage = createMemo(() =>
     perHarness() ? getSessionUsage(messages(), { harness: selectedHarness() }) : getSessionTotals(info(), messages()),
@@ -187,7 +183,6 @@ export function SessionContextTab() {
       .flatMap((message) => getParts(message.id)),
   )
   const toolPhrases = createMemo(() => stepCountPhrases(language, summarizeTurn(harnessParts()).counts))
-  // Built-in `task` and harness `acp_subagent` calls; each row opens the agent in the Agents tab.
   const data = useData()
   const subagents = createMemo(() =>
     harnessParts().flatMap((part) => {
@@ -211,7 +206,6 @@ export function SessionContextTab() {
       ]
     }),
   )
-  // Each subagent's own context, for the Subagents cards that take the place of "Taking the most room".
   const subagentCards = createMemo((): SubagentCardRow[] =>
     subagentContexts(threadSubagents(messages(), getParts), (id) => sync().session.get(id)).map((row) => {
       const named = subagentName(row.input)
@@ -284,16 +278,13 @@ export function SessionContextTab() {
     return [...groups].map(([key, value]) => ({ key, ...value }))
   })
 
-  // The biggest things in the context, for "Taking the most room"; each opens its turn in the thread.
   const heaviest = createMemo(() =>
     heaviestContextItems({ messages: messages(), parts: sync().data.part as Record<string, Part[] | undefined> }),
   )
   const command = useCommand()
   const [usageOpen, setUsageOpen] = createSignal(false)
-  // The session page reveals the turn (`revealMessage`); the tab lives in the side panel, beside it.
   const revealTurn = (turnID: string) =>
     window.dispatchEvent(new CustomEvent("tenon:reveal-message", { detail: turnID }))
-  // A share of what's used, as a share of the whole window when the window is known.
   const windowShare = (part: number) => {
     const value = share()
     return value ? (part * value.percent) / 100 : part
@@ -310,8 +301,6 @@ export function SessionContextTab() {
     return language.t("context.breakdown.other")
   }
 
-  // What the subagents spent, apart from the context figure below. Declared before `details`, which the memo reads
-  // on creation.
   const subagentSpend = () => {
     const spent = subagentUsage()
     if (!spent || spent.count === 0) return undefined
@@ -320,7 +309,6 @@ export function SessionContextTab() {
     return language.t("secondBrain.sessionTab.subagentUsage", { tokens, cost: usd().format(spent.cost) })
   }
 
-  // Only what the harness reported; a missing value hides its row instead of reading "Not reported".
   const details = createMemo(() => {
     const c = ctx()
     const u = usage()
@@ -390,7 +378,7 @@ export function SessionContextTab() {
       const filename = sessionExportFilename(data.info)
       if (!platform.saveSessionExport) {
         downloadSessionExport(filename, data)
-        return // Browsers cannot report whether the save dialog completed.
+        return
       }
       if (!(await platform.saveSessionExport({ filename, json: JSON.stringify(data, null, 2) }))) return
       showToast({
@@ -482,7 +470,6 @@ export function SessionContextTab() {
           </div>
         </Show>
 
-        {/* The Details workshop's variant C: the context window first, then what takes the most room in it. */}
         <section
           data-slot="session-tab-context"
           aria-label={language.t("secondBrain.sessionTab.contextTitle")}
@@ -522,7 +509,6 @@ export function SessionContextTab() {
             </Show>
           </div>
           <Show when={breakdownGroups().length > 0}>
-            {/* The estimated parts, scaled to the window, so what's left reads as free. */}
             <div
               class="flex h-2.5 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
               role="img"

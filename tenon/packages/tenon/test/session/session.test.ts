@@ -153,9 +153,6 @@ describe("step-finish token propagation via event", () => {
           mode: "",
         } as unknown as SessionV1.Info)
 
-        // Event subscribers receive readonly Schema.Type payloads; `SessionV1.Part`
-        // is the mutable domain type. Cast bridges the two — safe because the
-        // test only reads the value afterwards.
         const received = yield* Deferred.make<SessionV1.Part>()
         const unsub = yield* events.listen((event) => {
           if (event.type === MessageV2.Event.PartUpdated.type)

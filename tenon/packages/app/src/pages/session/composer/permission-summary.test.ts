@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { permissionSummary } from "./permission-summary"
 
 describe("permissionSummary", () => {
-  // A Codex MCP tool call is approved per server (harness.ts, mcpServer/elicitation/request).
   test("names an MCP tool approval", () => {
     expect(permissionSummary({ permission: "mcp", patterns: ["tenoncheck"] }).key).toBe("secondBrain.permission.mcp")
   })

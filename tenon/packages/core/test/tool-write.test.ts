@@ -56,7 +56,6 @@ const filesystem = Layer.effect(
       ...fs,
       writeWithDirs: (target, content, mode) =>
         Effect.sync(() => writes.push(target)).pipe(Effect.andThen(fs.writeWithDirs(target, content, mode))),
-      // FileMutation commits a replacement by renaming a temp file over the target.
       rename: (from, to) => Effect.sync(() => writes.push(to)).pipe(Effect.andThen(fs.rename(from, to))),
     })
   }),
@@ -284,8 +283,11 @@ describe("WriteTool", () => {
   )
 })
 
-test("keeps the locked write schema, semantics docstring, and deferred UX TODOs visible", async () => {
-  const source = (await fs.readFile(new URL("../src/tool/write.ts", import.meta.url), "utf8")).replaceAll("\r\n", "\n")
+test("keeps the locked write schema, semantics, and deferred UX TODOs visible in docs/deferred-work.md", async () => {
+  const source = (await fs.readFile(new URL("../../../../docs/deferred-work.md", import.meta.url), "utf8")).replaceAll(
+    "\r\n",
+    "\n",
+  )
   const definition = await Effect.runPromise(
     withTool(path.dirname(fileURLToPath(import.meta.url)), (registry) => toolDefinitions(registry)),
   )
@@ -293,7 +295,7 @@ test("keeps the locked write schema, semantics docstring, and deferred UX TODOs 
 
   expect(Object.keys(schema.properties ?? {}).sort()).toEqual(["content", "path"])
   expect(source).toContain(
-    "absolute external paths retain mutation capability through a separate\n * external_directory approval before edit approval.",
+    "absolute external paths retain mutation capability through a separate\nexternal_directory approval before edit approval.",
   )
   for (const todo of [
     "Revisit whether model-facing mutation schemas should prefer absolute `filePath` naming for trained-in compatibility after evaluating model behavior.",

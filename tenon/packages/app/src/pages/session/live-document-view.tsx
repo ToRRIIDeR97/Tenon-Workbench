@@ -7,10 +7,8 @@ import { useSync } from "@/context/sync"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { changedBlocks, liveWrites, markdownBlocks, type LiveWrite } from "@/pages/session/live-document"
 
-// The changed-block flash in the file pane (Claude's file pane uses the same length).
 const FLASH_MS = 1600
 
-/** The current thread's `write` and `edit` calls, from the healed tool input in the session parts. */
 export function createSessionWrites() {
   const sync = useSync()
   const layout = useSessionLayout()
@@ -23,17 +21,12 @@ export function createSessionWrites() {
         liveWrites(sync().data.part[message.id] ?? []).map((write) => ({
           ...write,
           created: message.time.created,
-          // A reply still in progress: its finished calls happened in this turn, not in history.
           ongoing: message.role === "assistant" && !message.time.completed && !message.error,
         })),
       )
   })
 }
 
-/**
- * The newest message time (server clock) of the thread when this view first saw its messages: a
- * message created after it is new to the view, one at or before it (or paging in) is history.
- */
 export function createViewNewest() {
   const sync = useSync()
   const layout = useSessionLayout()
@@ -54,11 +47,6 @@ export function createViewNewest() {
 export const isWriting = (write: LiveWrite | undefined) => write?.status === "streaming" || write?.status === "running"
 const isDesign = (path: string) => /\.html?$/i.test(path)
 
-/**
- * Opens the side panel on Files with the file the agent starts writing or editing. Only a call whose
- * input grew while this view watched counts (history never opens the panel), each call opens at most
- * once, and `.html` writes are Canvas designs instead.
- */
 export function createLiveDocumentOpener(enabled: () => boolean) {
   const file = useFile()
   const { tabs, view } = useSessionLayout()
@@ -77,14 +65,12 @@ export function createLiveDocumentOpener(enabled: () => boolean) {
         }
         if (opened.has(write.callID) || seen === text || !untrack(enabled)) return
         const path = file.normalize(write.path)
-        // Tool input is untrusted: only plain paths inside the workspace open.
         if (!path || path.split(/[\\/]/).includes("..")) return
         opened.add(write.callID)
         untrack(() => {
           view().reviewPanel.open()
           const tab = file.tab(path)
           tabs().previewTab(tab)
-          // As in the side panel: Kobalte can briefly select Review while the preview trigger is replaced.
           queueMicrotask(() => tabs().setActive(tab))
           void file.load(path)
         })
@@ -92,7 +78,6 @@ export function createLiveDocumentOpener(enabled: () => boolean) {
   })
 }
 
-/** "Tenon is writing" with the live dot, then "Saved just now". */
 export function LiveDocumentChip(props: { writing: boolean }) {
   const language = useLanguage()
   return (
@@ -108,7 +93,6 @@ export function LiveDocumentChip(props: { writing: boolean }) {
   )
 }
 
-/** The caret at the end of the live text and the shimmer line where the next block will appear. */
 export function LiveDocumentTail() {
   return (
     <div aria-hidden="true" data-slot="live-document-tail" class="flex flex-col gap-2 pt-1">
@@ -118,10 +102,6 @@ export function LiveDocumentTail() {
   )
 }
 
-/**
- * Keeps the end of the live text in view while Tenon writes, until the reader scrolls; the pill then
- * reads "Jump to Tenon" and brings the caret back. `anchor` is any element inside the scroll viewport.
- */
 export function LiveDocumentFollow(props: { text: string; anchor: () => HTMLElement | undefined }) {
   const language = useLanguage()
   const [following, setFollowing] = createSignal(true)
@@ -134,7 +114,6 @@ export function LiveDocumentFollow(props: { text: string; anchor: () => HTMLElem
     void props.text
     if (following()) queueMicrotask(toEnd)
   })
-  // The pill floats at the bottom of the pane, over the scrolling text, like the thread's Jump to latest.
   const [host, setHost] = createSignal<HTMLElement>()
   onMount(() => {
     const el = viewport()
@@ -179,12 +158,6 @@ export function LiveDocumentFollow(props: { text: string; anchor: () => HTMLElem
 
 const plain = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")
 
-/**
- * Which source block (index in `markdownBlocks(markdown)`) each rendered element's text belongs to, in
- * order. Exact matches come first and the walk only moves forward: an element continues the current
- * block while it matches the block's next unconsumed text, else it takes the next block that equals it
- * or starts with it, and only then one that merely contains it. A fully matched block is never reused.
- */
 export function blockOwners(texts: readonly string[], markdown: string): number[] {
   const blocks = markdownBlocks(markdown).map(plain)
   const walk = { block: 0, used: 0 }
@@ -211,12 +184,6 @@ export function blockOwners(texts: readonly string[], markdown: string): number[
   })
 }
 
-/**
- * After the rendered Markdown under `root` changes from `before` to `after`: flash the rendered elements
- * of the changed blocks once and keep the block the reader is on where it was. Rendered elements are
- * matched to source blocks by their text, in order, because the renderer's blocks differ from
- * `markdownBlocks`. Call it before the new text renders; it waits for the render.
- */
 export function flashChangedBlocks(root: HTMLElement, before: string, after: string) {
   const changed = new Set(changedBlocks(before, after))
   const viewport = root.closest<HTMLElement>("[data-scrollable]")
@@ -224,7 +191,6 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
     Array.from(root.querySelectorAll<HTMLElement>("[data-markdown-block] > *")).filter((el) =>
       plain(el.textContent ?? ""),
     )
-  // The reader's anchor: the first element whose bottom is below the viewport's top.
   const top = viewport?.getBoundingClientRect().top ?? 0
   const anchor = elements().find((el) => el.getBoundingClientRect().bottom > top)
   const held =
@@ -240,9 +206,6 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
     .trim()
   const animated = new WeakSet<HTMLElement>()
   const state = { applied: false, scroll: undefined as number | undefined }
-  // The renderer shows a block's text first and its parsed HTML later, morphing elements in place (which
-  // drops attributes it didn't set), so every render step until the flash ends is matched again: the
-  // changed blocks keep their mark, each element fades once, and the reader stays put unless they scroll.
   const apply = () => {
     clearTimeout(fallback)
     if (!state.applied) {
@@ -255,7 +218,6 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
       after,
     )
     if (held && viewport && (state.scroll === undefined || state.scroll === viewport.scrollTop)) {
-      // The same text may occur more than once: take the occurrence nearest where the anchor was.
       const offset = (el: HTMLElement) =>
         el.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
       const same = list
@@ -281,7 +243,6 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
   }
   flashing.get(root)?.()
   root.querySelectorAll<HTMLElement>("[data-live-flash]").forEach((el) => delete el.dataset.liveFlash)
-  // The renderer updates asynchronously; apply as its DOM changes (or soon, if nothing changes).
   const frame = { id: 0 }
   const observer = new MutationObserver(() => {
     cancelAnimationFrame(frame.id)
@@ -298,5 +259,4 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
   flashing.set(root, stop)
 }
 
-// The flash running in each rendered root, so a newer one replaces it.
 const flashing = new WeakMap<HTMLElement, () => void>()

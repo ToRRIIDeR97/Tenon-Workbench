@@ -5,14 +5,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import { SecondBrainRequestError, undoAgentWrite } from "@/features/second-brain/client"
 import { sessionHref } from "@/utils/session-route"
 
-/**
- * Agent writes from the server's `agent.write` events (tenon/src/agents/app-tools.ts): one entry per
- * write, updated from `started` to `done`. The thread that made a write shows it inline; every other
- * page shows the top pill.
- */
-
-// project, thread, steer and stop are the Command Centre's own actions (new Project, started, steered or stopped a
-// thread): they show in its Done-for-you list and never undo.
 export const KINDS = ["note", "tasks", "calendar", "timeline", "email", "project", "thread", "steer", "stop"] as const
 export const COMMAND_KINDS: ReadonlyArray<Kind> = ["project", "thread", "steer", "stop"]
 export type Kind = (typeof KINDS)[number]
@@ -30,7 +22,6 @@ export type EmailPreview = { to?: string; subject?: string; body?: string }
 export type AgentWrite = {
   id: string
   sessionID: string
-  /** The assistant message and tool call that made the write; absent for external harnesses. */
   messageID?: string
   callID?: string
   directory: string
@@ -41,16 +32,12 @@ export type AgentWrite = {
   undo?: string
   open?: { page?: string; projectId?: string; session?: string }
   failed: boolean
-  /** When the write started (or first arrived). */
   at: number
-  /** When its `done` was shown; undefined while it is still writing. */
   doneAt?: number
   undoState: UndoState
-  /** Seen inline or dismissed: it gets no pill. */
   hidden: boolean
 }
 
-/** The write an `agent.write` event describes, or undefined for anything malformed. */
 export function parseAgentWrite(directory: string, event: { type?: unknown; properties?: unknown }) {
   if (event.type !== "agent.write" || !event.properties || typeof event.properties !== "object") return undefined
   const value = event.properties as Record<string, unknown>
@@ -82,17 +69,12 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
   } satisfies Omit<AgentWrite, "at" | "doneAt" | "undoState" | "hidden">
 }
 
-/**
- * Where Open goes for a write, or undefined when it has no page to open (email drafts). A thread the Command Centre
- * started, steered or stopped opens on `serverKey`'s server.
- */
 export function openHref(
   write: Pick<AgentWrite, "kind" | "open" | "preview">,
   serverKey?: Parameters<typeof sessionHref>[0],
 ) {
   if (write.open?.session) return serverKey ? sessionHref(serverKey, write.open.session) : undefined
   if (write.kind === "note" && write.open?.page) return `/projects?page=${encodeURIComponent(write.open.page)}`
-  // A note with a Project and no page is a log entry (log_append).
   if (write.kind === "note" && write.open?.projectId)
     return `/projects?project=${encodeURIComponent(write.open.projectId)}&section=log`
   if (write.open?.projectId) return `/projects?project=${encodeURIComponent(write.open.projectId)}`
@@ -111,11 +93,6 @@ export function openHref(
   return undefined
 }
 
-/**
- * The user message whose turn made `write`: the parent of the assistant message that wrote it, else, since an
- * external harness doesn't say which message wrote, the latest user message sent before the write arrived.
- * `users` is oldest first.
- */
 export function writeTurn(
   write: Pick<AgentWrite, "messageID" | "at">,
   assistantParent: (messageID: string) => string | undefined,
@@ -126,22 +103,15 @@ export function writeTurn(
   return users.findLast((user) => user.time.created <= write.at)?.id
 }
 
-/** The session a thread page shows (`/server/:key/session/:id`, legacy `/:dir/session/:id`). */
 export function sessionFromPath(pathname: string) {
   return /^\/(?:server\/[^/]+|[^/]+)\/session\/([^/?#]+)/.exec(pathname)?.[1]
 }
 
 const LIMIT = 50
-/** The least time a write stays in its writing presentation, so the preview can grow and type. */
 export const MIN_WRITING_MS = 1_400
 
-/** How long a saved write's pill stays up. */
 export const PILL_HIDE_MS = 6_000
 
-/**
- * The write the pill shows: the newest unseen write of another thread that is still writing or saved
- * within the pill's time, so leaving a thread never pops a pill for an old write.
- */
 export function pillWrite(writes: ReadonlyArray<AgentWrite>, open: string | undefined, now: number) {
   return writes
     .filter(
@@ -153,7 +123,6 @@ export function pillWrite(writes: ReadonlyArray<AgentWrite>, open: string | unde
     .at(-1)
 }
 
-/** How much longer the `done` of a write that started at `startedAt` waits before it shows. */
 export function writingHold(startedAt: number, now: number, reduced: boolean) {
   if (reduced) return 0
   return Math.max(0, startedAt + MIN_WRITING_MS - now)
@@ -171,7 +140,6 @@ function createAgentWrites() {
         const now = Date.now()
         const existing = writes.find((item) => item.id === write.id)
         if (existing) {
-          // A late `started` never undoes a `done` that arrived first.
           if (existing.phase === "done" && write.phase === "started") return
           Object.assign(existing, write, write.phase === "done" ? { doneAt: now } : {})
           return
@@ -192,8 +160,6 @@ function createAgentWrites() {
     const write = parseAgentWrite(event.name, event.details as { type?: unknown; properties?: unknown })
     if (!write) return
     const existing = state.writes.find((item) => item.id === write.id)
-    // The server often finishes a write milliseconds after starting it: hold the writing state so the
-    // preview's typing and growth are visible. Failures show at once.
     const hold =
       write.phase === "done" && !write.failed && existing?.phase === "started"
         ? writingHold(existing.at, Date.now(), prefersReducedMotion())
@@ -216,7 +182,6 @@ function createAgentWrites() {
     writes: () => state.writes,
     forSession: (sessionID: string) => state.writes.filter((write) => write.sessionID === sessionID),
     hide: (id: string) => update(id, { hidden: true }),
-    /** The thread a page shows inline outside `/…/session/<id>`; its writes get no pill. */
     async undo(id: string) {
       const write = state.writes.find((item) => item.id === id)
       if (!write?.undo || write.undoState === "pending" || write.undoState === "undone") return
@@ -240,7 +205,6 @@ export function AgentWritesProvider(props: ParentProps) {
   return <Context.Provider value={writes}>{props.children}</Context.Provider>
 }
 
-/** The shared write list; undefined outside the app layout (tests, isolated pages). */
 export const useAgentWrites = () => useContext(Context)
 
 export function prefersReducedMotion() {

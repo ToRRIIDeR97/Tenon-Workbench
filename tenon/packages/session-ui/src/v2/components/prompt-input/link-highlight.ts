@@ -1,13 +1,8 @@
-// Links typed or pasted into the composer are drawn blue and underlined, and open on Ctrl/⌘-click.
-// They are styled with the CSS Custom Highlight API instead of <a> elements, so the editor's DOM
-// (plain text nodes, pills and <br>s), its caret logic and the prompt text stay exactly as they are.
-
 export type LinkMatch = { start: number; end: number; url: string }
 
 const LINK = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi
 const TRAILING = /[.,;:!?'"]+$/
 
-/** The links in `text`: http(s) URLs and www. hosts, without trailing punctuation or an unmatched `)`/`]`. */
 export function findLinks(text: string): LinkMatch[] {
   const links: LinkMatch[] = []
   for (const match of text.matchAll(LINK)) {
@@ -39,7 +34,6 @@ function supported() {
   return typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined"
 }
 
-/** Runs of adjacent text nodes in `root`, skipping mention pills (they are not plain text). */
 function textRuns(root: HTMLElement) {
   const runs: Text[][] = []
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -57,7 +51,6 @@ function textRuns(root: HTMLElement) {
   return runs
 }
 
-/** Where `offset` in a run's joined text falls: the node and the offset inside it. */
 function locate(run: Text[], offset: number): [Text, number] {
   let remaining = offset
   for (const node of run) {
@@ -89,7 +82,6 @@ function scan(editor: HTMLElement) {
   repaint()
 }
 
-/** The link under a pointer position in `editor`, if any. */
 export function linkAt(editor: HTMLElement, x: number, y: number) {
   const links = editors.get(editor)
   if (!links?.length) return
@@ -99,17 +91,12 @@ export function linkAt(editor: HTMLElement, x: number, y: number) {
   const point = caret.offset
   return links.find((link) => {
     if (!link.range.isPointInRange(node, point)) return false
-    // A caret at a link's edge can come from a click just past it; count only clicks on its text.
     return [...link.range.getClientRects()].some(
       (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
     )
   })?.url
 }
 
-/**
- * Keeps `editor`'s links highlighted while it changes and opens one on Ctrl/⌘-click.
- * Returns a cleanup that stops watching and clears its highlights.
- */
 export function watchComposerLinks(editor: HTMLElement) {
   let frame = 0
   const schedule = () => {
@@ -129,7 +116,6 @@ export function watchComposerLinks(editor: HTMLElement) {
     event.preventDefault()
     window.open(url, "_blank", "noopener,noreferrer")
   }
-  // The pointer becomes a hand over a link while the modifier is held, as in code editors.
   let last: MouseEvent | undefined
   const hover = (event: MouseEvent) => {
     last = event

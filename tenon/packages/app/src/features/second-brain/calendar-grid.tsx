@@ -11,18 +11,14 @@ export type CalendarGridDay = {
   today: boolean
   day: number
   weekday: string
-  /** Events with a start and end inside this day. */
   timed: CalendarEvent[]
-  /** All-day and multi-day events shown in the strip above the hours. */
   allDay: CalendarEvent[]
   tasks: PlannerTask[]
 }
 
-/** Height of one hour row in px; the grid shows all 24 hours and scrolls. */
 const HOUR = 48
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 
-/** Day and Week views: an hour grid with all-day events and tasks in a strip above it. */
 export function CalendarGrid(props: {
   days: CalendarGridDay[]
   selected: string
@@ -40,9 +36,6 @@ export function CalendarGrid(props: {
     header: undefined as HTMLDivElement | undefined,
     hours: undefined as HTMLDivElement | undefined,
   }
-  // Each new day range opens at 07:00, or just above an earlier event, below the pinned day header. The grid can
-  // mount while detached or hidden (a view fade-through still shows the previous view), so the scroll waits
-  // until the scroller is attached and laid out; the observer fires once it gets a size.
   const scroll = { pending: false, smooth: false }
   const applyScroll = () => {
     if (!scroll.pending || !view.scroller?.isConnected || !view.scroller.clientHeight || !view.hours || !view.header)
@@ -98,7 +91,6 @@ export function CalendarGrid(props: {
   }
 
   return (
-    // The scroller is absolutely placed so its 24 hours never stretch the page; it fills the space it is given.
     <div class="relative min-h-0 flex-1">
       <div ref={(element) => (view.scroller = element)} class="absolute inset-0 overflow-y-auto pb-4">
         <div
@@ -200,7 +192,6 @@ export function CalendarGrid(props: {
               <div
                 classList={{
                   "relative shadow-[inset_1px_0_0_var(--v2-border-border-muted)]": true,
-                  // Today stands out among several days; alone (the Today view) a tint would just fill the grid.
                   "bg-[color-mix(in_srgb,var(--v2-background-bg-accent-container)_12%,transparent)]":
                     day.today && props.days.length > 1,
                 }}
@@ -210,7 +201,6 @@ export function CalendarGrid(props: {
                   "background-size": `100% ${HOUR}px`,
                 }}
               >
-                {/* Out of the tab order: New stays the keyboard path, and a week would add over 100 stops. */}
                 <For each={HOURS}>
                   {(hour, index) => (
                     <button
@@ -229,7 +219,6 @@ export function CalendarGrid(props: {
                 <For each={blocks(day)}>
                   {(block) => (
                     <div class="absolute" style={block.style}>
-                      {/* A short block has room for one line; the full title and time are in the tooltip and label. */}
                       <TooltipV2
                         class="size-full"
                         value={
@@ -257,7 +246,6 @@ export function CalendarGrid(props: {
                           }}
                           onClick={() => props.onOpenEvent(block.event)}
                         >
-                          {/* A short block keeps one line: the title, then the time beside it while there is room. */}
                           <span
                             class="min-w-0 truncate [font-weight:600]"
                             classList={{ "shrink-0 max-w-full": block.short }}

@@ -114,7 +114,6 @@ it.live("persistAccount sets the active account and org", () =>
       }),
     )
 
-    // Last persisted account is active with its org
     const active = yield* AccountRepo.use.active()
     expect(Option.isSome(active)).toBe(true)
     expect(Option.getOrThrow(active).id).toBe(AccountID.make("user-2"))

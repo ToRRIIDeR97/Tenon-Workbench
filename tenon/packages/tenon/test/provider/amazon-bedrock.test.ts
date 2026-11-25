@@ -229,10 +229,6 @@ it.instance(
   { config: { provider: { "amazon-bedrock": { options: { region: "us-east-1" } } } } },
 )
 
-// Cross-region inference profile prefix handling.
-// Models from models.dev may come with prefixes already (e.g. us., eu., global.).
-// These should NOT be double-prefixed when passed to the SDK.
-
 it.instance(
   "Bedrock: model with us. prefix should not be double-prefixed",
   () =>
@@ -319,7 +315,6 @@ it.instance(
   },
 )
 
-// Direct unit tests for cross-region inference profile prefix detection.
 describe("Bedrock cross-region prefix detection", () => {
   const crossRegionPrefixes = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
 

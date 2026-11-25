@@ -15,15 +15,9 @@ import { lazy } from "./util/lazy"
 import { which } from "./util/which"
 
 const BUFFER_LIMIT = 1024 * 1024 * 2
-// Trim only once the buffer passes the limit by a quarter, so a full buffer is copied once per
-// BUFFER_LIMIT / 4 characters of output instead of once per chunk.
 const BUFFER_TRIM_AT = BUFFER_LIMIT + BUFFER_LIMIT / 4
-// Exited sessions cannot be attached, so only a short tail of their output is retained.
 const EXITED_BUFFER_LIMIT = 64 * 1024
-// How far past the cut a trim looks for a line start, so replay does not begin inside an escape sequence.
 const TRIM_LINE_SEARCH = 4 * 1024
-// Exited sessions stay observable (status, exit code) until removed explicitly.
-// Cap retention so abandoned terminals do not accumulate unbounded buffers.
 const EXITED_LIMIT = 25
 const pty = lazy(() => import("#pty"))
 
@@ -32,7 +26,6 @@ type Subscriber = {
   readonly onEnd: (event: { exitCode?: number }) => void
   active: boolean
   detached: boolean
-  // Output cursor at attach time. Output produced before activation is read back from the buffer.
   start: number
   end?: { exitCode?: number }
 }
@@ -61,21 +54,15 @@ export type UpdateInput = Types.DeepMutable<typeof UpdateInput.Type>
 export const Event = Pty.Event
 
 export type AttachInput = {
-  // Absolute output cursor to replay from. -1 tails from the current end; omitted replays the full retained buffer.
   readonly cursor?: number
-  // Callbacks fire synchronously from the native PTY data path; keep them non-blocking.
   readonly onData: (chunk: string) => void
-  // Fired once when the session stops producing output: process exit (exitCode set), removal, or service teardown.
   readonly onEnd: (event: { exitCode?: number }) => void
 }
 
 export type Attachment = {
-  // Retained output from the requested cursor to the current end.
   readonly replay: string
-  // Absolute output cursor after replay.
   readonly cursor: number
   readonly write: (data: string) => void
-  // Starts live delivery after the caller has applied replay and cursor metadata.
   readonly activate: () => void
   readonly detach: () => void
 }
@@ -88,24 +75,18 @@ export class ExitedError extends Schema.TaggedError<ExitedError>()("Pty.ExitedEr
   ptyID: PtyID,
 }) {}
 
-// node-pty reports a missing executable from a worker thread, where nothing can catch it and the
-// process dies, so a command must resolve to a file before it is spawned. On Windows the working
-// folder reaches the same uncatchable path, so it must exist first too.
 export class SpawnError extends Schema.TaggedError<SpawnError>()("Pty.SpawnError", {
   command: Schema.String,
-  // The request field at fault, so routes don't report a folder problem as a command problem.
   field: Schema.Literals(["command", "cwd"]),
   message: Schema.String,
 }) {}
 
-/** What `create` takes inside the server: the route's input, plus the thread an agent's terminal belongs to. */
 export type CreateOptions = CreateInput & { readonly sessionID?: string }
 
 export interface Interface {
   readonly list: () => Effect.Effect<Info[]>
   readonly get: (id: PtyID) => Effect.Effect<Info, NotFoundError>
   readonly create: (input: CreateOptions) => Effect.Effect<Info, SpawnError>
-  /** The output the terminal still retains (all of it while running, a short tail once it exited). */
   readonly output: (id: PtyID) => Effect.Effect<{ info: Info; output: string }, NotFoundError>
   readonly update: (id: PtyID, input: UpdateInput) => Effect.Effect<Info, NotFoundError>
   readonly remove: (id: PtyID) => Effect.Effect<void, NotFoundError>
@@ -224,8 +205,6 @@ const layer = Layer.effect(
       const target = yield* spawnTarget(command, args, env)
       yield* Effect.logInfo("creating session", { id, cmd: command, args, cwd })
       const { spawn } = yield* Effect.promise(() => pty())
-      // Subscribe in the same synchronous step as spawn: a fiber yield between the two would let a
-      // fast child write or exit before anyone listens, and that output or exit would be lost.
       const info = yield* Effect.try({
         try: () => {
           const proc = spawn(target.file, target.args, { name: "xterm-256color", cwd, env })
@@ -365,8 +344,6 @@ const layer = Layer.effect(
   }),
 )
 
-// Drops the oldest output so at most `limit` characters remain. The cut moves to the next line start
-// when one is close, and never splits a UTF-16 surrogate pair.
 function trimBuffer(session: Active, limit: number) {
   const excess = session.buffer.length - limit
   if (excess <= 0) return
@@ -381,10 +358,6 @@ export const locationLayer = layer.pipe(Layer.provide(Config.locationLayer))
 
 export const node = makeLocationNode({ service: Service, layer, deps: [EventV2.node, Location.node, Config.node] })
 
-/**
- * The file and arguments to hand to the PTY. Windows can't start the `.cmd` and `.bat` shims that
- * npm installs (`opencode.cmd`) directly, so those run through `cmd.exe /c`.
- */
 function spawnTarget(command: string, args: string[], env: Record<string, string>) {
   const file = which(command, env)
   if (!file)

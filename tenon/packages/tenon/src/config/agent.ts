@@ -51,7 +51,6 @@ export async function loadMode(dir: string) {
     const parsed = Schema.decodeUnknownExit(ConfigAgentV1.Info)(config, { errors: "all" })
     if (Exit.isSuccess(parsed)) {
       result[config.name] = {
-        // Keep the frontmatter key order, which orders permission rules by precedence.
         ...withInputOrder(config, parsed.value),
         mode: "primary" as const,
       }

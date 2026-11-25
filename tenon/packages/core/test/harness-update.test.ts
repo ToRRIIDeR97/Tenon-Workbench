@@ -39,7 +39,6 @@ describe("harness CLI install source", () => {
       method: "brew",
       brew: "/usr/local/bin/brew",
     })
-    // A download folder shaped like a Cellar would otherwise run <folder>/bin/brew.
     expect(HarnessUpdate.sourceFromPath("/home/me/Downloads/x/Cellar/opencode/1.2.3/bin/opencode")).toBeUndefined()
     expect(HarnessUpdate.sourceFromPath("/tmp/Caskroom/codex/0.50.0/codex")).toBeUndefined()
   })

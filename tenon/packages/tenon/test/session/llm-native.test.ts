@@ -526,9 +526,6 @@ describe("session.llm-native.request", () => {
 
   it.effect("native tool wrapper raises ToolFailure when the source tool has no execute handler", () =>
     Effect.gen(function* () {
-      // The AI SDK Tool shape allows execute to be omitted (e.g., client-side / MCP tools).
-      // The native runtime owns execution, so encountering such a tool here means upstream
-      // wiring is wrong; we want a typed failure, not a silent skip or unhandled exception.
       const wrapped = LLMNativeRuntime.nativeTools(
         { incomplete: { description: "no execute", inputSchema: jsonSchema({ type: "object" }) } satisfies Tool },
         { messages: [] as ModelMessage[], abort: new AbortController().signal },

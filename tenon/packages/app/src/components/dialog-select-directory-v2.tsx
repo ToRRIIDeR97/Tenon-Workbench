@@ -271,7 +271,6 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
           scrollbar-width: auto;
           scrollbar-color: auto;
         }
-        /* The tree renders in a shadow root, so repeat the app's overlay pill scrollbar here. */
         ::-webkit-scrollbar {
           width: 12px;
           height: 12px;
@@ -356,7 +355,6 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
               {language.t("dialog.directory.parent")}
             </ButtonV2>
           </div>
-          {/* Opens and closes with the menu motion; the list inside keeps the listbox semantics. */}
           <Presence
             when={suggestionsOpen() && currentSuggestions().length > 0}
             class="directory-picker-v2-suggestions origin-top"

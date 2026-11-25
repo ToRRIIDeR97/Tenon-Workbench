@@ -14,14 +14,10 @@ const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${pr
 const diffs = Array.from({ length: 2_740 }, (_, index) =>
   fileDiff(`src/generated-${String(index).padStart(4, "0")}.ts`),
 )
-// Marks the review pane DOM node so a remount (fresh node) is detectable.
 const PROBE = "original"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-// The v2 review pane's diff data is workspace-scoped: switching between session
-// tabs in the same workspace must update its parameters reactively instead of
-// tearing the pane down and remounting it (which flickers).
 test("keeps the v2 review pane mounted when switching session tabs in a workspace", async ({ page }) => {
   await setup(page)
 
@@ -113,8 +109,6 @@ async function setup(page: Page) {
         }),
       )
       localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
-      // At the default width the side panel collapses the review's file tree; these checks need it shown.
-      // Seeded once: this script runs again on a reload, and must not replace the layout the app saved.
       if (!localStorage.getItem("tenon.global.dat:layout"))
         localStorage.setItem("tenon.global.dat:layout", JSON.stringify({ sidePanel: { width: 720 } }))
     },

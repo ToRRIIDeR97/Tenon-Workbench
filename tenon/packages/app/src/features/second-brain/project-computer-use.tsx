@@ -14,10 +14,6 @@ import {
   type ComputerUseState,
 } from "./project-computer-use-model"
 
-/**
- * Computer use for the Project (#333, variant B): off by default; on, threads in the Project's folder get the Cua
- * Driver, which sees and drives the whole desktop in the background. Codex and Claude Code use their own.
- */
 export function ProjectComputerUse(props: { folder: string | undefined }) {
   const language = useLanguage()
   const platform = usePlatform()
@@ -39,7 +35,6 @@ export function ProjectComputerUse(props: { folder: string | undefined }) {
         .map((entry) => ({ id: String(entry.id), name: entry.name, driver: String(entry.driver) })),
     ),
   )
-  // Switching off doesn't cut a thread off mid-action: its next desktop action is refused, and the card says so.
   const [turnedOff, setTurnedOff] = createSignal(false)
   const toggle = (enabled: boolean) => {
     const folder = props.folder
@@ -69,8 +64,7 @@ export function ProjectComputerUse(props: { folder: string | undefined }) {
               <span class="type-section text-v2-text-text-base">{language.t("secondBrain.computerUse.title")}</span>
               <span class="type-meta text-v2-text-text-muted">
                 {(current().stopped ?? 0) > 0
-                  ? // Stop on the pill ended these threads' use of the desktop (3B); the next action of each is told so.
-                    language.plural("secondBrain.computerUse.stoppedThreads", current().stopped ?? 0, {
+                  ? language.plural("secondBrain.computerUse.stoppedThreads", current().stopped ?? 0, {
                       count: current().stopped ?? 0,
                     })
                   : language.t(
@@ -90,7 +84,6 @@ export function ProjectComputerUse(props: { folder: string | undefined }) {
               {installCommand(current().platform)}
             </code>
           </Show>
-          {/* macOS asks for two grants under the driver's own name; each row says where it stands. */}
           <Show when={current().enabled && current().platform === "darwin" && current().installed}>
             <div class="flex flex-col divide-y divide-v2-border-border-muted">
               <For each={grantRows(current())}>

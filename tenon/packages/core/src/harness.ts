@@ -79,9 +79,7 @@ export interface Driver {
   readonly kind: Harness.DriverKind
   readonly snapshot: Effect.Effect<Harness.Instance>
   readonly stream: (input: StreamInput) => Stream.Stream<LLMEvent, LLMError>
-  /** One prompt in a fresh, throwaway native session; undefined for the in-process loop. */
   readonly complete?: (input: CompleteInput) => Effect.Effect<string, LLMError>
-  /** Compacts the thread's native session on the harness's own side; undefined where the harness can't. */
   readonly compact?: (input: StreamInput) => Effect.Effect<void, LLMError>
 }
 
@@ -96,46 +94,29 @@ export interface StreamInput {
   readonly request: LLMRequest
   readonly model?: Harness.ModelSelection
   readonly revision?: number
-  /** Finishes when a steer is waiting. External harnesses end their turn early on it; the in-process loop ignores it. */
   readonly steer?: Effect.Effect<void>
-  /** Links an approval to the tool call it gates, by the call ID the harness's tool events use. */
   readonly permissionSource?: (callID: string) => Effect.Effect<PermissionV2.Source>
 }
 
 export interface Interface {
   readonly list: () => Effect.Effect<ReadonlyArray<Harness.Instance>>
-  /** Drops cached checks and model lists, for one harness or all, and lists again. */
   readonly refresh: (id?: string) => Effect.Effect<ReadonlyArray<Harness.Instance>>
-  /** Installed and latest CLI versions for the enabled harnesses that run an external command. */
   readonly updates: () => Effect.Effect<ReadonlyArray<Harness.UpdateStatus>>
-  /** Updates one harness CLI with the package manager that installed it, then restarts its processes. */
   readonly upgrade: (id: string) => Effect.Effect<Harness.UpdateStatus, HarnessUpdate.UpdateError>
-  /** Subscription usage limits of the enabled external harnesses, cached per instance for a minute. */
   readonly usage: () => Effect.Effect<ReadonlyArray<HarnessUsage.UsageReport>>
   readonly driver: (instanceID: Harness.InstanceID) => Harness.DriverKind | undefined
   readonly stream: (
     input: StreamInput & { readonly instanceID: Harness.InstanceID },
   ) => Stream.Stream<LLMEvent, LLMError>
-  /**
-   * Runs one prompt in a fresh native session of the harness and returns the reply text. The session
-   * is not tied to any thread, tool requests are refused, and it closes when the reply ends. It runs in the
-   * discovery folder at the model's lowest listed effort, so it stays out of the project and its CLI history.
-   */
   readonly complete: (
     input: CompleteInput & { readonly instanceID: Harness.InstanceID },
   ) => Effect.Effect<string, LLMError>
-  /**
-   * Compacts a thread's native session with the harness's own compaction (Codex's `thread/compact/start`).
-   * Resolves false for a harness that has none, so the caller can compact on Tenon's side instead.
-   */
   readonly compact: (
     input: StreamInput & { readonly instanceID: Harness.InstanceID },
   ) => Effect.Effect<boolean, LLMError>
-  /** The harness that titles new threads, when one is set in settings; otherwise each thread's own. */
   readonly titleAgent: () => Effect.Effect<Harness.InstanceID | undefined>
   readonly setTitleAgent: (id: Harness.InstanceID | undefined) => Effect.Effect<void, HarnessRegistry.RegisterError>
   readonly settings: () => Effect.Effect<ReadonlyArray<Harness.SettingsEntry>>
-  /** Slash commands an ACP harness last reported in this app process, if any. */
   readonly reportedCommands: (id: Harness.InstanceID) => ReadonlyArray<AcpHarness.AcpCommand> | undefined
   readonly add: (input: unknown) => Effect.Effect<Harness.SettingsEntry, HarnessRegistry.RegisterError>
   readonly setEnabled: (
@@ -145,15 +126,10 @@ export interface Interface {
   readonly remove: (id: string) => Effect.Effect<void, HarnessRegistry.RegisterError>
   readonly discover: (input: unknown) => Effect.Effect<Harness.Discovery, HarnessRegistry.RegisterError>
   readonly verify: (input: unknown) => Effect.Effect<Harness.Verification, HarnessRegistry.RegisterError>
-  /** A non-project folder for setup-assistant sessions, so they stay out of project lists. */
   readonly assistantDirectory: () => Effect.Effect<string>
-  /** Install and sign-in state of the built-in external harnesses. */
   readonly setup: () => Effect.Effect<ReadonlyArray<Harness.SetupStatus>>
-  /** Installs a built-in harness CLI from its fixed npm package. */
   readonly install: (id: string) => Effect.Effect<Harness.SetupStatus, HarnessSetup.SetupError>
-  /** Starts a browser sign-in (Codex) and returns the link to open. */
   readonly signIn: (id: string) => Effect.Effect<Harness.SignIn, HarnessSetup.SetupError>
-  /** Saves (or with `undefined` removes) the API key a built-in harness uses. */
   readonly setApiKey: (
     id: string,
     input: Harness.ApiKeyInput | undefined,
@@ -176,13 +152,9 @@ export interface CodexRuntime {
   readonly threadID: string
   readonly name: string
   readonly workspace?: TenonContext.Workspace
-  /** The `tenon` MCP server, and with it `ask_user`, is attached to this thread. */
   readonly askUser: boolean
-  /** Withdraws an `ask_user` question and any approval left open when a turn ends. */
   readonly endTurn?: Effect.Effect<void>
-  /** Starts a turn: approvals asked from now on are withdrawn when it ends. */
   readonly beginTurn: () => void
-  /** An approval or question is waiting on the user, so the agent's silence means nothing. */
   readonly waiting: () => boolean
   handoff: Handoff
 }
@@ -191,28 +163,18 @@ interface AcpRuntime {
   readonly session: AcpHarness.Session
   readonly scope: Scope.Closeable
   readonly workspace?: TenonContext.Workspace
-  /** The agent accepted the `tenon` MCP server, and with it `ask_user`. */
   readonly askUser: boolean
-  /** Withdraws an `ask_user` question and any approval left open when a turn ends. */
   readonly endTurn: Effect.Effect<void>
-  /** Starts a turn: approvals asked from now on are withdrawn when it ends. */
   readonly beginTurn: () => void
-  /** An approval or question is waiting on the user, so the agent's silence means nothing. */
   readonly waiting: () => boolean
-  /** This turn's tool calls Tenon blocked without asking, by the agent's toolCallId. */
   readonly blocked: Map<string, Blocked>
   handoff: Handoff
 }
 
 const probeTTL = 2 * 60_000
-// A failed check is retried sooner, so a slow cold start doesn't hide a harness for long.
 const failedProbeTTL = 5_000
-// Model lists change rarely (new releases, sign-in); checks ask the harness again after this long.
-// Asking an ACP agent opens a session and switches through every model (about 10s for Claude Code).
 const catalogTTL = 24 * 60 * 60_000
 
-// Availability and model lists don't depend on the folder, so every folder shares one cache and one
-// running check per harness. Opening a thread in a new folder then starts no harness CLIs.
 const shared = {
   probes: new Map<string, ProbeEntry>(),
   catalogs: new Map<string, Catalog>(),
@@ -239,7 +201,6 @@ const layer = Layer.effect(
     const credentials = yield* Credential.Service
     const entries = yield* config.entries()
     const layerScope = yield* Effect.scope
-    // Registry entries and setup API keys can change while the location is open, so instances are re-read per call.
     const load = Effect.all([
       HarnessRegistry.read(global.config),
       HarnessSetup.readKeys(global.data),
@@ -257,7 +218,6 @@ const layer = Layer.effect(
     )
     let latest = yield* load
     let loadedKeys = HarnessSetup.keysVersion()
-    // A harness whose config changed (for example a new API key) restarts its open processes.
     const instances = Effect.suspend(() => {
       const revision = HarnessSetup.keysVersion()
       return load.pipe(
@@ -278,17 +238,11 @@ const layer = Layer.effect(
     })
     const runtimes = new Map<string, CodexRuntime>()
     const acpRuntimes = new Map<string, AcpRuntime>()
-    // Probing starts the harness CLI, so picker refreshes reuse a recent result per instance config.
     const probes = shared.probes
-    // Models each harness reported. After catalogTTL a check asks for them again; a failed check
-    // keeps the last list, so the picker doesn't shrink while a harness is slow or briefly offline.
     const catalogs = shared.catalogs
-    // Commands each ACP harness last reported; the skills catalog lists them for harnesses without skill folders.
     const commands = new Map<Harness.InstanceID, ReadonlyArray<AcpHarness.AcpCommand>>()
     const instanceKey = (instance: InstanceConfig) =>
       `${instance.id}:${JSON.stringify([instance.name, instance.config])}`
-    // Lists from the last run seed the catalogs, so the first listing after a restart already has models.
-    // Their `checked` time is kept, so the usual catalogTTL still decides when to ask the harness again.
     const stored = shared.seeded ? {} : yield* HarnessCatalogCache.read(global.data)
     for (const instance of latest) {
       const entry = stored[HarnessCatalogCache.id(instanceKey(instance))]
@@ -299,7 +253,6 @@ const layer = Layer.effect(
       catalogs.set(key, entry)
       return HarnessCatalogCache.write(global.data, key, entry)
     }
-    // Checks from the last run answer the first listing after a restart while the real check runs.
     if (!shared.seeded) {
       const storedProbes = yield* HarnessCatalogCache.readProbes(global.data)
       for (const instance of latest) {
@@ -317,9 +270,6 @@ const layer = Layer.effect(
       scope: shared.scope,
     }))
     const cachedProbe = (instance: InstanceConfig, probe: Probe) => probeCached(instanceKey(instance), instance, probe)
-    // Listing an ACP agent's models opens a session and switches to each model once (about 10s for
-    // Claude Code), so it runs beside the listing; its result reaches the picker on the next list.
-    // Harness processes from a run whose server died without its finalizers are still running; end them.
     yield* HarnessPids.configure(path.join(global.state, "harness-pids"))
     yield* HarnessPids.reapLedger.pipe(
       Effect.tap((ended) =>
@@ -341,11 +291,9 @@ const layer = Layer.effect(
         Effect.asVoid,
       )
     }
-    // Asks an ACP agent for its models, stores the list, and drops the check that predates it.
     const discoverModels = (instance: InstanceConfig, settings: AcpHarness.Settings) => {
       const key = instanceKey(instance)
       const started = Date.now()
-      // Discovery opens a real agent session; in the thread folder those would fill the CLI's own history.
       return AcpHarness.discover(process, settings, discoveryDirectory).pipe(
         Effect.tap((agent) =>
           Effect.logInfo("harness model discovery", {
@@ -360,9 +308,7 @@ const layer = Layer.effect(
         ),
       )
     }
-    // Ends the harness processes behind open threads; each reconnects on its next message.
     const closeRuntimes = (id: string) => closeRuntimesWhere((key) => key.startsWith(`${id}:`))
-    // Runtime keys are `${instanceID}:${sessionID}:${revision}`.
     const closeRuntimesWhere = (matches: (key: string) => boolean) =>
       Effect.forEach(
         [runtimes, acpRuntimes] as const,
@@ -375,7 +321,6 @@ const layer = Layer.effect(
           ),
         { discard: true },
       )
-    // When each thread's harness runtime was last used and how many turns run on it, for closing idle ones.
     const activity = new Map<string, { lastUsed: number; busy: number }>()
     const tracked = <A, E, R>(key: string, stream: Stream.Stream<A, E, R>) =>
       Stream.unwrap(
@@ -405,8 +350,6 @@ const layer = Layer.effect(
       for (const key of probes.keys()) if (matches(key)) probes.delete(key)
       for (const key of catalogs.keys()) if (matches(key)) catalogs.delete(key)
     }
-    // An explicit refresh of one ACP harness waits for its model list, which a listing only starts in the
-    // background; otherwise the caller would see the emptied catalog and nothing would ask again.
     const discoverNow = (id: string) =>
       instances.pipe(
         Effect.flatMap((current) => {
@@ -420,8 +363,6 @@ const layer = Layer.effect(
         }),
       )
 
-    // A committed rollback removed turns the native sessions still hold, and a compaction on Tenon's side replaced
-    // them with a summary; their next turn reconnects fresh.
     const unlisten = yield* closeOnRevertCommit(events, (sessionID) =>
       closeRuntimesWhere((key) => key.includes(`:${sessionID}:`)),
     )
@@ -448,7 +389,6 @@ const layer = Layer.effect(
       HarnessRegistry.read(global.config).pipe(
         Effect.map((registry) => settingsEntries(entries, registry, global.config)),
       )
-    // Only harnesses.json entries are editable; config-file entries shadow them and stay read-only.
     const editable = (id: string) =>
       settings().pipe(
         Effect.flatMap((current) => {
@@ -463,7 +403,6 @@ const layer = Layer.effect(
           return Effect.void
         }),
       )
-    // Mutations refresh `latest`, which stream() and driver() read without touching the registry.
     const entryAfterChange = (id: string) =>
       instances.pipe(
         Effect.andThen(settings()),
@@ -477,7 +416,6 @@ const layer = Layer.effect(
         }),
       )
 
-    // After a successful turn the native session has seen everything up to the user message it answered.
     const markSeen = (instance: InstanceConfig, input: StreamInput, nativeID: string) =>
       Effect.gen(function* () {
         const lastSeenMessageID = input.request.messages.findLast((message) => message.role === "user")?.id
@@ -491,7 +429,6 @@ const layer = Layer.effect(
         })
       })
 
-    // The workspace a runtime's handoff turn describes in its <tenon-context> block.
     const workspaceOf = (directory: string) =>
       TenonContext.workspace(directory, global.data).pipe(Effect.provideService(FSUtil.Service, fsUtil))
 
@@ -504,12 +441,10 @@ const layer = Layer.effect(
       const close = Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore)
       const gate = turnGate()
       const runtime = yield* Effect.gen(function* () {
-        // Questions and approvals publish with the Location, which the turn's fiber doesn't carry; see HarnessAskUser.
         const asker = yield* HarnessAskUser.make(questions, input.sessionID).pipe(
           Effect.provideService(Location.Service, location),
         )
         const delegation = yield* HarnessDelegation.endpoint(input.sessionID, asker.ask)
-        // The servers from Settings › MCP servers, read per runtime so a change applies to the next thread.
         const forwarded = HarnessForwardedMcp.codex(
           HarnessForwardedMcp.servers(yield* config.entries()),
           input.directory,
@@ -554,12 +489,10 @@ const layer = Layer.effect(
           threadID,
           name: instance.name,
           workspace: yield* workspaceOf(input.directory),
-          // Every endpoint here carries `ask_user`, because the runtime always has the question service.
           askUser: delegation !== undefined,
           endTurn: asker.endTurn.pipe(Effect.andThen(gate.end)),
           beginTurn: gate.begin,
           waiting: () => gate.pending() || asker.pending(),
-          // A failed resume starts a fresh thread, which gets the bounded full history.
           handoff: thread.resumed && continuation ? continuation.handoff : "full",
         } satisfies CodexRuntime
       }).pipe(
@@ -575,7 +508,6 @@ const layer = Layer.effect(
     ) {
       const key = `${instance.id}:${input.sessionID}:${input.revision ?? 0}`
       const current = runtimes.get(key)
-      // A process that exited while the thread was idle is replaced, not reused: its client can't answer.
       if (current && !(yield* current.client.closed)) return current
       const prefix = `${instance.id}:${input.sessionID}:`
       for (const [candidate, runtime] of runtimes) {
@@ -601,24 +533,19 @@ const layer = Layer.effect(
     ) {
       const runtimeScope = yield* Scope.make()
       const gate = turnGate()
-      // Read by the approval handler, which is handed to the session before the session exists.
       let background = () => false
       const blocked = new Map<string, Blocked>()
       const revision = input.revision ?? 0
       const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
-      // Questions and approvals publish with the Location, which the turn's fiber doesn't carry; see HarnessAskUser.
       const asker = yield* HarnessAskUser.make(questions, input.sessionID).pipe(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.provideService(Location.Service, location),
       )
-      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config, Claude Code's launch
-      // environment). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
       const longWait = instance.id === Harness.OpenCodeAcp || instance.id === Harness.ClaudeCode
       const delegation = yield* HarnessDelegation.endpoint(
         input.sessionID,
         (prompts, waitSeconds) =>
           asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
-        // Computer use goes through Tenon's Cua Driver proxy (#333); Claude Code has its own.
         HarnessComputerUse.serverFor(instance.id, true, "proxy")
           ? { directory: input.directory, harness: instance.name }
           : undefined,
@@ -629,7 +556,6 @@ const layer = Layer.effect(
         continuation: continuation?.nativeID,
         mcpServers: [
           ...(delegation ? [HarnessDelegation.acpServer(delegation)] : []),
-          // The servers from Settings › MCP servers, so every agent sees what the built-in agent sees.
           ...HarnessForwardedMcp.acp(HarnessForwardedMcp.servers(yield* config.entries())),
         ],
         ask: askInDock(asker),
@@ -679,8 +605,6 @@ const layer = Layer.effect(
           continuation: session.sessionId,
         })
       }
-      // Each opened session reports the agent's current models; the picker shows them on its next check. A
-      // session knows only the active model's levels, so the others keep what discovery found.
       if (session.models.length > 0) {
         yield* setCatalog(
           instanceKey(instance),
@@ -748,16 +672,13 @@ const layer = Layer.effect(
                   watch: { name: instance.name, waiting: runtime.waiting },
                 })
                 .pipe(
-                  // The agent reports a call Tenon blocked as one the user declined.
                   Stream.map((event) => markBlocked(event, runtime.blocked)),
-                  // However the turn ends, a question it left open in the dock has nobody waiting.
                   Stream.ensuring(runtime.endTurn),
                   Stream.catch((error) =>
                     Stream.unwrap(discardAcpRuntime(instance, input, runtime).pipe(Effect.as(Stream.fail(error)))),
                   ),
                 ),
               markSeen(instance, input, runtime.session.sessionId),
-              // A refused model switch or a failed prompt keeps the process, so the next turn must still hand over.
               Effect.sync(() => {
                 runtime.handoff = handoff
               }),
@@ -767,7 +688,6 @@ const layer = Layer.effect(
         ),
       )
 
-    // An ephemeral, read-only thread with approvals off: nothing is saved and tools can't change files.
     const codexComplete = (settings: CodexSettings, input: CompleteInput) =>
       Effect.gen(function* () {
         const scope = yield* Scope.make()
@@ -787,7 +707,6 @@ const layer = Layer.effect(
           )
           const threadID = responseThreadID(thread)
           if (!threadID) return yield* Effect.fail(new ProtocolError("Codex did not return a thread ID."))
-          // A title request asks no approvals (read-only, approvals off), so its turn needs no gate.
           const runtime: CodexRuntime = {
             client: opened.client,
             scope,
@@ -983,7 +902,6 @@ const layer = Layer.effect(
           name: instance?.name ?? item.id,
           packageName: item.packageName,
           installed: resolved !== undefined,
-          // A cached check can still hold the version of a CLI that was removed since.
           version: resolved ? instance?.version : undefined,
           available: instance?.status === "available",
           error: instance?.status === "available" ? undefined : instance?.error,
@@ -994,8 +912,6 @@ const layer = Layer.effect(
           apiKey: stored?.option,
         })
       })
-    // Each harness's sign-in at the last setup read. A sign-in done in a terminal reaches only new processes, so
-    // threads already open keep failing until their runtime is replaced.
     const lastAuth = new Map<string, string>()
     const setup = () =>
       Effect.all([list(), HarnessSetup.readKeys(global.data)]).pipe(
@@ -1018,14 +934,12 @@ const layer = Layer.effect(
           )
         }),
       )
-    // A changed CLI or credential takes effect on the next probe and the next message of each open thread.
     const setupChanged = (item: HarnessSetup.Recipe) =>
       closeRuntimes(item.id).pipe(
         Effect.andThen(Effect.sync(() => forget(item.id))),
         Effect.andThen(setup()),
         Effect.map((current) => current.find((status) => status.id === item.id)!),
       )
-    // Codex keeps its own login: the app-server runs the browser flow and stores the result in CODEX_HOME.
     const codexAccount = <A>(run: (client: CodexClient) => Effect.Effect<A, ProtocolError>, keep = false) =>
       Effect.gen(function* () {
         const instance = latest.find((candidate) => candidate.id === Harness.Codex)
@@ -1043,7 +957,6 @@ const layer = Layer.effect(
         return { ...result, close }
       })
     const usageCache = HarnessUsage.makeCache()
-    // Codex reports its own limits over the app-server: an open thread's connection is reused, or a short-lived one opens.
     const codexUsage = (instance: InstanceConfig) => {
       const read = (client: CodexClient) =>
         client.request("account/read", {}).pipe(
@@ -1067,7 +980,6 @@ const layer = Layer.effect(
         ),
       )
     }
-    // The OAuth token is read here and sent only to api.anthropic.com; it never leaves this process otherwise.
     const claudeUsage = (keys: HarnessSetup.Keys) => {
       const recipe = HarnessSetup.recipe(Harness.ClaudeCode)
       return keys[Harness.ClaudeCode]
@@ -1081,7 +993,6 @@ const layer = Layer.effect(
     const usageSource = (instance: InstanceConfig, keys: HarnessSetup.Keys) => {
       if (instance.driver === Harness.CodexDriver) return codexUsage(instance)
       if (instance.id === Harness.ClaudeCode) return claudeUsage(keys)
-      // Command Code is a user-registered ACP agent, recognized by the CLI its command runs. Its key stays here.
       if (
         instance.driver === Harness.AcpDriver &&
         HarnessUsage.isCommandCode(AcpHarness.decodeSettings(instance.config)?.command)
@@ -1092,9 +1003,6 @@ const layer = Layer.effect(
               key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
           ),
         )
-      // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode
-      // harness the OpenCode CLI's. Each key is sent only to opencode.ai.
-      // The built-in agent chats with the key in Tenon's credential store; `auth.json` can hold an older one.
       if (instance.driver === Harness.OpenCodeDriver)
         return credentials
           .all()
@@ -1104,10 +1012,8 @@ const layer = Layer.effect(
             ),
           )
       if (instance.id === Harness.OpenCodeAcp) return HarnessUsage.openCodeGoUsage(HarnessSetup.openCodeDataDir())
-      // Other ACP agents don't report plan usage to the app.
       return Effect.succeed(HarnessUsage.unsupported(`${instance.name} doesn't report usage limits.`))
     }
-    // Only one browser login at a time: Codex's callback listens on a fixed local port.
     let pendingLogin: Effect.Effect<void> | undefined
 
     return Service.of({
@@ -1135,7 +1041,6 @@ const layer = Layer.effect(
           }
           const finish = started.close.pipe(Effect.andThen(setupChanged(item)), Effect.ignore)
           pendingLogin = finish
-          // Keep the app-server, which hosts the login callback, until Codex reports the result or 10 minutes pass.
           yield* started.client.notifications.pipe(
             Stream.filter((notification) => notification.method === "account/login/completed"),
             Stream.take(1),
@@ -1177,7 +1082,6 @@ const layer = Layer.effect(
           yield* instances
           return yield* setupChanged(item)
         }),
-      // The built-in agent reports its OpenCode Go plan when one is connected.
       usage: () =>
         Effect.all([instances, HarnessSetup.readKeys(global.data)]).pipe(
           Effect.flatMap(([current, keys]) =>
@@ -1212,7 +1116,6 @@ const layer = Layer.effect(
                 new HarnessUpdate.UpdateError({ reason: "not-found", message: `No harness CLI has ID "${id}".` }),
               )
             return HarnessUpdate.upgrade(process, command, HarnessSetup.recipe(instance.id)?.packageName).pipe(
-              // Claude Code runs through its ACP adapter; the `claude` CLI beside it updates itself.
               Effect.andThen(
                 instance.id === Harness.ClaudeCode ? HarnessUpdate.upgradeCompanion(process, "claude") : Effect.void,
               ),
@@ -1229,7 +1132,6 @@ const layer = Layer.effect(
         ),
       driver: (instanceID) => latest.find((instance) => instance.id === instanceID)?.driver,
       stream(input) {
-        // Known instances stream without touching the registry; a new ID or a changed setup key needs a re-read.
         const known =
           loadedKeys === HarnessSetup.keysVersion() ? latest.find((item) => item.id === input.instanceID) : undefined
         if (known) return driverFor(known).stream(input)
@@ -1335,11 +1237,6 @@ export const node = makeLocationNode({
   ],
 })
 
-/**
- * Whether a built-in ACP harness looks signed in, for a hint beside it: the handshake works without a login, so the
- * check alone would report it ready. The login files can't show Bedrock, Vertex or a key in the shell, so this never
- * blocks sending. A key the app passes to the process counts. Undefined when there is no recipe to read.
- */
 function acpSignIn(instance: InstanceConfig): Effect.Effect<boolean | undefined> {
   const item = HarnessSetup.recipe(instance.id)
   if (!item) return Effect.succeed(undefined)
@@ -1348,7 +1245,6 @@ function acpSignIn(instance: InstanceConfig): Effect.Effect<boolean | undefined>
   return HarnessSetup.signedIn(item).pipe(Effect.map((auth) => auth !== "signed-out"))
 }
 
-/** Harnesses as Settings lists them, in picker order, labeled by where each one is defined. */
 export function settingsEntries(
   entries: ReadonlyArray<Config.Entry>,
   registry: Readonly<Record<string, ConfigHarness.Instance>>,
@@ -1378,8 +1274,6 @@ export function settingsEntries(
   })
 }
 
-/** Adds each built-in harness's stored setup API key to its process environment. */
-/** Adds the OpenCode harness's permission defaults, unless its configured env already sets that variable. */
 function withOpenCodePermissions(instances: ReadonlyArray<InstanceConfig>, env: Record<string, string>) {
   return instances.map((instance) => {
     if (instance.id !== Harness.OpenCodeAcp || Object.keys(env).length === 0) return instance
@@ -1393,7 +1287,6 @@ function withClaudeCodeTimeouts(instances: ReadonlyArray<InstanceConfig>, env: R
   return instances.map((instance) => {
     if (instance.id !== Harness.ClaudeCode || Object.keys(env).length === 0) return instance
     const current = isRecord(instance.config.env) ? instance.config.env : {}
-    // A value set on the harness itself in Settings wins.
     return { ...instance, config: { ...instance.config, env: { ...env, ...current } } }
   })
 }
@@ -1407,17 +1300,11 @@ function withSetupKeys(instances: ReadonlyArray<InstanceConfig>, keys: HarnessSe
   })
 }
 
-/**
- * Config documents that may define harnesses: only those in the global config folder. A harness is a command the
- * app runs, and checking availability runs it, so a cloned repo's `opencode.json` or `.opencode/` must not add one.
- */
 function harnessDocuments(entries: ReadonlyArray<Config.Entry>, globalConfig: string) {
   const root = path.resolve(globalConfig)
   return entries.filter(
     (entry): entry is Config.Document =>
-      entry.type === "document" &&
-      // No path means inline config the user set (OPENCODE_CONFIG_CONTENT), not a file found in a folder.
-      (entry.path === undefined || path.resolve(entry.path).startsWith(root + path.sep)),
+      entry.type === "document" && (entry.path === undefined || path.resolve(entry.path).startsWith(root + path.sep)),
   )
 }
 
@@ -1432,7 +1319,6 @@ export function configuredInstances(
       { id: Harness.OpenCode, driver: Harness.OpenCodeDriver, name: "Default agent", enabled: true, config: {} },
     ],
     [Harness.Codex, { id: Harness.Codex, driver: Harness.CodexDriver, name: "Codex", enabled: true, config: {} }],
-    // Upstream OpenCode from PATH, over ACP. Its own config and credentials stay in its process.
     [
       Harness.OpenCodeAcp,
       {
@@ -1443,8 +1329,6 @@ export function configuredInstances(
         config: { command: "opencode", args: ["acp"] },
       },
     ],
-    // Claude Code through Anthropic's ACP adapter (`npm install -g @agentclientprotocol/claude-agent-acp`).
-    // It signs in with the user's own Claude login or ANTHROPIC_API_KEY, kept in its process.
     [
       Harness.ClaudeCode,
       {
@@ -1472,8 +1356,6 @@ export function configuredInstances(
     if (!entry.info.harnesses) continue
     for (const [rawID, value] of Object.entries(entry.info.harnesses)) {
       const id = Option.getOrUndefined(decodeID(rawID))
-      // Reserved IDs must not be replaced from config files either; only the
-      // built-in definitions own the opencode, opencode-acp, claude-code and codex instances (issue #40).
       if (!id || HarnessRegistry.reserved.has(id)) continue
       instances.set(id, {
         id,
@@ -1489,11 +1371,6 @@ export function configuredInstances(
 
 const decodeCodex = Schema.decodeUnknownOption(ConfigHarness.Codex)
 
-/**
- * The Codex command to run: the configured path, else `codex` on PATH. An update can move the CLI (npm under
- * another Node, the standalone installer, Homebrew), so a saved absolute path that no longer exists falls back to
- * PATH instead of leaving the harness disconnected.
- */
 export function codexCommand(binaryPath: string | undefined) {
   const configured = binaryPath?.trim()
   if (!configured) return "codex"
@@ -1501,7 +1378,6 @@ export function codexCommand(binaryPath: string | undefined) {
   return existsSync(configured) ? configured : "codex"
 }
 
-/** The external command a harness runs, when it has one. The in-process loop has none. */
 function cliCommand(instance: InstanceConfig) {
   if (instance.driver === Harness.CodexDriver) return codexCommand(decodeCodexSettings(instance.config).binaryPath)
   if (instance.driver === Harness.AcpDriver) return AcpHarness.decodeSettings(instance.config)?.command
@@ -1595,7 +1471,6 @@ function probeCodex(
       }
     }),
   ).pipe(
-    // A cold start of `codex app-server` plus a paged model list can take longer than a warm check.
     Effect.timeoutOrElse({
       duration: "15 seconds",
       orElse: () => Effect.fail(new ProtocolError("Codex availability check timed out.")),
@@ -1727,7 +1602,6 @@ export function codexStream(
                             codexTurnNotification(notification, runtime.threadID, turnID, state),
                           ),
                           Stream.tap(() => heard),
-                          // A subagent's own thread completes its turns too; only the turn's thread ends the stream.
                           Stream.takeUntil(
                             (notification) =>
                               notification.method === "turn/completed" &&
@@ -1757,11 +1631,9 @@ export function codexStream(
                                 { threadId: runtime.threadID, turnId: turnID },
                                 INTERRUPT_TIMEOUT,
                               )
-                              // Stream.catch below doesn't run on interrupt, and a wedged process must not hold Stop.
                               .pipe(Effect.catch(() => onFailure(runtime))),
                       ),
                     ),
-                    // However the turn ends, a question it left open in the dock has nobody waiting.
                     Stream.ensuring(runtime.endTurn ?? Effect.void),
                     Stream.catch((error) => Stream.unwrap(onFailure(runtime).pipe(Effect.as(Stream.fail(error))))),
                   )
@@ -1788,22 +1660,16 @@ export interface CodexState {
   readonly startedReasoning: Set<string>
   readonly emittedReasoning: Set<string>
   readonly startedTools: Set<string>
-  /** Items at work between their start and completion: commands, file changes, tool calls and the like. */
   readonly openItems: Set<string>
-  /** Plan updates shown so far this turn; each becomes its own todo call. */
   plans: number
-  /** Codex's latest notice that it hit an error and will retry. Not shown yet. */
   retry?: string
-  /** The thread's cumulative token counts before this turn, from its first usage update. */
   usageBase?: Record<string, number>
   usage?: ReturnType<typeof normalizeUsage>
   finished: boolean
   failed: boolean
-  /** The turn's subagents by their own thread ID; their notifications are routed to their row, not the turn. */
   readonly subagents: Map<string, CodexSubagent>
 }
 
-/** A Codex subagent shown as an `acp_subagent` row: what it said and its own thread's token use. */
 interface CodexSubagent {
   done: boolean
   readonly transcript: AcpHarness.AcpTranscriptEntry[]
@@ -1857,8 +1723,6 @@ export function parseCodexNotification(
     return codexItemEvents(notification.method, item, state)
   }
   if (notification.method === "thread/tokenUsage/updated") {
-    // `last` is the latest model call and `total` the thread so far; a turn with several calls is their sum, so
-    // the turn's usage is the growth of `total`. The context in use is the last call's input and output.
     const tokenUsage = isRecord(params.tokenUsage) ? params.tokenUsage : undefined
     const total = counts(tokenUsage?.total)
     const last = counts(tokenUsage?.last)
@@ -1876,7 +1740,6 @@ export function parseCodexNotification(
     const contextUsed = last ? (last.inputTokens ?? 0) + (last.outputTokens ?? 0) : undefined
     const usage = normalizeUsage(turn, number(tokenUsage?.modelContextWindow), contextUsed)
     state.usage = usage
-    // Sent now so the thread's context ring follows the turn; the step's settlement repeats it.
     return usage && contextUsed !== undefined ? [LLMEvent.stepUsage({ usage })] : []
   }
   if (notification.method === "error") {
@@ -1903,7 +1766,6 @@ export function parseCodexNotification(
   }
   if (notification.method === "turn/completed") {
     state.finished = true
-    // A subagent still open when the turn ends settles with what it has.
     const settled = [...state.subagents.keys()].flatMap((id) => codexSubagentFinish(id, state, false))
     const turn = isRecord(params.turn) ? params.turn : undefined
     const failed = turn?.status === "failed"
@@ -1920,11 +1782,6 @@ export function parseCodexNotification(
   return []
 }
 
-/**
- * Codex's own subagents. A `subAgentActivity` item (or a `spawnAgent` collab call) in the turn's thread starts one,
- * keyed by the subagent's thread; its "completed" activity settles it. The subagent's thread reports its messages and
- * token use separately (see `codexSubagentNotification`).
- */
 function codexSubagentItem(item: Record<string, unknown>, state: CodexState): ReadonlyArray<LLMEvent> {
   if (item.type === "collabAgentToolCall") {
     if (item.tool !== "spawnAgent") return []
@@ -1949,7 +1806,6 @@ function codexSubagentStart(
 ): ReadonlyArray<LLMEvent> {
   if (state.subagents.has(thread)) return []
   state.subagents.set(thread, { done: false, transcript: [] })
-  // "/root/single_word" names the agent; a spawn call's prompt says what it was asked.
   const name = about.path?.split("/").filter(Boolean).at(-1)?.replace(/[_-]+/g, " ")
   const description = name ? name.charAt(0).toUpperCase() + name.slice(1) : about.prompt?.split("\n")[0]?.slice(0, 80)
   return [
@@ -2009,7 +1865,6 @@ function codexSubagentNotification(
   return []
 }
 
-/** A subagent's own context: its last call's input and output in its window, and its thread's totals. */
 export function codexSubagentUsage(
   total: Record<string, number> | undefined,
   last: Record<string, number> | undefined,
@@ -2056,7 +1911,6 @@ function codexSubagentFinish(thread: string, state: CodexState, failed: boolean)
   ]
 }
 
-/** A notification for the turn, or for one of its subagents' own threads. */
 export function codexTurnNotification(
   notification: { readonly params?: unknown },
   threadID: string,
@@ -2069,7 +1923,6 @@ export function codexTurnNotification(
   return thread !== undefined && state.subagents.has(thread)
 }
 
-// Text and reasoning are the model talking, which the silence check should see; the rest can run long unannounced.
 function trackOpenItem(method: string, item: Record<string, unknown>, state: CodexState) {
   const id = string(item.id)
   if (!id || item.type === "agentMessage" || item.type === "reasoning") return
@@ -2081,7 +1934,6 @@ function codexItemEvents(method: "item/started" | "item/completed", item: Record
   const id = string(item.id)
   const type = string(item.type)
   if (!id || !type) return []
-  // Codex can repeat item/started or send deltas before it; emit each start once so the publisher never sees a duplicate.
   if (type === "agentMessage") {
     if (method === "item/started") {
       if (state.startedText.has(id)) return []
@@ -2140,7 +1992,6 @@ export function handleCodexRequest(
 ): Effect.Effect<unknown, ProtocolError> {
   const { sessionID, directory } = input
   const params = isRecord(request.params) ? request.params : {}
-  // Codex approvals name the item whose tool events carry the same ID.
   const ask = (assert: PermissionV2.AssertInput) =>
     permissionSource(input, string(params.itemId)).pipe(
       Effect.flatMap((source) => approve(permissions, { ...assert, ...(source ? { source } : {}) })),
@@ -2201,20 +2052,15 @@ export function handleCodexRequest(
       })),
     )
   }
-  // Codex asks the client before each MCP tool call (and for MCP forms) with an MCP elicitation. Without an answer
-  // it reports "user rejected MCP tool call", so neither the user's servers nor Tenon's own could run.
   if (request.method === "mcpServer/elicitation/request") {
     const reply = (action: "accept" | "decline", content: unknown = null) => ({ action, content, _meta: null })
-    // A form with fields is a question for the user, asked in the dock like an ACP agent's.
     if (AcpHarness.elicitationFields(params).length > 0)
       return AcpHarness.elicit(params, askUser).pipe(
         Effect.map((result) =>
           "content" in result && result.action === "accept" ? reply("accept", result.content) : reply("decline"),
         ),
       )
-    // A link to open (sign-in and the like) isn't something Tenon can complete for the agent.
     if (params.mode === "url") return Effect.succeed(reply("decline"))
-    // Otherwise it asks to run a tool: the approval card, per server, like a command.
     const server = string(params.serverName) ?? "MCP server"
     return guard(
       ask({
@@ -2267,7 +2113,6 @@ export function handleCodexRequest(
   return Effect.fail(new ProtocolError(`Unsupported Codex app-server request: ${request.method}`, { code: -32601 }))
 }
 
-/** Asks through the runtime's asker, whose question the end of the turn withdraws; undefined when it was declined. */
 function askInDock(asker: HarnessAskUser.Asker) {
   return (prompts: ReadonlyArray<QuestionV2.Prompt>) =>
     Effect.promise(() => asker.ask(prompts, HarnessAskUser.ELICITATION_WAIT_SECONDS)).pipe(
@@ -2275,14 +2120,8 @@ function askInDock(asker: HarnessAskUser.Asker) {
     )
 }
 
-/** Why Tenon refused a harness's approval request itself: a deny rule, or a permission check that failed. */
 export type Blocked = { readonly reason: "rules" | "error"; readonly action: string }
 
-/**
- * Whether Tenon allows a harness's tool call. Only the user's reply (or the turn ending first) declines it. A
- * deny rule or a failed check blocks it instead: that is logged and passed to `onBlocked`, so its tool row can
- * say so rather than show the harness's "the user declined" wording.
- */
 export function approve(
   permissions: PermissionV2.Interface,
   input: PermissionV2.AssertInput,
@@ -2311,7 +2150,6 @@ export function approve(
   )
 }
 
-/** A failed tool result for a call Tenon blocked, worded and tagged as a block rather than a decline. */
 export function markBlocked(event: LLMEvent, blocked: ReadonlyMap<string, Blocked>): LLMEvent {
   if (!LLMEvent.is.toolResult(event) || event.result.type !== "error") return event
   const found = blocked.get(event.id)
@@ -2337,7 +2175,6 @@ function permissionSource(input: StreamInput, callID: string | undefined) {
 
 type Catalog = { readonly models: ReadonlyArray<Harness.Model>; readonly checked: number }
 
-/** A fresh model list with the reasoning levels and speeds of `known` kept for models it reports none for. */
 export function keepLevels(fresh: ReadonlyArray<Harness.Model>, known: ReadonlyArray<Harness.Model>) {
   const byID = new Map(known.map((model) => [model.id, model]))
   return fresh.map((model) => {
@@ -2355,11 +2192,6 @@ type Probe = (
   rediscover: boolean,
 ) => Effect.Effect<{ readonly instance: Harness.Instance; readonly discovered?: ReadonlyArray<Harness.Model> }>
 
-/**
- * One availability check per instance key at a time, reused for probeTTL (failedProbeTTL after a failure).
- * `stored` holds the results the last run saved: the first check after a restart answers with that result
- * at once and runs the real check in the background (stale-while-revalidate), whose result replaces it.
- */
 export function makeCachedProbe(state: {
   readonly catalogs: Map<string, Catalog>
   readonly probes: Map<string, ProbeEntry>
@@ -2373,10 +2205,8 @@ export function makeCachedProbe(state: {
     Effect.suspend(() => {
       const cached = state.probes.get(key)
       if (cached && cached.expires > Date.now()) return Effect.succeed(cached.instance)
-      // An expired check still answers at once with what it last saw while a fresh one runs.
       const last = state.stored.get(key) ?? cached?.instance
       const stale = last && { ...last, models: state.catalogs.get(key)?.models ?? last.models }
-      // Home, open threads, and Settings list at once on startup and focus; they share one check.
       const running = inflight.get(key)
       if (running) return stale ? Effect.succeed(stale) : Deferred.await(running)
       const done = Deferred.makeUnsafe<Harness.Instance>()
@@ -2393,20 +2223,16 @@ export function makeCachedProbe(state: {
             durationMs: Date.now() - started,
           }),
         ),
-        // A failed check is stored too, so the next start shows the harness as it was last seen.
         Effect.tap((result) =>
           Effect.sync(() => state.stored.delete(key)).pipe(Effect.andThen(state.persist(key, result.instance))),
         ),
         Effect.flatMap((result) => {
-          // Background discovery finished first: this result holds the older list, so nothing is cached.
           if (state.catalogs.get(key) !== catalog) return Effect.succeed(result.instance)
           const ttl = result.instance.status === "available" ? probeTTL : failedProbeTTL
           state.probes.set(key, { expires: Date.now() + ttl, instance: result.instance })
-          // A failed rediscovery still counts as checked, so it isn't retried on every probe.
           if (!result.discovered && !rediscover) return Effect.succeed(result.instance)
           return state.setCatalog(key, result.discovered ?? catalog!.models).pipe(Effect.as(result.instance))
         }),
-        // An interrupted check (the caller went away) still releases everyone waiting on it.
         Effect.onExit((exit) =>
           Effect.sync(() => inflight.delete(key)).pipe(Effect.andThen(Deferred.done(done, exit))),
         ),
@@ -2416,11 +2242,6 @@ export function makeCachedProbe(state: {
     })
 }
 
-/**
- * Runs `close` for each committed rollback. An `events.listen` listener runs inside the commit's publish,
- * so the session's runtimes are gone before `SessionV2.prompt` admits the prompt and wakes the next turn
- * (a `subscribe` stream would run later and could close the runtime that turn just opened).
- */
 export function closeOnRevertCommit(events: EventV2.Interface, close: (sessionID: SessionID) => Effect.Effect<void>) {
   return events.listen((event) => {
     const sessionID: unknown = isRecord(event.data) ? event.data.sessionID : undefined
@@ -2432,10 +2253,6 @@ export function closeOnRevertCommit(events: EventV2.Interface, close: (sessionID
   })
 }
 
-/**
- * Codex compacts the thread on its side (`thread/compact/start`), as a turn of its own; this waits for that turn to
- * complete, for at most ten minutes. The thread must be idle: the turn's notifications are read from the same queue.
- */
 export function codexCompact(runtime: Effect.Effect<CodexRuntime, unknown>) {
   return runtime.pipe(
     Effect.flatMap((runtime) =>
@@ -2481,13 +2298,11 @@ function readContinuation(
     )
 }
 
-/** A stored native session plus the handoff it needs if the harness resumes it. */
 export interface Continuation {
   readonly nativeID: string
   readonly handoff: Handoff
 }
 
-/** What a turn sends besides the new user message: nothing, the bounded full history, or the delta after a message. */
 export type Handoff = "none" | "full" | { readonly since: string }
 
 export function continuationFor(
@@ -2499,17 +2314,14 @@ export function continuationFor(
   const nativeID = isRecord(entry) ? string(entry.nativeID) : undefined
   if (isRecord(entry) && nativeID) {
     const since = string(entry.lastSeenMessageID)
-    // No boundary means the native session never finished a turn, so it may have missed the history.
     return { nativeID, handoff: since ? { since } : "full" }
   }
-  // Legacy single slot: valid only in the revision that wrote it, when the thread had already seen the Run.
   const legacy = isRecord(metadata?.harnessContinuation) ? metadata.harnessContinuation : undefined
   const legacyRevision = typeof legacy?.revision === "number" ? legacy.revision : 0
   const value = legacy?.instanceID === instanceID && legacyRevision === revision ? string(legacy.value) : undefined
   return value ? { nativeID: value, handoff: "none" } : undefined
 }
 
-/** Codex's developerInstructions: the request's system text, without the native agents' chat abilities. */
 export function renderCodexInstructions(request: LLMRequest) {
   return harnessSystem(request)
     .map((text) =>
@@ -2523,8 +2335,6 @@ export function renderCodexInstructions(request: LLMRequest) {
     .join("\n\n")
 }
 
-// The skill and project-reference guidance tell the built-in agent to use its `skill` tool and references,
-// which Codex doesn't have (skill/guidance.ts, reference/guidance.ts).
 const skillGuidance =
   /Skills provide specialized instructions and workflows for specific tasks\.[\s\S]*?(?:<\/available_skills>|No skills are currently available\.)/g
 const referenceGuidance =
@@ -2532,16 +2342,6 @@ const referenceGuidance =
 
 export type TurnGate = ReturnType<typeof turnGate>
 
-/**
- * One harness runtime's current turn. An approval asked during the turn runs through `guard`; when the turn ends
- * (Stop included) before it is answered, the wait is interrupted, which withdraws the prompt from the dock, and the
- * agent gets `fallback`, a denial, instead of an answer to a request it has already abandoned.
- *
- * A request that arrives between turns gets `fallback` at once, unless `between` says work the agent sent to the
- * background is still running: OpenCode keeps background subagents going after the turn that launched them, and
- * refusing their requests unseen cancels them. Such a request is asked like any other and waits for
- * its answer; a later turn's end doesn't withdraw it, since it never belonged to that turn.
- */
 export function turnGate() {
   let ended = Deferred.makeUnsafe<void>()
   let active = false
@@ -2572,7 +2372,6 @@ export function turnGate() {
   }
 }
 
-/** Harnesses whose sign-in appeared since the previous setup read; none on the first read. */
 export function newlySignedIn(
   previous: ReadonlyMap<string, string>,
   current: ReadonlyArray<{ readonly id: string; readonly auth?: string }>,
@@ -2586,10 +2385,8 @@ export function newlySignedIn(
     .map((item) => item.id)
 }
 
-/** The idle time after which a thread's harness process is closed; its next message reconnects. */
 const RUNTIME_IDLE_TTL = 30 * 60_000
 
-/** Runtime keys idle longer than `ttl` with no turn running. */
 export function idleRuntimeKeys(
   activity: ReadonlyMap<string, { readonly lastUsed: number; readonly busy: number }>,
   now: number,
@@ -2598,11 +2395,6 @@ export function idleRuntimeKeys(
   return [...activity].filter(([, item]) => item.busy === 0 && now - item.lastUsed > ttl).map(([key]) => key)
 }
 
-/**
- * The system texts a harness may see. The system context's `core/chat-display` entry tells native agents
- * to ask with the `question` tool, which harnesses don't have; the `<tenon-context>` block gives them
- * the harness abilities instead, so that entry (one baseline paragraph) is cut out.
- */
 function harnessSystem(request: LLMRequest) {
   const native = ChatDisplay.abilities("native")
   return request.system
@@ -2612,12 +2404,6 @@ function harnessSystem(request: LLMRequest) {
 
 export const HANDOFF_TOKEN_BUDGET = 16_000
 
-/**
- * A harness turn's text. A handoff turn (a runtime's first) also carries the `<tenon-context>` block
- * (workspace, AGENTS.md text and Tenon's chat abilities). ACP agents get no system context at all, and
- * Codex gets it without the chat abilities (`renderCodexInstructions`). `context.askUser` says whether
- * the `tenon` MCP server, and with it `ask_user`, is attached; without it the block says to ask in chat.
- */
 export function renderHarnessPrompt(
   request: LLMRequest,
   handoff: Handoff = "none",
@@ -2636,18 +2422,12 @@ export function renderCodexPrompt(request: LLMRequest, handoff: Handoff = "none"
   if (handoff === "none") return latest
   const earlier = messages.slice(0, latestIndex)
   const since = handoff === "full" ? -1 : earlier.findIndex((message) => message.id === handoff.since)
-  // A boundary missing from the request (for example compacted away) falls back to the bounded full history.
   const history = since === -1 ? earlier : sinceLastTurn(earlier.slice(since + 1))
   const block = renderHandoffHistory(history, { budget, delta: since !== -1 })
   if (!block) return latest
   return `${block}\n\n---\nNew user message (respond to this):\n${latest}`
 }
 
-/**
- * Renders earlier messages as a labelled, untrusted context block within a token budget.
- * The first user message and the latest user and assistant messages are always kept (clipped to a
- * quarter of the budget each); the rest fill newest to oldest, and items that do not fit are omitted whole.
- */
 export function renderHandoffHistory(
   messages: ReadonlyArray<Message>,
   options: { readonly budget?: number; readonly delta?: boolean } = {},
@@ -2665,7 +2445,6 @@ export function renderHandoffHistory(
       items.findLast((item) => item.role === "assistant"),
     ].filter((item) => item !== undefined),
   )
-  // Token.estimate counts four characters per token.
   const pinCap = Math.floor(budget / 4) * 4
   pinned.forEach((item) => {
     if (item.text.length > pinCap) item.text = `${item.text.slice(0, pinCap)}\n[Message truncated]`
@@ -2698,7 +2477,6 @@ export function renderHandoffHistory(
   ].join("\n")
 }
 
-// The harness's own reply to the message it last saw comes first; it already knows that part.
 function sinceLastTurn(messages: ReadonlyArray<Message>) {
   const start = messages.findIndex((message) => message.role === "user")
   return start === -1 ? [] : messages.slice(start)
@@ -2737,7 +2515,6 @@ function oneLine(value: string) {
   return line.length > 160 ? `${line.slice(0, 160)}...` : line
 }
 
-/** A Codex token-count record's numeric fields. */
 function counts(value: unknown): Record<string, number> | undefined {
   if (!isRecord(value)) return undefined
   return Object.fromEntries(
@@ -2798,7 +2575,6 @@ function codexToolInput(item: Record<string, unknown>) {
 }
 
 function codexToolOutput(item: Record<string, unknown>) {
-  // A file change is each file's path, kind and unified diff, readable as text rather than escaped JSON.
   const changes = Array.isArray(item.changes) ? item.changes.filter(isRecord) : undefined
   const value =
     item.aggregatedOutput ??
@@ -2818,7 +2594,6 @@ function codexToolOutput(item: Record<string, unknown>) {
   return AcpHarness.clipToolOutput(typeof value === "string" ? value : json(value))
 }
 
-/** The latest user message's attachments, for harnesses that can take them as input. */
 function latestMedia(request: LLMRequest): ReadonlyArray<AcpHarness.Media> {
   const user = request.messages.findLast((message) => message.role === "user")
   return (user?.content ?? []).flatMap((part) =>
@@ -2828,10 +2603,6 @@ function latestMedia(request: LLMRequest): ReadonlyArray<AcpHarness.Media> {
   )
 }
 
-/**
- * Codex `turn/start` input: the prompt text, then each image attachment, a pasted one (`data:image/…`) as `image`
- * and a local file as `localImage`. Codex takes no other attachment types; the text still names them.
- */
 export function codexInputItems(
   prompt: string,
   media: ReadonlyArray<AcpHarness.Media>,
@@ -2848,10 +2619,6 @@ export function codexInputItems(
   ]
 }
 
-/**
- * A `file://` URL as a path on the given platform: on Windows `file:///D:/a.png` is `D:\a.png`, not URL.pathname's
- * `/D:/a.png`. Written out because Bun's fileURLToPath ignores its `windows` option.
- */
 function localFilePath(url: string, windows: boolean) {
   if (!URL.canParse(url)) return undefined
   const parsed = new URL(url)
@@ -2882,11 +2649,6 @@ function readVersion(value: unknown) {
   return userAgent?.match(/\/([^\s]+)/)?.[1]
 }
 
-/**
- * Resumes the thread's Codex conversation, or starts a new one. Any failed resume (a missing or corrupt rollout,
- * a timeout on a large one, or wording a Codex update changed) starts a new thread instead: it gets the full
- * conversation handed over, where a failed turn would leave the thread stuck on the same resume every time.
- */
 export const openCodexThread = (
   client: Pick<CodexClient, "request">,
   continuationID: string | undefined,
@@ -2919,11 +2681,9 @@ function expandHome(input: string) {
 
 const EFFORTS_LOW_TO_HIGH = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 
-/** The cheapest of a model's levels; undefined leaves the agent's default when none is a level we can rank. */
 export const lowestEffort = (efforts: ReadonlyArray<string>) =>
   EFFORTS_LOW_TO_HIGH.find((effort) => efforts.includes(effort))
 
-/** A one-off prompt for a harness with no system channel: instructions first, then the request. */
 function oneShotPrompt(request: LLMRequest) {
   return [...harnessSystem(request), renderCodexPrompt(request)].filter(Boolean).join("\n\n")
 }
@@ -2971,8 +2731,6 @@ function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
-// Runs `effect` once the turn stream ends without a provider error or an error finish, and `onSilentFailure` when
-// it ends with one and no text or tool event, so nothing suggests the agent took the turn in.
 export function onTurnSuccess<E, R, E2, R2>(
   stream: Stream.Stream<LLMEvent, E, R>,
   effect: Effect.Effect<void, E2, R2>,
@@ -2998,9 +2756,7 @@ export function onTurnSuccess<E, R, E2, R2>(
   })
 }
 
-// A cold Codex start can be slow, but thread setup that never answers must not hang the turn forever.
 const THREAD_SETUP_TIMEOUT = "60 seconds"
-// A healthy Codex answers at once; past this the process is replaced and the thread resumes on the next message.
 const INTERRUPT_TIMEOUT = "5 seconds"
 
 export function withProviderIdleTimeout<A, E, R>(stream: Stream.Stream<A, E, R>) {

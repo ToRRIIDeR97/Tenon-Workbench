@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { GLOW_COLOR, glowPage, indicatorPage, notifyStop, watch } from "./computer-indicator-page"
 
-// #333: the pill that shows while an agent uses the computer, and the Stop it reports.
 describe("AC-24 the computer use pill", () => {
   test("names the harness, escapes it, and runs no remote content", () => {
     const page = indicatorPage({ label: 'Gemini <b>"x"</b> is using your computer', stop: "Stop", dark: false })

@@ -29,13 +29,10 @@ import {
 
 export type { ProjectThread } from "./project-rail"
 
-// `threads` and `log` are older links (agent-write cards still use `log`); both land on Story.
 export const projectSections = ["tasks", "story", "pages", "threads", "log", "settings"] as const
-/** Older sections that now live inside another one. */
 const legacySection: Record<"threads" | "log", ProjectSection> = { threads: "story", log: "story" }
 export type ProjectSection = (typeof projectSections)[number]
 
-/** The section an older `?tab=` link means; the tabs became sections of one page. */
 export function sectionFromTab(tab: string | undefined): ProjectSection | undefined {
   const legacy: Record<string, ProjectSection> = {
     timeline: "tasks",
@@ -48,18 +45,9 @@ export function sectionFromTab(tab: string | undefined): ProjectSection | undefi
   return tab ? (legacy[tab] ?? projectSections.find((section) => section === tab)) : undefined
 }
 
-/**
- * A Project as one column: a cover with the Project's tile, its title (status, the actions menu and Start work) and
- * the milestone road, the numbers row, then Tasks (grouped under milestones), Story (threads and the log), Pages and
- * Settings (status, repository, computer use), with a sticky section index beside them once the page is 960px wide. Tasks and
- * milestones are the Project's timeline items, saved whole through `onSaveItems`; older `threads` and `log` links
- * land on Story.
- */
 export function ProjectView(props: {
   project: ProjectRecord
-  /** The workspace the Project's card is saved through. */
   directory: string
-  /** After archiving, the page leaves the Project. */
   onArchived: () => void
   timeline: Loaded<Timeline>
   log: Loaded<ReadonlyArray<LogEntry>>
@@ -68,16 +56,12 @@ export function ProjectView(props: {
   onPage: (path: string) => void
   onNewPage: () => void
   creatingPage: boolean
-  /** Why the last New page failed. */
   pageError: string
-  /** Saves the whole item list over the loaded revision; resolves to an error message, or "" when saved. */
   onSaveItems: (items: ReadonlyArray<TimelineItem>) => Promise<string>
   threads: ReadonlyArray<ProjectThread>
   threadHref: (id: string) => string
-  /** Absent when the Project has no folder to run threads in. */
   onNewThread?: () => void
   onStartWork?: () => void
-  /** A section to scroll to on open (from an older link or an agent write's Open). */
   section?: ProjectSection
 }) {
   const language = useLanguage()
@@ -105,11 +89,8 @@ export function ProjectView(props: {
       date: next.start ? shortDate(next.start) : "",
     })
   }
-  // Progress has one source: done of total tasks. The card's stored percent mirrors it, so Home and the Projects
-  // lists (which read only the card) agree; the manual slider is used only while the Project has no tasks.
   createEffect(
     on(
-      // Only this Project's settled timeline: a reload can still hold the previous Project's items.
       () =>
         [
           !props.timeline.loading && props.timeline.value?.projectId === props.project.id
@@ -124,7 +105,6 @@ export function ProjectView(props: {
     ),
   )
   const outcome = () => props.project.outcome.trim()
-  // The Project's folder: absolute for a linked folder, else relative to the workspace.
   const projectFolder = () => {
     const path = props.project.location?.path
     if (!path) return undefined
@@ -132,7 +112,6 @@ export function ProjectView(props: {
   }
 
   const tasks = createProjectTasks({ items, onSaveItems: (next) => props.onSaveItems(next) })
-  // New items join the end of the list, so a task lands under the last milestone.
   const add = async (event: SubmitEvent) => {
     event.preventDefault()
     const title = state.draft.title.trim()
@@ -153,7 +132,6 @@ export function ProjectView(props: {
       () => [props.project.id, props.section] as const,
       ([, section]) => {
         if (!section) return
-        // Threads and Log became Story; their older links land there.
         queueMicrotask(() =>
           scrollToSection(section === "threads" || section === "log" ? legacySection[section] : section),
         )
@@ -161,18 +139,15 @@ export function ProjectView(props: {
     ),
   )
 
-  // Add milestone on an empty road: the add row switches to Milestone and takes focus.
   let addInput: HTMLInputElement | undefined
   const addMilestone = () => {
     setState("draft", "kind", "milestone")
-    // The add row remounts with the timeline; a ref left from an earlier mount is skipped.
     if (!addInput?.isConnected) return
     addInput.focus({ preventScroll: true })
     addInput.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" })
   }
   const road = createMemo(() => milestoneRoad(items()))
   const numbers = createMemo(() => projectNumbers(items(), props.threads, props.pages.length))
-  // Story's "today" follows the clock: a page left open past midnight moves yesterday's entries down a day.
   const [now, setNow] = createSignal(Date.now())
   const tick = setInterval(() => setNow(Date.now()), 60_000)
   onCleanup(() => clearInterval(tick))
@@ -187,21 +162,11 @@ export function ProjectView(props: {
   const sectionHeading = "flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1"
 
   return (
-    // The Project page (#project-home), sized by the page itself (container queries, so an open sidebar counts):
-    // - narrow: one column: cover band, tile and title with the milestone road, the numbers, then Tasks, Story,
-    //   Pages and Settings;
-    // - from 960px: the same column (growing to 1100px) with the sticky section index beside it;
-    // - from 1400px, a dashboard: the cover runs edge to edge, the title, road and numbers span the page, and below
-    //   them Pages and Settings sit in a 360px column on the left with Tasks and Story beside them. Everything is in
-    //   view, so the index steps aside.
     <div data-project-page={props.project.id} class="@container w-full">
       <ProjectCover bleed class="hidden @min-[1400px]:block" />
       <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center @min-[1400px]:max-w-[1680px] @min-[1400px]:grid-cols-1 @min-[1400px]:px-14">
         <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2 @min-[1400px]:col-start-1">
           <ProjectCover class="@min-[1400px]:hidden" />
-          {/* The tile (64px) rides up over the cover's bottom edge: the 32px column gap plus most of the tile. On
-              the wide page the cover sits above the padded grid, so the lift is the grid's top padding plus most
-              of the tile. */}
           <header class="-mt-[68px] flex flex-col gap-2 px-1 animate-enter @min-[1400px]:-mt-[60px]">
             <ProjectTile name={props.project.name} />
             <div class="mt-1 flex flex-wrap items-center gap-3">
@@ -234,7 +199,6 @@ export function ProjectView(props: {
                 </a>
               )}
             </Show>
-            {/* The road's height is held while the timeline loads, so nothing below shifts when it arrives. */}
             <Show
               when={props.timeline.value}
               fallback={<Show when={props.timeline.loading}>{<div aria-hidden="true" class="mt-2 h-[76px]" />}</Show>}
@@ -245,7 +209,6 @@ export function ProjectView(props: {
           <ProjectNumbers numbers={numbers()} tasksKnown={!!props.timeline.value} />
         </div>
 
-        {/* Keyed like Story: where you are on one Project's page says nothing about the next one's. */}
         <Show when={props.project.id} keyed>
           {(projectId) => (
             <SectionIndex
@@ -257,8 +220,6 @@ export function ProjectView(props: {
           )}
         </Show>
 
-        {/* Tasks and Story come first in the page's order (and on narrower pages); on the wide page they take the
-            right column and Pages and Settings the left. */}
         <div class="flex min-w-0 flex-col gap-10 @min-[960px]:col-start-2 @min-[960px]:row-start-2 @min-[1400px]:col-start-1 @min-[1400px]:grid @min-[1400px]:grid-cols-[360px_minmax(0,1fr)] @min-[1400px]:items-start @min-[1400px]:gap-x-10">
           <div
             data-project-main
@@ -345,7 +306,6 @@ export function ProjectView(props: {
                       </div>
                     )}
                   </For>
-                  {/* The linked repository's issues are tasks too (#331). */}
                   <ProjectGithubTasks
                     projectId={props.project.id}
                     folder={projectFolder()}
@@ -362,7 +322,6 @@ export function ProjectView(props: {
                 )}
               </RevealShow>
               <Show when={items().some((item) => item.start || item.end)}>
-                {/* Open hides done tasks here too, like the list above. */}
                 <TimelineGrid
                   items={items().filter(
                     (item) => state.show === "all" || item.kind === "milestone" || item.status !== "done",
@@ -399,7 +358,6 @@ export function ProjectView(props: {
                   {language.t("secondBrain.project.newThread")}
                 </ButtonV2>
               </div>
-              {/* Keyed: Story's state (what was there on open, Show older) belongs to one Project. */}
               <Show when={props.project.id} keyed>
                 {(projectId) => (
                   <ProjectStory
@@ -443,8 +401,6 @@ export function ProjectView(props: {
               />
             </section>
 
-            {/* Settings: the Project's status (progress, next milestone, blocker), where its GitHub tasks come from, and
-            computer use. */}
             <section
               id="project-settings"
               aria-labelledby="project-settings-title"
@@ -467,7 +423,6 @@ export function ProjectView(props: {
   )
 }
 
-/** A Project's status as a small chip: a dot (accent while active) and the status name. */
 export function ProjectStatusChip(props: { status: ProjectRecord["status"] }) {
   const language = useLanguage()
   return (
@@ -488,11 +443,9 @@ export function ProjectStatusChip(props: { status: ProjectRecord["status"] }) {
   )
 }
 
-/** One row per item over a grid of weeks: a bar from start to end, or ◆ on a milestone's date. */
 function TimelineGrid(props: { items: ReadonlyArray<TimelineItem>; dateLabel: (value: string) => string }) {
   const language = useLanguage()
   const layout = createMemo(() => timelineLayout(props.items))
-  // Label at most about ten weeks so long plans stay readable.
   const step = () => Math.max(1, Math.ceil(layout().weeks.length / 10))
   const grid = () => ({
     "background-image": "linear-gradient(to right, var(--v2-border-border-muted) 1px, transparent 1px)",
@@ -540,8 +493,6 @@ function TimelineGrid(props: { items: ReadonlyArray<TimelineItem>; dateLabel: (v
                         title={`${row.item.title} · ${language.t(`secondBrain.vault.status.${row.item.status}`)}`}
                         classList={{
                           "absolute top-1/2 h-5 -translate-y-1/2 rounded-full": true,
-                          // Work in progress carries the accent; finished work steps back to grey. Both keep
-                          // at least 3:1 against the panel in light and dark.
                           "bg-v2-icon-icon-accent": row.item.status === "doing",
                           "bg-v2-icon-icon-muted": row.item.status === "done",
                           "bg-v2-background-bg-layer-03 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]":

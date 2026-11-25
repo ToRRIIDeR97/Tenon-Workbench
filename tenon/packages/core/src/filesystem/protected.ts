@@ -31,14 +31,12 @@ const DARWIN_LIBRARY = [
 const DARWIN_ROOT = ["/.DocumentRevisions-V100", "/.Spotlight-V100", "/.Trashes", "/.fseventsd"]
 const WIN32_HOME = ["AppData", "Downloads", "Desktop", "Documents", "Pictures", "Music", "Videos", "OneDrive"]
 
-/** Directory basenames to skip when scanning the home directory. */
 export function names(): ReadonlySet<string> {
   if (process.platform === "darwin") return new Set(DARWIN_HOME)
   if (process.platform === "win32") return new Set(WIN32_HOME)
   return new Set()
 }
 
-/** Absolute paths that should never be watched, stated, or scanned. */
 export function paths(): string[] {
   if (process.platform === "darwin")
     return [

@@ -18,15 +18,10 @@ import {
   useAgentWrites,
 } from "./store"
 
-/**
- * Inline cards (W5) for `writes`: inside the turn that made them, or after the last turn for writes
- * without a turn. `centered` puts them in the timeline's centred column when no turn row frames them.
- */
 export function AgentWritesInline(props: { writes: ReadonlyArray<AgentWrite>; centered?: boolean }) {
   const writes = useAgentWrites()
   return (
     <Show when={writes && props.writes.length > 0}>
-      {/* The same column and padding as the timeline's turns, so a card lines up under the reply that made it. */}
       <div
         data-slot="agent-writes-inline"
         classList={{
@@ -40,10 +35,6 @@ export function AgentWritesInline(props: { writes: ReadonlyArray<AgentWrite>; ce
   )
 }
 
-/**
- * A Command Centre turn's writes as one "Done for you" list under the reply: one row per action (a note saved, a
- * Project created, a thread started, steered or stopped), each with Open and, where it can, Undo.
- */
 export function AgentWritesDone(props: { writes: ReadonlyArray<AgentWrite>; centered?: boolean }) {
   const writes = useAgentWrites()
   const language = useLanguage()
@@ -97,7 +88,6 @@ export function AgentWritesDone(props: { writes: ReadonlyArray<AgentWrite>; cent
   )
 }
 
-/** W5: grows with the preview while the agent writes, then folds to one line with Open, Undo and Show. */
 export function AgentWriteCard(props: { write: AgentWrite; store: AgentWrites }) {
   const language = useLanguage()
   const [shown, setShown] = createSignal(false)
@@ -135,7 +125,6 @@ export function AgentWriteCard(props: { write: AgentWrite; store: AgentWrites })
   )
 }
 
-/** W4: the top pill for recent writes made by any thread other than the open one. */
 export function AgentWritePill() {
   const writes = useAgentWrites()
   const location = useLocation()
@@ -144,7 +133,6 @@ export function AgentWritePill() {
     if (!store) return undefined
     return pillWrite(store.writes(), sessionFromPath(location.pathname), Date.now())
   })
-  // The last pill stays mounted while it animates out.
   const shown = createMemo<AgentWrite | undefined>((previous) => current() ?? previous)
   return (
     <div class="pointer-events-none absolute inset-x-0 top-2 z-50 flex justify-center px-4">
@@ -200,7 +188,6 @@ function Pill(props: { write: AgentWrite; store: AgentWrites }) {
         </Show>
       </div>
       <Grow open={writing()}>
-        {/* Only the open preview sets the pill's width; folded, the pill hugs its one line. */}
         <div class="px-3 pb-3" classList={{ "w-[min(480px,calc(100vw-64px))]": writing() }}>
           <AgentWritePreview kind={props.write.kind} preview={props.write.preview} typing={writing()} />
         </div>
@@ -209,7 +196,6 @@ function Pill(props: { write: AgentWrite; store: AgentWrites }) {
   )
 }
 
-/** A write shown inline once it is saved counts as seen, so it never pops a pill later. */
 function seenWhenSaved(write: () => AgentWrite, store: AgentWrites) {
   createEffect(() => {
     if (write().phase === "done" && !write().hidden) store.hide(write().id)
@@ -220,7 +206,6 @@ function Headline(props: { write: AgentWrite }) {
   const language = useLanguage()
   const kind = () => language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)
   const target = () => props.write.target
-  // The Command Centre's own actions read as what it did, not as something saved.
   const action = () =>
     COMMAND_KINDS.includes(props.write.kind) && !props.write.failed
       ? language.t(`secondBrain.agentWrites.action.${props.write.kind as "project" | "thread" | "steer" | "stop"}`, {
@@ -244,7 +229,6 @@ function Actions(props: { write: AgentWrite; store: AgentWrites; children?: JSX.
   const navigate = useNavigate()
   const server = useServer()
   const href = () => openHref(props.write, server.key)
-  // A failed undo keeps Undo so it can be retried; its status shows beside it.
   const undoable = () => ["idle", "pending", "failed"].includes(props.write.undoState)
   return (
     <div class="flex shrink-0 items-center gap-1">
@@ -283,7 +267,6 @@ function Actions(props: { write: AgentWrite; store: AgentWrites; children?: JSX.
   )
 }
 
-/** Accent only while a write is active; neutral once it is saved. */
 function StatusDot(props: { active: boolean }) {
   return (
     <span
@@ -298,7 +281,6 @@ function StatusDot(props: { active: boolean }) {
   )
 }
 
-/** A `Reveal` that starts closed for one frame, so a card that mounts open still grows. */
 function Grow(props: { open: boolean; children: JSX.Element }) {
   const reduced = prefersReducedMotion()
   const [mounted, setMounted] = createSignal(reduced)

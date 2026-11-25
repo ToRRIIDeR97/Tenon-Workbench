@@ -88,7 +88,6 @@ function describeFor(mcpTools: Record<string, MCP.McpTool>, servers?: string[], 
   return describeCatalog(Permission.visibleTools(mcpTools, permission), serverNames(mcpTools, servers))
 }
 
-// Program failures die at the tool boundary; recover the defect for message assertions.
 async function failure(effect: Effect.Effect<unknown>) {
   const exit = await Effect.runPromise(effect.pipe(Effect.exit))
   if (Exit.isSuccess(exit)) throw new Error("expected the tool to fail")
@@ -398,7 +397,6 @@ describe("code mode execute", () => {
 
     expect(asked).toEqual([
       { permission: "mcp", patterns: ["a"], always: ["a"], metadata: { server: "a", tool: "tool" } },
-      // "Always" saves the server name literally, so a `*` in it can't widen the approval.
       { permission: "mcp", patterns: ["b*"], always: ["b[*]"], metadata: { server: "b*", tool: "tool" } },
     ])
   })

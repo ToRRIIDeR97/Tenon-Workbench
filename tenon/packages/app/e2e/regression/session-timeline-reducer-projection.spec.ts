@@ -24,7 +24,6 @@ test("groups singleton and separated context operations at correct boundaries", 
   await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
   await expect(page.locator('[data-timeline-part-ids="prt_boundary_01_read"]')).toBeVisible()
-  // A completed shell between context tools folds the whole run into one "tools" summary row.
   const tools = page.locator(
     '[data-timeline-part-ids="prt_boundary_03_glob,prt_boundary_04_grep,prt_boundary_05_shell,prt_boundary_06_list"]',
   )

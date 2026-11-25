@@ -18,7 +18,6 @@ import type { SessionComposerRegionController } from "./session-composer-region-
 export function SessionComposerRegion(props: {
   controller: SessionComposerRegionController
   promptInput: JSX.Element
-  /** The thread runs on Codex or an ACP agent, which can't read a deny reason from the approval reply. */
   external?: boolean
 }) {
   const language = useLanguage()
@@ -26,9 +25,6 @@ export function SessionComposerRegion(props: {
   const permissions = usePermission()
   const sdk = useSDK()
   const params = useParams<{ id?: string }>()
-  // A question or approval takes the composer's place. Only one of the three shows at a time: the incoming one
-  // fades and rises in (animate-enter) while the area's height eases once from the old content's height to the
-  // new one's, so the region never grows past either (both showing at once made it jump up, then back down).
   const view = createMemo<"question" | "permission" | "composer">(() => {
     if (controller.state.questionRequest()) return "question"
     if (controller.state.permissionRequest()) return "permission"
@@ -36,7 +32,6 @@ export function SessionComposerRegion(props: {
   })
   const question = () => controller.state.questionRequest()
   const permission = () => controller.state.permissionRequest()
-  // The first content shows as it is; only later swaps animate.
   let swapped = false
   let swap: HTMLDivElement | undefined
   let from = 0
@@ -75,17 +70,12 @@ export function SessionComposerRegion(props: {
     controller.followup()?.items.length ? controller.followup() : last,
   )
 
-  // A composer that replaces the handoff placeholder (the prompt was still loading) fades in over it; one
-  // that is ready from the start does not.
   const handedOff = !untrack(controller.promptReady)
 
   let dock: HTMLDivElement | undefined
   onMount(() => {
     if (!dock) return
     const element = dock
-    // The Command Centre strip handle sits on the composer's top edge, centred on the chat column (not the
-    // window), so it never lands on the side panel or terminal beside the thread. This runs every frame while the
-    // column's width eases, so it only touches the strip's own style (see command-strip-anchor.ts).
     createResizeObserver(element, () => {
       const main = element.closest("main")?.getBoundingClientRect()
       const rect = element.getBoundingClientRect()
@@ -107,9 +97,7 @@ export function SessionComposerRegion(props: {
       data-component="session-prompt-dock"
       class="relative w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none bg-v2-background-bg-base"
     >
-      {/* The thread fades out above the composer instead of stopping at a hard edge. */}
       <div class="pointer-events-none absolute inset-x-0 bottom-full h-6 bg-linear-to-t from-v2-background-bg-base to-transparent" />
-      {/* The thread's column: the Environment window measures it to stay clear of the thread's text. */}
       <div
         data-slot="thread-column"
         classList={{
@@ -117,7 +105,6 @@ export function SessionComposerRegion(props: {
           "md:max-w-[var(--tenon-thread-width,640px)] md:mx-auto": controller.centered(),
         }}
       >
-        {/* The composer and the docks that attach to it share its 560px width. */}
         <div ref={swap} class="mx-auto flex w-full max-w-[560px] flex-col">
           <Show when={view() === "question" ? question() : undefined} keyed>
             {(request) => (
@@ -137,7 +124,6 @@ export function SessionComposerRegion(props: {
                     controller.onResponseSubmit()
                     controller.state.decide(response, message, props.external)
                   }}
-                  // Full auto answers this request and every later one in the thread, subagents included.
                   onAllowThread={() => {
                     controller.onResponseSubmit()
                     permissions.setMode(params.id ?? request.sessionID, sdk().directory, "full")
@@ -148,13 +134,11 @@ export function SessionComposerRegion(props: {
           </Show>
 
           <Show when={view() === "composer"}>
-            {/* The checklist rides in the composer's own tray (`SessionTodoTray`), so nothing stacks above it. */}
             <div class={`flex flex-col ${enter()}`}>
               <Show
                 when={controller.promptReady()}
                 fallback={
                   <div>
-                    {/* The live composer carries the rollback rows in its own tray; the placeholder stands in for it. */}
                     <SessionRevertTray dock={controller.revert} />
                     <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-muted whitespace-pre-wrap pointer-events-none">
                       {controller.handoffPrompt() || language.t("prompt.loading")}
@@ -162,8 +146,6 @@ export function SessionComposerRegion(props: {
                   </div>
                 }
               >
-                {/* The rollback rows live in the composer's tray (its header), so they fold in with the tray
-                  and the composer below them never jumps. */}
                 <div
                   classList={{
                     "relative z-(--z-composer)": true,
@@ -204,11 +186,6 @@ export function SessionComposerRegion(props: {
   )
 }
 
-/**
- * The running agent's checklist for the top of the composer's tray (`boxHeaderTop`). It unfolds from the tray's
- * where row as the run starts and folds back when it ends; while folding it clips from the top, so the step row
- * is the last thing to go.
- */
 export function SessionTodoTray(props: { controller: SessionComposerRegionController }) {
   const language = useLanguage()
   return (

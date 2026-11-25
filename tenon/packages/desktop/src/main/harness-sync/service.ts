@@ -10,24 +10,16 @@ import { type LocalState, deviceName, loadState, saveState } from "./state"
 import { type Locations, findTool, instructionsFile, skillsDir } from "./tools"
 
 const CHECK_INTERVAL = 5_000
-/** Every 12th check (about a minute) rereads the file even when its size and time look unchanged. */
 const FULL_CHECK_TICKS = 12
 
 export type HarnessSyncDeps = {
   locations: Locations
-  /** Where `state.json` and `backups/` live, in Tenon's app data folder. */
   dataDir: string
-  /** Native dialogs: the sync file is always chosen by the person, never sent by the renderer. */
   pickNewFile: () => Promise<string | undefined>
   pickExistingFile: () => Promise<string | undefined>
-  /** The background check applied a change; `notice` names who saved it when that was another computer. */
   changed: (notice?: { from: string; tools: number; skills: number }) => void
 }
 
-/**
- * Harness sync for this computer. Every read-modify-write of local state, harness files and the sync file runs
- * through one queue, so the background check and the person's actions never interleave.
- */
 export function createHarnessSync(deps: HarnessSyncDeps) {
   const statePath = path.join(deps.dataDir, "state.json")
   const backups = path.join(deps.dataDir, "backups")
@@ -45,7 +37,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     return loaded.state
   }
 
-  /** Reads the sync file and compares or applies it. */
   async function refresh(write: Write): Promise<HarnessSyncStatus> {
     const state = await local()
     const loaded = state.syncFile
@@ -103,7 +94,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     }
   }
 
-  /** Reads the skills the editor chose to upload from this computer's harness folders. */
   async function readSkillSources(presets: HarnessSyncPresets) {
     const entries = await Promise.all(
       Object.entries(presets.skillSources).map(async ([name, tool]) => {
@@ -121,11 +111,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     return Object.fromEntries(entries)
   }
 
-  /**
-   * Uploads skills edited in a harness folder when that is safe (see `outsideEdits`). The background check passes
-   * `seen`, the edits its previous check found, and an edit is uploaded only when that check found the same content,
-   * so a half-written skill is not shared. The sync file's version being replaced is backed up first.
-   */
   async function uploadOutsideEdits(seen?: Map<string, string>) {
     const state = await local()
     if (!state.syncFile) {
@@ -168,7 +153,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     )
   }
 
-  /** An apply the person asked for: safe skill edits are uploaded first, so the apply spreads them. */
   async function applyForUser() {
     await uploadOutsideEdits()
     return refresh("always")
@@ -180,7 +164,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     return refresh("always")
   }
 
-  /** Replaces the presets in `file` with this computer's instruction files. */
   async function useThisComputer(file: string, seed: HarnessSyncToolID, expectedRevision?: number) {
     const current = (await load(file)).document
     const presets = await capture(current, deps.locations, seed)
@@ -193,14 +176,10 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
     return found.id
   }
 
-  // Background check: applies the sync file whenever its bytes change, keeping outside edits, and about once a
-  // minute uploads skills edited in a harness folder when that cannot lose anyone's work.
   const worker = {
     first: true,
     tick: 0,
-    /** Size and modified time after a check that ended without an error. */
     stamp: undefined as string | undefined,
-    /** The hash read last check, so an invalid file is parsed once. */
     tried: undefined as string | undefined,
     seen: new Map<string, string>(),
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
@@ -215,13 +194,11 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
       return undefined
     }
     const full = worker.tick % FULL_CHECK_TICKS === 0
-    // A successful upload changes the file, which the check below then applies.
     if (full) await uploadOutsideEdits(worker.seen)
     const stamp = await lstat(file).then(
       (info) => `${info.size}:${info.mtimeMs}`,
       () => undefined,
     )
-    // Some filesystems keep the modified time, so check fully about once a minute.
     if (!full && stamp !== undefined && stamp === worker.stamp) return undefined
     worker.stamp = undefined
     const read = await readHash(file).then(
@@ -263,7 +240,6 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
 
   return {
     start: schedule,
-    /** For tests: one background upload pass and one automatic apply, through the queue. */
     testing: {
       upload: (seen: Map<string, string>) => gate(() => uploadOutsideEdits(seen)),
       refresh: (write: Write) => gate(() => refresh(write)),

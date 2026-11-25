@@ -10,14 +10,6 @@ import {
   type DesignInfo,
 } from "./design-fence"
 
-/**
- * Renders ```html fenced blocks as designs (see design-fence.ts for the format and trust model).
- *
- * A small design becomes an inline window running the page in a sandboxed iframe; a canvas design
- * becomes a compact card that opens the Canvas tab. While a fence streams it shows a placeholder,
- * so the iframe is built once, when the fence closes, instead of on every token.
- */
-
 export type HtmlWindowLabels = {
   title: string
   badge: string
@@ -32,7 +24,6 @@ export type HtmlWindowLabels = {
 
 type Options = {
   space?: DesignSpace
-  /** True when the message streamed in this view, so a finished canvas block is announced. */
   live: boolean
 }
 
@@ -41,11 +32,9 @@ const MAX_HEIGHT = 720
 const INITIAL_HEIGHT = 160
 const mounted = new WeakMap<HTMLElement, string>()
 
-/** Mounts a design on every ```html block under `root`; `raw` is the markdown those blocks came from. */
 export function mountHtmlWindows(root: HTMLElement, raw: string, labels: HtmlWindowLabels, options: Options) {
   const codes = root.querySelectorAll<HTMLElement>("pre > code.language-html")
   if (codes.length === 0) return
-  // Parsed lazily: only a completed block needs the fence list, and only once.
   let fences: ReturnType<typeof designFences> | undefined
   for (const code of codes) {
     const pre = code.parentElement
@@ -78,7 +67,6 @@ export function mountHtmlWindows(root: HTMLElement, raw: string, labels: HtmlWin
   }
 }
 
-/** Title and kind of the fence still streaming: the opening line of a code block, else the last open fence. */
 function streamingInfo(raw: string): DesignInfo {
   const head = raw
     .trimStart()
@@ -96,22 +84,17 @@ function mount(
   options: Options,
   streaming: boolean,
 ) {
-  // A design that finished streaming fades its frame in where the notice was; one from history appears as is.
   const finished = !streaming && !!wrapper.querySelector(':scope > [data-slot="html-window-notice"][data-streaming]')
   unmount(wrapper)
   listen()
   const title = design.title ?? labels.title
   const large = !streaming && designTooLarge(design.source)
   wrapper.dataset.htmlWindow = design.canvas ? "card" : "window"
-  // The page source stays one click away, also for cards and oversized pages: ```html is also how
-  // agents show plain markup. `shown` is the wrapper state that reveals the <pre>, `back` the label
-  // while it shows; a label that doesn't change reports its state with aria-pressed instead.
   const sourceToggle = (hidden: string, shown: string, back = labels.source) => {
     const pressable = back === labels.source
     const el = button(labels.source, () => {
       const showing = wrapper.dataset.htmlWindow === shown
       wrapper.dataset.htmlWindow = showing ? hidden : shown
-      // The view the toggle reveals fades in (html-window.css); views shown on mount do not.
       wrapper.dataset.htmlWindowToggled = ""
       el.textContent = showing ? labels.source : back
       if (pressable) el.setAttribute("aria-pressed", String(!showing))
@@ -170,7 +153,6 @@ function mount(
 function frame(source: string, title: string) {
   const el = document.createElement("iframe")
   el.dataset.slot = "html-window-frame"
-  // Set before srcdoc and before the frame is attached, so the first load is already sandboxed.
   el.setAttribute("sandbox", DESIGN_SANDBOX)
   el.setAttribute("referrerpolicy", "no-referrer")
   el.setAttribute("loading", "lazy")
@@ -207,10 +189,6 @@ function button(label: string, onClick: () => void) {
 
 let listening = false
 
-/**
- * The only message the app accepts from a design frame: its content height as a bare number, from
- * the frame's own window (an opaque origin). Anything else is ignored; nothing is sent back.
- */
 function listen() {
   if (listening) return
   listening = true

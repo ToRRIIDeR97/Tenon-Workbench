@@ -1,6 +1,3 @@
-// The pinned ripgrep release, shared by the runtime download and the desktop build that bundles it.
-// `sha256` is each archive's digest from the release's own `.sha256` assets, checked against the
-// archives themselves. It has to change with VERSION; nothing here can check that offline.
 export const VERSION = "15.1.0"
 export const PLATFORM = {
   "arm64-darwin": {
@@ -45,5 +42,4 @@ export type Config = (typeof PLATFORM)[keyof typeof PLATFORM]
 export const archiveName = (config: Config) => `ripgrep-${VERSION}-${config.platform}.${config.extension}`
 export const archiveURL = (config: Config) =>
   `https://github.com/BurntSushi/ripgrep/releases/download/${VERSION}/${archiveName(config)}`
-/** The folder inside the archive that holds the executable. */
 export const archiveFolder = (config: Config) => `ripgrep-${VERSION}-${config.platform}`

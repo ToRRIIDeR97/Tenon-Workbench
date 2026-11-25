@@ -8,7 +8,6 @@ import { Glob } from "@tenon/core/util/glob"
 import { FSUtil } from "@tenon/core/fs-util"
 import { fileURLToPath } from "url"
 
-// Fast sync version for metadata checks
 export async function exists(p: string): Promise<boolean> {
   return existsSync(p)
 }
@@ -107,11 +106,6 @@ export async function mimeType(p: string): Promise<string> {
   return lookup(p) || "application/octet-stream"
 }
 
-/**
- * On Windows, normalize a path to its canonical casing using the filesystem.
- * This is needed because Windows paths are case-insensitive but LSP servers
- * may return paths with different casing than what we send them.
- */
 export function normalizePath(p: string): string {
   if (process.platform !== "win32") return p
   const resolved = win32.normalize(win32.resolve(windowsPath(p)))
@@ -131,9 +125,6 @@ export function normalizePathPattern(p: string): string {
   return join(normalizePath(dir), "*")
 }
 
-// We cannot rely on path.resolve() here because git.exe may come from Git Bash, Cygwin, or MSYS2, so we need to translate these paths at the boundary.
-// Also resolves symlinks so that callers using the result as a cache key
-// always get the same canonical path for a given physical directory.
 export function resolve(p: string): string {
   const resolved = pathResolve(windowsPath(p))
   try {
@@ -152,16 +143,11 @@ export function resolveFilePath(root: string, file: string): string {
 
 export function windowsPath(p: string): string {
   if (process.platform !== "win32") return p
-  return (
-    p
-      .replace(/^\/([a-zA-Z]):(?:[\\/]|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
-      // Git Bash for Windows paths are typically /<drive>/...
-      .replace(/^\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
-      // Cygwin git paths are typically /cygdrive/<drive>/...
-      .replace(/^\/cygdrive\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
-      // WSL paths are typically /mnt/<drive>/...
-      .replace(/^\/mnt\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
-  )
+  return p
+    .replace(/^\/([a-zA-Z]):(?:[\\/]|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
+    .replace(/^\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
+    .replace(/^\/cygdrive\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
+    .replace(/^\/mnt\/([a-zA-Z])(?:\/|$)/, (_, drive) => `${drive.toUpperCase()}:/`)
 }
 export function overlaps(a: string, b: string) {
   return FSUtil.overlaps(a, b)
@@ -237,9 +223,7 @@ export async function globUp(pattern: string, start: string, stop?: string) {
         dot: true,
       })
       result.push(...matches)
-    } catch {
-      // Skip invalid glob patterns
-    }
+    } catch {}
     if (stop === current) break
     const parent = dirname(current)
     if (parent === current) break

@@ -7,9 +7,9 @@ import DESCRIPTION from "./webfetch.txt"
 import { isImageAttachment } from "@/util/media"
 import { collectBoundedResponseBody } from "@tenon/core/tool/http-body"
 
-const MAX_RESPONSE_SIZE = 5 * 1024 * 1024 // 5MB
-const DEFAULT_TIMEOUT = 30 * 1000 // 30 seconds
-const MAX_TIMEOUT = 120 * 1000 // 2 minutes
+const MAX_RESPONSE_SIZE = 5 * 1024 * 1024
+const DEFAULT_TIMEOUT = 30 * 1000
+const MAX_TIMEOUT = 120 * 1000
 
 export const Parameters = Schema.Struct({
   url: Schema.String.annotate({ description: "The URL to fetch content from" }),
@@ -50,7 +50,6 @@ export const WebFetchTool = Tool.define(
 
           const timeout = Math.min((params.timeout ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
 
-          // Build Accept header based on requested format with q parameters for fallbacks
           let acceptHeader = "*/*"
           switch (params.format) {
             case "markdown":
@@ -76,10 +75,7 @@ export const WebFetchTool = Tool.define(
 
           const request = HttpClientRequest.get(params.url).pipe(HttpClientRequest.setHeaders(headers))
 
-          // One timeout covers the headers and the body; the body is read as a stream and stops at the
-          // limit, so a response that never ends or is too large can't hang the tool or fill memory.
           const { response, arrayBuffer } = yield* Effect.gen(function* () {
-            // Retry with honest UA if blocked by Cloudflare bot detection (TLS fingerprint mismatch)
             const response = yield* httpOk.execute(request).pipe(
               Effect.catchIf(
                 (err) =>
@@ -124,7 +120,6 @@ export const WebFetchTool = Tool.define(
 
           const content = new TextDecoder().decode(arrayBuffer)
 
-          // Handle content based on requested format and actual content type
           switch (params.format) {
             case "markdown":
               if (contentType.includes("text/html")) {

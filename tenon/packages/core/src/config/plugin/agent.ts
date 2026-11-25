@@ -24,7 +24,6 @@ const legacySources = [
 ] as const
 const decodeAgent = Schema.decodeUnknownOption(ConfigAgent.Info)
 const decodeLegacyAgent = Schema.decodeUnknownOption(ConfigAgentV1.Info)
-// Keeps the frontmatter key order, which orders permission rules by precedence.
 const decodeOrdered = <A>(
   decode: (input: unknown, options?: SchemaAST.ParseOptions) => Option.Option<A>,
   input: Record<string, unknown>,
@@ -129,8 +128,6 @@ export const Plugin = define({
 })
 
 function expandPermissions(rules: PermissionV2.Ruleset, home: string): PermissionV2.Ruleset {
-  // Expand only resources tools resolve as filesystem paths. Bash resources are raw shell text:
-  // rewriting `$HOME/private/**` would miss `$HOME/private/key`, and safe expansion needs shell-aware parsing.
   return rules.map((rule) =>
     isPathAction(rule.action) ? { ...rule, resource: expandHome(rule.resource, home) } : rule,
   )

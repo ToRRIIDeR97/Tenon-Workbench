@@ -43,17 +43,13 @@
       opacity: 1;
     }
 
-    /* text-12-medium */
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);
     font-style: normal;
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 166.667% */
+    line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);
 
-    /* &:hover { */
-    /*   background-color: var(--surface-base); */
-    /* } */
     &:focus-visible {
       outline: none;
       background-color: var(--surface-raised-base-hover);
@@ -90,8 +86,6 @@
   [data-slot="collapsible-content"] {
     overflow: hidden;
 
-    /* Opens and closes at once: these bodies sit in virtualized timeline rows, which must reach their final
-       height in one frame. */
     &[data-expanded] {
       overflow: visible;
     }
@@ -106,9 +100,6 @@
       border: none;
       padding: 0;
 
-      /* &:hover { */
-      /*   color: var(--text-strong); */
-      /* } */
       &:focus-visible {
         outline: none;
         background-color: var(--surface-raised-base-hover);

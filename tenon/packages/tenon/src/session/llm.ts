@@ -112,8 +112,6 @@ const live: Layer.Layer<
           })
         : undefined
 
-      // Runtime seam: native is an opt-in adapter over @tenon/llm. It
-      // either returns a ready LLMEvent stream or a concrete fallback reason.
       if (flags.experimentalNativeLlm) {
         const native = LLMNativeRuntime.stream({
           model: input.model,
@@ -164,8 +162,6 @@ const live: Layer.Layer<
         "llm.provider": input.model.providerID,
         "llm.model": input.model.id,
       })
-      // Default runtime path: AI SDK owns provider execution and tool dispatch;
-      // LLMAISDK.toLLMEvents below normalizes fullStream parts for the processor.
       return {
         type: "ai-sdk" as const,
         result: streamText({
@@ -182,7 +178,6 @@ const live: Layer.Layer<
               }),
             )
           },
-          // Copilot returns the authoritative billed amount only in provider-specific response fields.
           includeRawChunks: input.model.providerID.includes("github-copilot"),
           async experimental_repairToolCall(failed) {
             const lower = failed.toolCall.toolName.toLowerCase()
@@ -205,17 +200,12 @@ const live: Layer.Layer<
           topP: prepared.params.topP,
           topK: prepared.params.topK,
           providerOptions: ProviderTransform.providerOptions(input.model, prepared.params.options),
-          // "invalid" is only a repair target. It is hidden from the provider in transformParams
-          // below rather than through activeTools: the AI SDK neither parses nor executes calls
-          // to tools left out of activeTools, which would break experimental_repairToolCall.
           tools: prepared.tools,
           toolChoice: input.toolChoice,
           maxOutputTokens: prepared.params.maxOutputTokens,
           abortSignal: input.abort,
           headers: prepared.headers,
           maxRetries: input.retries ?? 0,
-          // Tenon assembles the system messages (agent prompt, instruction files); this only
-          // silences the AI SDK warning about system messages in `messages`.
           allowSystemInMessages: true,
           messages: prepared.messages,
           model: wrapLanguageModel({
@@ -264,8 +254,6 @@ const live: Layer.Layer<
 
             if (result.type === "native") return result.stream
 
-            // Adapter seam: both runtimes expose the same LLMEvent stream. Native
-            // already returns one; AI SDK streams are converted here.
             const state = LLMAISDK.adapterState()
             return Stream.fromAsyncIterable(result.result.fullStream, (e) =>
               e instanceof Error ? e : new Error(String(e)),

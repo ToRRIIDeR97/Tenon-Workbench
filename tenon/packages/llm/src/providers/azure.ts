@@ -9,8 +9,6 @@ import { withOpenAIOptions, type OpenAIProviderOptionsInput } from "./openai-opt
 export const id = ProviderID.make("azure")
 const routeAuth = Auth.remove("authorization")
 
-// Azure needs the customer's resource URL; supply either `resourceName`
-// (helper builds the URL) or `baseURL` directly.
 type AzureURL = AtLeastOne<{ readonly resourceName: string; readonly baseURL: string }>
 
 export type ModelOptions = AzureURL &
@@ -75,7 +73,6 @@ const configuredRoute = <Body, Prepared>(route: RouteDef<Body, Prepared>, input:
   route.with({
     auth: auth(input),
     endpoint: {
-      // AtLeastOne guarantees at least one is set; baseURL wins if both are.
       baseURL: input.baseURL ?? resourceBaseURL(input.resourceName!),
       query: {
         ...(input.apiVersion ? { "api-version": input.apiVersion } : {}),

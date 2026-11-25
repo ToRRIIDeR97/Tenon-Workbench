@@ -17,7 +17,6 @@ let run = ""
 let logger: MainLogger
 export const getLogger = () => logger
 
-/** Milliseconds since the OS created this process; `undefined` where Electron can't tell. */
 export function sinceProcessStart(at = Date.now()) {
   const created = process.getCreationTime()
   return created === null ? undefined : Math.round(at - created)
@@ -31,12 +30,9 @@ export function initLogging() {
       run,
       `${safeLogName(message?.scope ?? (message?.variables?.processType === "renderer" ? "renderer" : "main"))}.log`,
     )
-  // Renderer console output can carry note or terminal text, so packaged
-  // builds don't copy it into the log files.
   log.initialize({ preload: false, spyRendererConsole: !app.isPackaged })
   initConsoleTransport()
   cleanup()
-  // Logs uncaught exceptions and unhandled rejections in the main process without a blocking dialog.
   log.errorHandler.startCatching({ showDialog: false })
   return (logger = log)
 }
@@ -49,9 +45,6 @@ export function initCrashReporter() {
   write("crash", "crash reporter started", { path: dir })
 }
 
-// NetLog is not recorded: it captures full request URLs, including the server
-// `auth_token` query parameter. Developers can still launch with Electron's
-// `--log-net-log=<path>` switch. Leftover .netlog files are never exported.
 export async function exportDebugLogs() {
   const output = join(app.getPath("downloads"), `tenon-debug-${stamp()}.zip`)
   write("main", "exporting debug logs", { output })
@@ -59,7 +52,6 @@ export async function exportDebugLogs() {
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest(), null, 2)) },
     ...collect(root, "desktop"),
     ...serverLogRoots().flatMap((dir, i) => collect(dir, `server-${i + 1}`)),
-    // Minidumps hold process memory (secrets, note text), so only their names, sizes and times go in.
     { name: "crashpad.json", data: Buffer.from(JSON.stringify(crashDumpIndex(app.getPath("crashDumps")), null, 2)) },
   ])
   shell.showItemInFolder(output)
@@ -158,7 +150,6 @@ function collect(dir: string, prefix: string): Entry[] {
   const walk = (current: string) => {
     for (const entry of readdirSync(current)) {
       const file = join(current, entry)
-      // A log can rotate away between the listing and the stat.
       const info = statSync(file, { throwIfNoEntry: false })
       if (!info) continue
       if (info.isDirectory()) {
@@ -182,7 +173,6 @@ function crashDumpIndex(dir: string) {
   })
 }
 
-// Streams to disk, so the archive is never held in memory; a file removed since it was listed is skipped.
 async function writeZip(output: string, entries: Entry[]) {
   const { ZipWriter, Uint8ArrayReader } = await import("@zip.js/zip.js")
   const writer = new ZipWriter(Writable.toWeb(createWriteStream(output)) as WritableStream)

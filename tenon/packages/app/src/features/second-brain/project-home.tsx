@@ -24,14 +24,6 @@ import type {
   StoryEntry,
 } from "./project-home-model"
 
-/**
- * The Project page's own parts (#project-home): the cover band and the Project's tile, the milestone road under the
- * title, the numbers row, Story (threads and log on one spine), and the section index beside the column.
- */
-
-// Interlocking tenon joints in the muted border colour, faded to the right. The mask's white is luminance, not a
-// visible colour: it sets how much of the pattern shows, so it stays a literal rather than a theme token.
-// `bleed` is the wide page's cover: edge to edge across the page, square and taller, with a bottom hairline only.
 export function ProjectCover(props: { bleed?: boolean; class?: string }) {
   const id = createUniqueId()
   return (
@@ -69,7 +61,6 @@ export function ProjectCover(props: { bleed?: boolean; class?: string }) {
   )
 }
 
-/** The Project's tile: its first letter on the accent container, ringed in the page colour where it meets the cover. */
 export function ProjectTile(props: { name: string }) {
   return (
     <span
@@ -83,10 +74,6 @@ export function ProjectTile(props: { name: string }) {
   )
 }
 
-/**
- * The fill waits two frames after mount, so its empty start is painted before it moves to the fill and the
- * transition draws it in (at once under reduced motion).
- */
 function useDrawn() {
   const [drawn, setDrawn] = createSignal(false)
   onMount(() => {
@@ -100,13 +87,6 @@ function useDrawn() {
   return drawn
 }
 
-/**
- * Milestones as stops along a road: done ones filled, the current one ringed (`aria-current="step"`), the rest
- * hollow, with the accent fill through finished milestones and on toward the current one. The first and last stops
- * and the current one always keep their labels; the others show once the road is 480px wide (and, past five
- * milestones, only next to the current one). Hidden labels stay readable to screen readers, and every stop says
- * whether it is done, current or ahead.
- */
 export function MilestoneRoad(props: { road: Road; dateLabel: (value: string) => string; onAdd: () => void }) {
   const language = useLanguage()
   return (
@@ -137,11 +117,9 @@ export function MilestoneRoad(props: { road: Road; dateLabel: (value: string) =>
   )
 }
 
-// Its own component so the fill draws in whenever the road appears, including when the first milestone is added.
 function RoadTrack(props: { road: Road; dateLabel: (value: string) => string }) {
   const language = useLanguage()
   const drawn = useDrawn()
-  // The road's width decides which labels fit, in one place for both what shows and how wide each label is.
   const [width, setWidth] = createSignal(0)
   let track: HTMLDivElement | undefined
   onMount(() => {
@@ -160,7 +138,6 @@ function RoadTrack(props: { road: Road; dateLabel: (value: string) => string }) 
   }
   const caption = (stop: RoadStop) => {
     const date = stop.date ? props.dateLabel(stop.date) : ""
-    // No completion date is stored, so a done stop's date is marked as the planned one.
     if (stop.state === "done")
       return date
         ? language.t("secondBrain.project.road.donePlanned", { date })
@@ -168,9 +145,6 @@ function RoadTrack(props: { road: Road; dateLabel: (value: string) => string }) 
     if (stop.state === "current" && date) return language.t("secondBrain.project.road.due", { date })
     return date
   }
-  // Each label gets two thirds of the gap to its nearest labelled neighbour (at most 180px; a hidden label lends
-  // its room) and is centred on its stop, clamped inside the road, so neighbours never overlap and the last label
-  // never runs past the column.
   const place = (index: number): JSX.CSSProperties => {
     const positions = props.road.positions
     const position = (positions[index] ?? 0) * 100
@@ -231,8 +205,6 @@ function RoadTrack(props: { road: Road; dateLabel: (value: string) => string }) 
                   {stop.title}
                 </span>
                 <span class="truncate type-caption tabular-nums text-v2-text-text-muted">{caption(stop)}</span>
-                {/* The dots are colour alone, so each stop's state is also spoken (a done stop's caption already
-                    says it). */}
                 <Show when={stop.state !== "done"}>
                   <span class="sr-only">
                     {stop.state === "current"
@@ -249,10 +221,6 @@ function RoadTrack(props: { road: Road; dateLabel: (value: string) => string }) 
   )
 }
 
-/**
- * A number that counts from its last value to the next over the long duration (at once under reduced motion). The
- * one place the page animates text rather than transform or opacity; docs/design.md notes the exception.
- */
 function CountUp(props: { value: number }) {
   const [shown, setShown] = createSignal(0)
   let frame = 0
@@ -290,10 +258,6 @@ function CountUp(props: { value: number }) {
   )
 }
 
-/**
- * Four numbers in one card: open and done tasks, agents working (breathing while any are) and pages. Until the
- * timeline has loaded (or when it failed) the task cells show a dash, not a misleading zero.
- */
 export function ProjectNumbers(props: { numbers: Numbers; tasksKnown: boolean }) {
   const language = useLanguage()
   const cells = () => [
@@ -312,7 +276,6 @@ export function ProjectNumbers(props: { numbers: Numbers; tasksKnown: boolean })
           {(cell, index) => (
             <div
               data-project-number={cell.key}
-              // Hairlines between cells: one row of four when wide, two rows of two when narrow.
               classList={{
                 "flex min-w-0 flex-col-reverse gap-0.5 border-v2-border-border-muted px-4 py-3": true,
                 "border-l": index() % 2 === 1,
@@ -345,7 +308,6 @@ export function ProjectNumbers(props: { numbers: Numbers; tasksKnown: boolean })
   )
 }
 
-/** A small count beside a section title. */
 export function SectionCount(props: { children: JSX.Element }) {
   return (
     <span class="inline-flex h-5 items-center rounded-full bg-v2-background-bg-layer-02 px-2 type-caption tabular-nums text-v2-text-text-muted">
@@ -356,31 +318,17 @@ export function SectionCount(props: { children: JSX.Element }) {
 
 const STORY_PREVIEW = 12
 
-/**
- * Threads and the Project log on one spine, newest first: the milestone ahead at the top, then each day as its own
- * list under a heading. Running threads lead today with a breathing dot. Long stories show the newest twelve entries
- * first. Days and entries are reconciled by key, so an update (a thread starting or finishing) changes only what
- * changed, and only entries that arrive after the page opened slide in. Threads show while the log loads or fails;
- * the log's state is one line at the end.
- */
 export function ProjectStory(props: {
-  /** The Project this Story belongs to; the page remounts Story when it changes. */
   projectId: string
   days: ReadonlyArray<StoryDay>
   next?: RoadStop
   log: "loading" | "failed" | "ready"
   onRetryLog: () => void
-  /** The page's clock, so stopped threads' "n minutes ago" moves on. */
   now: number
   threadHref: (id: string) => string
   dateLabel: (value: string) => string
 }) {
   const language = useLanguage()
-  // An entry slides in only if it is new to this page and newer than the page itself: a log entry or a thread
-  // update stamped after the page opened. Threads or a log that load late (or after a retry) are the page as it
-  // opened, and Show older reveals known keys, so neither slides in. Rows read `fresh` once, when created, and
-  // clear it, so a row that re-renders later doesn't replay.
-  // Exact, not the minute clock's last tick, so entries from the minute before opening don't count as new.
   const opened = Date.now()
   const known = new Set<string>()
   const fresh = new Set<string>()
@@ -404,7 +352,6 @@ export function ProjectStory(props: {
     ),
   )
   const total = () => view.days.reduce((sum, day) => sum + day.entries.length, 0)
-  // How many of a day's entries fit in the preview, after the days above it.
   const room = (index: number) => {
     if (view.all) return Infinity
     const before = view.days.slice(0, index).reduce((sum, day) => sum + day.entries.length, 0)
@@ -423,7 +370,6 @@ export function ProjectStory(props: {
   }
   const time = (at: number) => new Date(at).toLocaleTimeString(language.intl(), { hour: "2-digit", minute: "2-digit" })
   const node = "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full"
-  // Reads the page's clock so a stopped thread's "n minutes ago" moves on with it.
   const ago = (at: number) => {
     void props.now
     return getRelativeTime(new Date(at).toISOString(), language.t)
@@ -569,15 +515,7 @@ export function ProjectStory(props: {
   )
 }
 
-/**
- * The column's section index: one pill per section that scrolls to it, the section in view held in the pressed
- * overlay. It sticks beside the column while the page scrolls. On each scroll (one read per frame) the current
- * section is the last whose top has passed a line 30% down the view, else the first. `endId` names an element after
- * the last section: once you've scrolled and it is in view, the last section is current, since a short last section
- * never reaches the line. On a page short enough to fit, nothing has scrolled, so the first section stays current.
- */
 export function SectionIndex(props: {
-  /** The Project whose page this indexes; the page remounts the index when it changes. */
   projectId: string
   sections: ReadonlyArray<{ id: string; label: string }>
   endId: string
@@ -595,7 +533,6 @@ export function SectionIndex(props: {
     let frame = 0
     const pick = () => {
       frame = 0
-      // A clicked section holds while its own smooth scroll runs.
       if (performance.now() < held || !scrolled) return
       const line = window.innerHeight * 0.3
       const end = document.getElementById(props.endId)?.getBoundingClientRect()
@@ -609,7 +546,6 @@ export function SectionIndex(props: {
       )
       setActive((passed.at(-1) ?? props.sections[0])?.id ?? "")
     }
-    // Only the page's own scroller counts, not a list or grid scrolling inside it.
     repick = pick
     const onScroll = (event: Event) => {
       const target = event.target
@@ -654,7 +590,6 @@ export function SectionIndex(props: {
   )
 }
 
-/** Scrolls a section of the Project page into view (at once under reduced motion). */
 export function scrollToSection(id: string) {
   document
     .getElementById(`project-${id}`)

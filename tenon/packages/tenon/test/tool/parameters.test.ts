@@ -2,13 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { Result, Schema } from "effect"
 import { ToolJsonSchema } from "../../src/tool/json-schema"
 
-// Each tool exports its parameters schema at module scope so this test can
-// import them without running the tool's Effect-based init. The JSON Schema
-// snapshot captures what the LLM sees; the parse assertions pin down the
-// accepts/rejects contract. `ToolJsonSchema.fromSchema` is the same helper `session/
-// prompt.ts` uses to emit tool schemas to the LLM, so the snapshots stay
-// provider-compatible while tools use Effect Schema internally.
-
 import { Parameters as ApplyPatch } from "../../src/tool/apply_patch"
 import { Parameters as Edit } from "../../src/tool/edit"
 import { Parameters as Glob } from "../../src/tool/glob"
@@ -72,7 +65,6 @@ describe("tool parameters", () => {
     test("keeps repeated allOf constraints instead of dropping duplicates", () => {
       expect(
         toJsonSchema(
-          // Effect 4.1 only exports patterns with the `u` flag, which JSON Schema regexes assume.
           Schema.Struct({ value: Schema.String.check(Schema.isPattern(/^a/u)).check(Schema.isPattern(/z$/u)) }),
         ),
       ).toMatchObject({ properties: { value: { pattern: "^a", allOf: [{ pattern: "z$" }] } } })

@@ -14,8 +14,6 @@ const signScript = path.join(rootDir, "script", "sign-windows.ps1")
 const metainfoFpm = (appId: string) =>
   `${path.join(packageDir, "resources", `${appId}.metainfo.xml`)}=/usr/share/metainfo/${appId}.metainfo.xml`
 
-// Without a Developer ID identity, electron-builder skips signing, but the fuse step has already broken
-// Electron's own ad-hoc signature, and Apple Silicon kills the app at launch. Sign ad-hoc instead.
 const hasMacIdentity = (() => {
   if (process.platform !== "darwin") return true
   if (process.env.CSC_LINK || process.env.CSC_NAME) return true
@@ -28,8 +26,6 @@ const hasMacIdentity = (() => {
   }
 })()
 
-// codesign rejects the Finder metadata that iCloud and other File Provider syncs keep re-adding to bundle
-// folders under ~/Documents, so local macOS builds package outside the repository.
 const outputDir =
   process.platform === "darwin" && process.env.GITHUB_ACTIONS !== "true"
     ? path.join(os.homedir(), "Library", "Caches", "tenon-workbench", "dist")
@@ -46,8 +42,6 @@ async function signWindows(configuration: { path: string }) {
   )
 }
 
-// The local dictation engine (tenon/packages/dictation). Build it first with
-// `bun run build:dictation`; see docs/release-operations.md. CARGO_TARGET_DIR moves cargo's output.
 const dictationDir = path.join(
   process.env.CARGO_TARGET_DIR ?? path.join(packageDir, "..", "dictation", "target"),
   "release",
@@ -57,7 +51,6 @@ const dictationResources = existsSync(path.join(dictationDir, dictationEngine))
   ? [{ from: dictationDir, to: "dictation", filter: [dictationEngine] }]
   : (console.warn(`tenon-dictation not found in ${dictationDir}; the package will have no dictation engine`), [])
 
-// Downloaded and verified by scripts/prebuild.ts, so search works before the app has network access.
 const ripgrepResources = existsSync(path.join(packageDir, "resources", "ripgrep"))
   ? [{ from: "resources/ripgrep", to: "ripgrep", filter: ["rg", "rg.exe"] }]
   : (console.warn("ripgrep not found in resources/ripgrep; the package will download it on first search"), [])
@@ -68,26 +61,18 @@ const channel = (() => {
   return "dev"
 })()
 
-// Tenon Workbench's own identity; `ai.opencode.desktop*` belongs to upstream OpenCode Desktop. Keep in
-// sync with APP_IDS in src/main/index.ts.
 const APP_IDS = {
   dev: "io.github.torriider97.tenonworkbench.dev",
   beta: "io.github.torriider97.tenonworkbench.beta",
   prod: "io.github.torriider97.tenonworkbench",
 } as const
 
-// Installer, package and install-folder names; the workspace package name "@tenon/desktop"
-// would otherwise become them.
 const PACKAGE_NAMES = {
   dev: "tenon-workbench-dev",
   beta: "tenon-workbench-beta",
   prod: "tenon-workbench",
 } as const
 
-// Chromium's UI languages (Windows and Linux `.pak` names) that an app locale can detect, because
-// navigator.languages only offers a language whose pack is present. Trimmed: af, fil, gu, he, kn, ml,
-// mr, sw, ta and te, which have no app translation. electron-builder.config.test.ts keeps this in step
-// with DESKTOP_NATIVE_LOCALE_TAGS.
 const CHROMIUM_LOCALES = [
   ..."am ar bg bn ca cs da de el en-GB en-US es es-419 et fa fi fr hi hr hu id it ja ko lt lv ms nb nl pl".split(" "),
   ..."pt-BR pt-PT ro ru sk sl sr sv th tr uk ur vi zh-CN zh-TW".split(" "),
@@ -95,24 +80,16 @@ const CHROMIUM_LOCALES = [
 
 const getBase = (appId: string): Configuration => ({
   artifactName: "tenon-workbench-${os}-${arch}.${ext}",
-  // Release candidates are uploaded as artifacts. No automatic publishing or upstream update feed.
   publish: null,
   directories: {
     output: outputDir,
     buildResources: "resources",
   },
-  // Linux launchers are .desktop files, so this is the desktop file name,
-  // not just the app id. For prod, app id "io.github.torriider97.tenonworkbench" becomes
-  // "io.github.torriider97.tenonworkbench.desktop".
-  // https://developer.gnome.org/documentation/guidelines/maintainer/integrating.html
-  // https://www.electron.build/docs/linux/
   extraMetadata: {
     name: PACKAGE_NAMES[channel],
     desktopName: `${appId}.desktop`,
   },
   electronLanguages: CHROMIUM_LOCALES,
-  // Only `dist` of effect is loaded. Keep drizzle's dialect folders: `_relations.js` imports `pg-core`
-  // at runtime even under the SQLite driver.
   files: [
     "out/**/*",
     "!out/**/*.map",
@@ -122,9 +99,6 @@ const getBase = (appId: string): Configuration => ({
     "!resources/opencode-cli*",
     "!resources/ripgrep/**",
   ],
-  // Packaged builds cannot be turned into a general Node runtime or debugger by environment
-  // variables or flags, and only load the integrity-checked app.asar. The sidecar runs through
-  // utilityProcess and nothing spawns the app binary with ELECTRON_RUN_AS_NODE, so runAsNode is off.
   electronFuses: {
     runAsNode: false,
     enableNodeOptionsEnvironmentVariable: false,
@@ -136,7 +110,6 @@ const getBase = (appId: string): Configuration => ({
   extraResources: [
     ...dictationResources,
     ...ripgrepResources,
-    // The v2 sidecar's 184 MB CLI is opt-in; see src/main/index.ts.
     ...(channel === "dev" && process.env.TENON_BUNDLE_CLI === "1"
       ? [
           {
@@ -149,14 +122,12 @@ const getBase = (appId: string): Configuration => ({
   ],
   mac: {
     category: "public.app-category.developer-tools",
-    // `.lproj` folders spell regions with an underscore, and English is plain `en`.
     electronLanguages: ["en", ...CHROMIUM_LOCALES.map((locale) => locale.replace("-", "_"))],
     icon: `resources/icons/icon.icns`,
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
-    // Shown when dictation first asks for the microphone (systemPreferences.askForMediaAccess).
     extendInfo: {
       NSMicrophoneUsageDescription: "Tenon Workbench uses the microphone for dictation, transcribed on this Mac.",
     },
@@ -166,7 +137,6 @@ const getBase = (appId: string): Configuration => ({
   dmg: {
     sign: true,
   },
-  // Matches DEEP_LINK_SCHEME in src/main/constants.ts.
   protocols: {
     name: "Tenon Workbench",
     schemes: ["tenon"],
@@ -191,8 +161,6 @@ const getBase = (appId: string): Configuration => ({
     executableName: appId,
     desktop: {
       entry: {
-        // Match the installed .desktop file and hicolor icon basename so
-        // Linux shells can associate the running Electron window with its launcher.
         StartupWMClass: appId,
       },
     },

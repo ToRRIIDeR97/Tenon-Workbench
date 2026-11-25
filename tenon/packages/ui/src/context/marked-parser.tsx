@@ -7,7 +7,6 @@ export function createMarkdownParser(highlight: (code: string, language: string)
     {
       renderer: {
         link({ href, title, tokens }) {
-          // The label is rendered as inline Markdown (bold, code); attributes are escaped.
           const titleAttr = title ? ` title="${escapeAttribute(title)}"` : ""
           const label = this.parser.parseInline(tokens)
           return `<a href="${escapeAttribute(href)}"${titleAttr} class="external-link" target="_blank" rel="noopener noreferrer">${label}</a>`

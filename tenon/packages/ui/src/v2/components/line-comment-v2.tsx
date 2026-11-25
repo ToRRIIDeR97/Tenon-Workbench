@@ -5,7 +5,6 @@ import { useFilteredList } from "../../hooks"
 import { ButtonV2 } from "./button-v2"
 import "./line-comment-v2.css"
 
-/** Horizontal “more” glyph for the display-card overflow control (Figma outline-dots). */
 export function LineCommentV2OverflowIcon(props: ComponentProps<"svg">) {
   return (
     <svg
@@ -25,11 +24,8 @@ export function LineCommentV2OverflowIcon(props: ComponentProps<"svg">) {
 }
 
 export interface LineCommentV2Props extends ComponentProps<"div"> {
-  /** Main comment body (text or rich content). */
   comment: JSX.Element
-  /** Line / selection context (e.g. “Comment on line 40”). */
   selection: JSX.Element
-  /** Typically an overflow menu trigger; use `LineCommentV2OverflowIcon` inside `line-comment-v2-overflow`. */
   actions?: JSX.Element
 }
 
@@ -61,7 +57,6 @@ export type LineCommentEditorV2Mention = {
 }
 
 export interface LineCommentEditorV2Props extends Omit<ComponentProps<"div">, "children" | "onInput" | "onSubmit"> {
-  /** Visible field label above the textarea (default: “Comment”). */
   heading?: JSX.Element | string
   value: string
   onInput: (value: string) => void

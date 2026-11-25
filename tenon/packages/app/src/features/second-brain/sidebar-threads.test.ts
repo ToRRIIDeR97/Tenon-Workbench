@@ -157,14 +157,12 @@ describe("thread node cache", () => {
     second.projects[0].threads.forEach((node, index) => expect(node).toBe(first.projects[0].threads[index]))
     expect(second.workspace[0]).toBe(first.workspace[0])
 
-    // Only `other` changes: its node is new; the parent subtree keeps identity.
     const updated = { ...other, time: { ...other.time, updated: 9 } }
     const [moved, kept] = group([parent, child, updated, side]).projects[0].threads
     expect(moved?.session).toBe(updated)
     expect(kept).toBe(before)
     expect(kept?.children[0]).toBe(before.children[0])
 
-    // A new child replaces its parent's node, since the parent's children changed.
     const sibling = session("sibling", "/work/repo", 6, { parentID: "parent" })
     const regrown = group([parent, child, sibling, updated, side]).projects[0].threads
     const grown = regrown.find((node) => node.session.id === "parent")!
@@ -188,7 +186,6 @@ describe("sidebar child threads", () => {
     expect(childThreadsOpen(root, undefined)).toBe(false)
     expect(childThreadsOpen(root, "other")).toBe(false)
     expect(childThreadsOpen(root, undefined, true)).toBe(true)
-    // The active lineage opens them until the user closes the row.
     expect(childThreadsOpen(root, "child")).toBe(true)
     expect(childThreadsOpen(root, "child", false)).toBe(false)
   })

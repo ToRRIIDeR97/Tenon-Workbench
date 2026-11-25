@@ -92,7 +92,6 @@ export const LegacyStatus = Schema.Struct({
   status: Schema.Literals(["added", "deleted", "modified"]),
 }).annotate({ identifier: "File" })
 
-/** Writes an existing text file back when the caller read the text it replaces (an Undo of an agent edit). */
 export const FileWriteInput = Schema.Struct({
   path: Schema.String,
   content: Schema.String,
@@ -101,7 +100,6 @@ export const FileWriteInput = Schema.Struct({
 
 export const FileWriteResult = Schema.Struct({ hash: Schema.String }).annotate({ identifier: "FileWriteResult" })
 
-/** The file changed since the caller read it: `currentHash` is the SHA-256 of its trimmed text now. */
 export class FileConflictError extends Schema.Error<FileConflictError>("FileConflictError")(
   {
     name: Schema.Literal("FileConflictError"),
@@ -110,7 +108,6 @@ export class FileConflictError extends Schema.Error<FileConflictError>("FileConf
   { httpApiStatus: 409 },
 ) {}
 
-/** A path outside the folder, a folder, or a binary file: `data.message` names the reason. */
 export class FileInvalidError extends Schema.Error<FileInvalidError>("FileInvalidError")(
   {
     name: Schema.Literal("FileInvalidError"),

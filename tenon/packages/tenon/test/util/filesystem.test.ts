@@ -218,7 +218,6 @@ describe("filesystem", () => {
       await Filesystem.write(filepath, content, 0o600)
 
       const stats = await fs.stat(filepath)
-      // Check permissions on Unix
       if (process.platform !== "win32") {
         expect(stats.mode & 0o777).toBe(0o600)
       }
@@ -444,7 +443,6 @@ describe("filesystem", () => {
     })
 
     test("resolves Git Bash and MSYS2 paths on Windows", async () => {
-      // Git Bash and MSYS2 both use /<drive>/... paths on Windows.
       if (process.platform !== "win32") return
       await using tmp = await tmpdir()
       const drive = tmp.path[0].toLowerCase()
@@ -453,7 +451,6 @@ describe("filesystem", () => {
     })
 
     test("resolves Git Bash and MSYS2 drive roots on Windows", async () => {
-      // Git Bash and MSYS2 both use /<drive> paths on Windows.
       if (process.platform !== "win32") return
       await using tmp = await tmpdir()
       const drive = tmp.path[0].toLowerCase()
@@ -515,10 +512,9 @@ describe("filesystem", () => {
       expect(() => Filesystem.resolve(a)).toThrow()
     })
 
-    // Windows: chmod(0o000) is a no-op, so EACCES cannot be triggered
     test("throws EACCES on permission-denied symlink target", async () => {
       if (process.platform === "win32") return
-      if (process.getuid?.() === 0) return // skip when running as root
+      if (process.getuid?.() === 0) return
       await using tmp = await tmpdir()
       const dir = path.join(tmp.path, "restricted")
       await fs.mkdir(dir)
@@ -532,8 +528,6 @@ describe("filesystem", () => {
       }
     })
 
-    // Windows: traversing through a file throws ENOENT (not ENOTDIR),
-    // which resolve() catches as a fallback instead of rethrowing
     test("rethrows non-ENOENT errors", async () => {
       if (process.platform === "win32") return
       await using tmp = await tmpdir()

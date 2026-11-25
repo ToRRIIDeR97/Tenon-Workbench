@@ -6,7 +6,6 @@ import { RootHttpApi } from "../api"
 import { LogInput } from "../groups/control"
 import { ProviderV2 } from "@tenon/core/provider"
 
-// Clients can post arbitrary text to /log; bound what reaches the server log.
 const MAX_LOG_MESSAGE_LENGTH = 8_192
 const MAX_LOG_EXTRA_LENGTH = 8_192
 

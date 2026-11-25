@@ -56,7 +56,6 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   )
 
   await page.goto("/")
-  // One pill holds the harness, model and reasoning; each summary row opens its list.
   const pill = page.locator('[data-action="prompt-model-pill"]')
   const row = (step: string) => page.locator(`[data-component="prompt-model-pill-panel"] [data-step="${step}"]`)
   await pill.click()

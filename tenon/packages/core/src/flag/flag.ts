@@ -33,7 +33,6 @@ export const Flag = {
   TENON_SERVER_USERNAME: process.env["TENON_SERVER_USERNAME"],
   TENON_DISABLE_FFF: fff === undefined ? process.platform === "win32" : truthy("TENON_DISABLE_FFF"),
 
-  // Experimental
   TENON_EXPERIMENTAL_FILEWATCHER: Config.Boolean("TENON_EXPERIMENTAL_FILEWATCHER").pipe(Config.withDefault(false)),
   TENON_EXPERIMENTAL_DISABLE_FILEWATCHER: Config.Boolean("TENON_EXPERIMENTAL_DISABLE_FILEWATCHER").pipe(
     Config.withDefault(false),
@@ -47,8 +46,6 @@ export const Flag = {
   TENON_WORKSPACE_ID: process.env["TENON_WORKSPACE_ID"],
   TENON_EXPERIMENTAL_WORKSPACES: enabledByExperimental("TENON_EXPERIMENTAL_WORKSPACES"),
 
-  // Evaluated at access time (not module load) because tests, the CLI, and
-  // external tooling set these env vars at runtime.
   get TENON_DISABLE_PROJECT_CONFIG() {
     return truthy("TENON_DISABLE_PROJECT_CONFIG")
   },

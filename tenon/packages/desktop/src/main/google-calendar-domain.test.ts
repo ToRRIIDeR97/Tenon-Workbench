@@ -51,7 +51,6 @@ describe("grantedCalendarAccess", () => {
     ).toBe("write")
     expect(grantedCalendarAccess(scope("calendar.readonly", "tasks.readonly"))).toBe("read")
     expect(grantedCalendarAccess(scope("calendar.readonly", "calendar.events", "tasks.readonly"))).toBe("read")
-    // Calendar left unticked on Google's granular consent screen: no Calendar account.
     expect(grantedCalendarAccess(scope("gmail.readonly", "gmail.compose", "tasks"))).toBeUndefined()
     expect(grantedCalendarAccess(scope("calendar.readonly"))).toBeUndefined()
     expect(grantedCalendarAccess(undefined)).toBeUndefined()
@@ -284,7 +283,6 @@ describe("Google items the planner accepts", () => {
       start: "23:58",
       end: "23:59",
     })
-    // Across midnight is a valid range and stays as it is.
     expect(sanitizeProviderEvent({ ...base, endDate: "2026-08-26", start: "22:00", end: "00:00" })).toMatchObject({
       start: "22:00",
       end: "00:00",
@@ -316,7 +314,6 @@ describe("Google items the planner accepts", () => {
     const source = {
       id: "provider-tz",
       summary: "Call",
-      // Created in New York, rendered by Google in the requested Berlin zone.
       start: { dateTime: "2026-03-02T15:00:00+01:00", timeZone: "America/New_York" },
       end: { dateTime: "2026-03-02T16:00:00+01:00", timeZone: "America/New_York" },
     }
@@ -324,12 +321,10 @@ describe("Google items the planner accepts", () => {
     expect(event.timezone).toBe("Europe/Berlin")
     const payload = googleEventPayload(event) as { start: { dateTime: string; timeZone: string } }
     expect(instant(payload.start.dateTime, payload.start.timeZone)).toBe(Date.parse(source.start.dateTime))
-    // Without a requested zone the event's own zone is still used.
     expect(normalizeGoogleEvent(source, "account-1")?.timezone).toBe("America/New_York")
   })
 })
 
-/** The UTC instant of a wall-clock `YYYY-MM-DDTHH:mm:ss` time in an IANA zone. */
 function instant(wall: string, timeZone: string) {
   const guess = Date.parse(`${wall}Z`)
   const parts = Object.fromEntries(
@@ -448,7 +443,6 @@ describe("Google outbox", () => {
       kind: "update",
       item: expected,
     })
-    // A delete that replaced a create Google may not have goes back to a create when it is edited.
     expect(mergeQueuedWrite({ kind: "delete", item: queued, reached: true }, { kind: "update", item: edit })).toEqual({
       kind: "create",
       item: expected,

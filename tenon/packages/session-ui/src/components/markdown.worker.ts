@@ -34,9 +34,6 @@ const projectQueue = createLatestWorkerQueue<Extract<MarkdownWorkerRequest, { ty
   supersede: (request) => post({ type: "superseded", id: request.id, key: request.key }),
   dispose: (key) => void projections.delete(key),
 })
-// ```svg blocks highlight as XML but keep their own language so svg-window.ts can find them; ```html
-// keeps a language class too, which shiki's HTML output omits, so html-window.ts can find designs; ```view
-// (file lists) shows as plain text and keeps its class for view-window.ts.
 const aliases = new Map([
   ["svg", "xml"],
   ["html", "html"],
@@ -129,7 +126,6 @@ async function highlight(request: Extract<MarkdownWorkerRequest, { type: "highli
     const reset = !previous || previous.language !== language || !request.text.startsWith(previous.source)
     const stream = reset
       ? {
-          // The Shiki language, which `reset` compares against; "svg" streams as "xml".
           language,
           source: "",
           tokenizer: new ShikiStreamTokenizer({ highlighter: instance, lang: language, theme: "Tenon" }),
@@ -142,7 +138,6 @@ async function highlight(request: Extract<MarkdownWorkerRequest, { type: "highli
       type: "highlight",
       id: request.id,
       key: request.key,
-      // The fence's own label, as for a complete block: a streaming ```svg must stay `svg` for svg-window.ts.
       language: label,
       reset,
       stable: result.stable.filter((token) => token.content.length > 0).map(token),

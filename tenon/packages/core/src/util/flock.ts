@@ -21,7 +21,6 @@ export namespace Flock {
     return path.join(global.state, "locks")
   }
 
-  // Defaults for callers that do not provide timing options.
   const defaultOpts = {
     staleMs: 60_000,
     timeoutMs: 5 * 60_000,
@@ -125,7 +124,6 @@ export namespace Flock {
   }
 
   async function stale(lockDir: string, heartbeatPath: string, metaPath: string, staleMs: number) {
-    // Stale detection allows automatic recovery after crashed owners.
     const now = wall()
     const heartbeat = await stats(heartbeatPath)
     if (heartbeat) {
@@ -182,7 +180,6 @@ export namespace Flock {
       }
 
       try {
-        // Breaker ownership ensures only one contender performs stale cleanup.
         if (!(await stale(lockDir, heartbeatPath, metaPath, opts.staleMs))) {
           return { acquired: false }
         }
@@ -224,7 +221,6 @@ export namespace Flock {
 
     const startHeartbeat = (intervalMs = Math.max(100, Math.floor(opts.staleMs / 3))) => {
       if (timer) return
-      // Heartbeat prevents long critical sections from being evicted as stale.
       timer = setInterval(() => {
         const t = new Date()
         void utimes(heartbeatPath, t, t).catch(() => undefined)
@@ -256,7 +252,6 @@ export namespace Flock {
           }
           throw err
         })
-      // Token check prevents deleting a lock that was re-acquired by another process.
       if (current.token !== token) {
         throw new Error("Refusing to release: lock token mismatch (not the owner).")
       }

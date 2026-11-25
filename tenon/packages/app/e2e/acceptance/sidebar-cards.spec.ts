@@ -3,8 +3,6 @@ import { fixture } from "../smoke/session-timeline.fixture"
 import type { MockServerConfig } from "../utils/mock-server"
 import { openApp, sidebar } from "./open-app"
 
-// implementations/sidebar-folder-cards: Group by tabs, flat groups, status marks, the Attention inbox and its top line.
-
 const repo = "C:/OpenCode/Repo"
 const project = {
   project: {
@@ -251,7 +249,6 @@ test("Attention counts a thread waiting for approval and shows it as a card sayi
 
 test("a status change keeps the other rows and an open menu", async ({ page }) => {
   const events: unknown[] = []
-  // The app re-reads statuses on each reconnect, so the mock's answer has to change along with the event.
   const statuses = { ses_busy: { type: "busy" } }
   await open(page, { sessionStatus: statuses, events: () => events.splice(0, 1), eventRetry: 16 })
   await page.addInitScript(() => {

@@ -68,7 +68,6 @@ const layer = Layer.effectDiscard(
                 })
               const resource = target.resource
               const absolute = AbsolutePath.make(target.canonical)
-              // Check permission before touching the path, so a denied read cannot reveal whether the path exists.
               yield* permission.assert({
                 action: name,
                 resources: [resource],

@@ -4,7 +4,6 @@ import { ProviderV2 } from "../../provider"
 
 type FetchLike = (url: string | URL | Request, init?: RequestInit) => Promise<Response>
 
-// Exported for testing: intercepts Cortex-specific request/response quirks.
 export function cortexFetch(upstream: FetchLike = fetch) {
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (init?.body && typeof init.body === "string") {
@@ -20,7 +19,6 @@ export function cortexFetch(upstream: FetchLike = fetch) {
 
     const response = await upstream(url, init)
 
-    // Cortex returns 400 "conversation complete" as a normal stop condition
     if (!response.ok && response.status === 400) {
       try {
         const errorData = (await response.clone().json()) as Record<string, unknown>
@@ -37,7 +35,6 @@ export function cortexFetch(upstream: FetchLike = fetch) {
       } catch {}
     }
 
-    // Cortex returns role:"" in streaming deltas; the AI SDK schema requires "assistant"
     if (response.body && response.headers.get("content-type")?.includes("text/event-stream")) {
       const reader = response.body.getReader()
       const encoder = new TextEncoder()

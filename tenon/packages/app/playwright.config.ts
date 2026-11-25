@@ -7,9 +7,6 @@ const serverPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"
 const command = `bun run dev -- --host 0.0.0.0 --port ${port}`
 const reuse = !process.env.CI
 const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? (process.env.CI ? 5 : 0)) || undefined
-// A test tagged for one OS (`test("...", { tag: "@windows" }, ...)`) runs only on that OS; untagged
-// tests run everywhere. Prefer path.win32/path.posix fixtures so both behaviours run on any machine,
-// and tag only what needs the real OS (native shells, file dialogs, rendering).
 const platformTags: Record<string, string> = { win32: "@windows", darwin: "@macos", linux: "@linux" }
 const otherPlatformTags = Object.entries(platformTags)
   .filter(([platform]) => platform !== process.platform)

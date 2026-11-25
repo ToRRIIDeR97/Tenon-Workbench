@@ -323,7 +323,6 @@ describe("Integration", () => {
             value: Credential.Key.make({ type: "key", key: "b" }),
           })
 
-          // Stored credentials and detected env vars appear as connections.
           expect((yield* integrations.get(integrationID))?.connections).toEqual([
             {
               type: "credential",

@@ -6,7 +6,6 @@ import type { WorkspaceV2 } from "@tenon/core/workspace"
 import { Effect } from "effect"
 
 export const HEADER = "x-tenon-sync"
-// Pre-rename name, still emitted and read so older Tenon and OpenCode workspace servers interoperate.
 export const LEGACY_HEADER = "x-opencode-sync"
 export type State = Record<string, number>
 

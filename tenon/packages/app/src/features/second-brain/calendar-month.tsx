@@ -8,7 +8,6 @@ import type { CalendarEvent, PlannerTask } from "./client"
 
 const WEEKS = 6
 
-/** Month view: six weeks of days, each showing as many items as fit and a button for the rest. */
 export function CalendarMonth(props: {
   days: CalendarDay[]
   eventsFor: (date: string) => CalendarEvent[]
@@ -84,7 +83,6 @@ export function CalendarMonth(props: {
                     />
                   </TooltipV2>
                 </div>
-                {/* Days of the next and previous month recede by dimming, not by a fill: layer fills read lighter in dark mode. */}
                 <div
                   classList={{
                     "flex min-h-0 flex-col gap-0.5 overflow-hidden": true,

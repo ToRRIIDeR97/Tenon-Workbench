@@ -14,7 +14,6 @@ type Store = {
   user: User[]
   recent: ModelKey[]
   variant?: Record<string, string | undefined>
-  /** Providers turned off in Settings → Models; their models stay out of pickers, new ones included. */
   hiddenProviders?: string[]
 }
 
@@ -48,7 +47,6 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       ),
     )
 
-    // Models whose release date parses; the rest stay visible by default.
     const dated = createMemo(
       () =>
         new Set(

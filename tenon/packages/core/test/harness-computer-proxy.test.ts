@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { HarnessComputerProxy } from "@tenon/core/harness/computer-proxy"
 
-// #333 follow-ups: every Cua Driver call passes through Tenon. Reading the screen never asks; the first click or
-// keystroke in a thread asks once (2A); a Project switched off refuses the next action (3A); Stop shuts the driver
-// down at once and forgets the thread grants (3B).
 const tools = [
   { name: "screenshot", description: "", inputSchema: {}, annotations: { readOnlyHint: true } },
   { name: "list_apps", description: "", inputSchema: {} },
@@ -93,10 +90,8 @@ describe("AC-23 switching off and Stop", () => {
     await proxy.call("click", {}, caller, ask)
     proxy.stop()
     expect(stopped()).toBe(1)
-    // The thread used the desktop moments ago, so its next action first hears that Stop was pressed (C2-6)…
     const told = await proxy.call("click", {}, caller, ask)
     expect(JSON.stringify(told.content)).toContain("pressed Stop")
-    // …and the one after asks again: the grant is gone.
     await proxy.call("click", {}, caller, ask)
     expect(asked).toHaveLength(2)
   })

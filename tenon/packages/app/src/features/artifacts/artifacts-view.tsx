@@ -16,10 +16,8 @@ import { useArtifacts, type Artifact } from "./artifacts"
 const rowClass =
   "flex w-full min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-short ease-standard enabled:hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
 
-/** A pinned file's absolute path, from the folder its list is relative to. */
 const absolute = (base: string, path: string) => `${base.replaceAll("\\", "/").replace(/\/+$/, "")}/${path}`
 
-/** Opens a pinned file: in this thread's Files view when it is in the thread's folder, else as an outside file. */
 function useOpenArtifact() {
   const sdk = useSDK()
   const references = useFileReferences()
@@ -32,7 +30,6 @@ function useOpenArtifact() {
   }
 }
 
-/** The Project's pinned files, at the top of the Documents section: open one, or unpin it. */
 export function PinnedArtifacts() {
   const language = useLanguage()
   const sdk = useSDK()
@@ -90,14 +87,8 @@ export function PinnedArtifacts() {
   )
 }
 
-/** One Project's pinned files on a board, and the folder their paths are relative to. */
 export type ArtifactGroup = { key: string; name?: string; base: string; items: readonly Artifact[] }
 
-/**
- * Pinned files shown large in their viewers, each with a note for the agent ("this sound doesn't fit", "the rifle's
- * proportions are off"). Send puts the notes in the composer and sends them. The Canvas tab shows the thread's
- * Project; the Command Centre's Mission panel shows every Project that has pins, each under its name.
- */
 export function ArtifactsBoard(props: { groups: readonly ArtifactGroup[]; empty?: string }) {
   const language = useLanguage()
   const prompt = usePrompt()
@@ -117,7 +108,6 @@ export function ArtifactsBoard(props: { groups: readonly ArtifactGroup[]; empty?
       ...items.map((item) =>
         language.t(item.group.name ? "secondBrain.artifacts.notes.lineProject" : "secondBrain.artifacts.notes.line", {
           name: item.artifact.name,
-          // Under a Project's name the thread runs elsewhere (the Command Centre), so the path is given in full.
           path: item.group.name ? absolute(item.group.base, item.artifact.path) : item.artifact.path,
           project: item.group.name ?? "",
           note: notes[keyOf(item.group, item.artifact)]!.trim(),
@@ -184,7 +174,6 @@ export function ArtifactsBoard(props: { groups: readonly ArtifactGroup[]; empty?
   )
 }
 
-/** The Canvas tab's Files board: the thread's Project. */
 export function ProjectArtifactsBoard() {
   const sdk = useSDK()
   const artifacts = useArtifacts()
@@ -195,7 +184,6 @@ export function ProjectArtifactsBoard() {
   )
 }
 
-/** The Command Centre's Files view: every Project's pinned files, under the Project's name. */
 export function AllArtifactsBoard() {
   const language = useLanguage()
   const artifacts = useArtifacts()

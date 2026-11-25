@@ -7,12 +7,6 @@ import { recordingLayer } from "./internal-effect.js"
 import { make } from "./redactor.js"
 import type { RecorderOptions } from "./types.js"
 
-/**
- * Provides a fetch-backed `HttpClient` with cassette recording and replay.
- *
- * Locally, a missing cassette is recorded from the real service. Existing
- * cassettes are replayed, and `CI=true` makes a missing cassette fail.
- */
 export const http = (name: string, options: RecorderOptions = {}): Layer.Layer<HttpClient.HttpClient> =>
   recordingLayer(name, {
     metadata: options.metadata,

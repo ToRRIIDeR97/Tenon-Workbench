@@ -1,7 +1,3 @@
-// Acceptance tests for harness-reported usage (AC-7).
-// Setup once: the task folder needs a node_modules junction to tenon/packages/core/node_modules (see implementation.md).
-// Run from tenon/packages/core:
-//   bun test ../../../implementations/session-view/acceptance/harness-usage.test.ts
 import { describe, expect, test } from "bun:test"
 import { Effect, Exit } from "effect"
 import { LLMEvent } from "@tenon/llm"
@@ -13,7 +9,6 @@ const update = (value: Record<string, unknown>) => ({
   params: { sessionId: "s1", update: value },
 })
 
-// The publisher only calls events.publish for content events; step-finish settles locally.
 const events = { publish: () => Effect.void } as unknown as Parameters<typeof createLLMEventPublisher>[0]
 const input = { sessionID: "ses_1", agent: "build", model: { id: "m", providerID: "p" } } as unknown as Parameters<
   typeof createLLMEventPublisher

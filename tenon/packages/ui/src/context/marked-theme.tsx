@@ -10,30 +10,6 @@ export const TenonTheme = {
     "gitDecoration.addedResourceForeground": "var(--syntax-diff-add)",
     "gitDecoration.deletedResourceForeground": "var(--syntax-diff-delete)",
     "gitDecoration.modifiedResourceForeground": "var(--syntax-diff-unknown)",
-    // "gitDecoration.conflictingResourceForeground": "#ffca00",
-    // "gitDecoration.modifiedResourceForeground": "#1a76d4",
-    // "gitDecoration.untrackedResourceForeground": "#00cab1",
-    // "gitDecoration.ignoredResourceForeground": "#84848A",
-    // "terminal.titleForeground": "#adadb1",
-    // "terminal.titleInactiveForeground": "#84848A",
-    // "terminal.background": "#141415",
-    // "terminal.foreground": "#adadb1",
-    // "terminal.ansiBlack": "#141415",
-    // "terminal.ansiRed": "#ff2e3f",
-    // "terminal.ansiGreen": "#0dbe4e",
-    // "terminal.ansiYellow": "#ffca00",
-    // "terminal.ansiBlue": "#008cff",
-    // "terminal.ansiMagenta": "#c635e4",
-    // "terminal.ansiCyan": "#08c0ef",
-    // "terminal.ansiWhite": "#c6c6c8",
-    // "terminal.ansiBrightBlack": "#141415",
-    // "terminal.ansiBrightRed": "#ff2e3f",
-    // "terminal.ansiBrightGreen": "#0dbe4e",
-    // "terminal.ansiBrightYellow": "#ffca00",
-    // "terminal.ansiBrightBlue": "#008cff",
-    // "terminal.ansiBrightMagenta": "#c635e4",
-    // "terminal.ansiBrightCyan": "#08c0ef",
-    // "terminal.ansiBrightWhite": "#c6c6c8",
   },
   tokenColors: [
     {
@@ -45,7 +21,7 @@ export const TenonTheme = {
     {
       scope: ["entity.other.attribute-name"],
       settings: {
-        foreground: "var(--syntax-property)", // maybe attribute
+        foreground: "var(--syntax-property)",
       },
     },
     {
@@ -255,7 +231,6 @@ export const TenonTheme = {
       scope: "markup.italic",
       settings: {
         fontStyle: "italic",
-        // foreground: "",
       },
     },
     {

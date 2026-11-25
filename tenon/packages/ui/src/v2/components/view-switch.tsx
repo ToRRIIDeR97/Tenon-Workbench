@@ -14,27 +14,11 @@ import { motionDuration, prefersReducedMotion } from "./motion"
 import "./view-switch-v2.css"
 
 export interface ViewSwitchProps extends ParentProps {
-  /** Identity of the current view. A change plays the fade-through; content updates within one key do not. */
   key: string | number | undefined
-  /**
-   * `false` skips the fade-out: the incoming view replaces the outgoing one at once and fades in. For a
-   * switch that should answer the click straight away, such as the shell's pages.
-   */
   exit?: boolean
   class?: string
 }
 
-/**
- * Fade-through between views: when `key` changes, the outgoing view fades out (short +
- * emphasized-accelerate), then the incoming view fades in (medium + emphasized-decelerate). Only one view is
- * rendered at a time, so the layout never holds both. Reduced motion swaps at once. With `exit={false}` there
- * is no fade-out: the incoming view takes over at once and fades in.
- *
- * The outgoing view is kept as the DOM it last rendered, so it works best when each key renders its own
- * branch (`Switch`/`Match`, `Dynamic`, a keyed `Show`). While it fades out it is `inert` and `aria-hidden`,
- * so clicks and keys cannot reach it; if it held focus, focus moves into the incoming view once attached,
- * unless the caller has already placed it.
- */
 export function ViewSwitch(props: ViewSwitchProps) {
   const resolved = children(() => props.children)
   const view = createViewSwitch(
@@ -45,7 +29,6 @@ export function ViewSwitch(props: ViewSwitchProps) {
   const [ref, setRef] = createSignal<HTMLDivElement>()
   const focus = { restore: false }
 
-  // Runs before the render effect that sets `inert`, which would blur the focused element.
   createComputed(
     on(view.phase, (phase) => {
       if (phase !== "out") return
@@ -53,7 +36,6 @@ export function ViewSwitch(props: ViewSwitchProps) {
     }),
   )
 
-  // Effects run after the incoming nodes are inserted.
   createEffect(
     on(view.phase, (phase) => {
       if (phase === "out" || !focus.restore) return
@@ -88,10 +70,6 @@ const FOCUSABLE =
 
 export type ViewSwitchPhase = "idle" | "out" | "in"
 
-/**
- * ViewSwitch's phase machine, separate from the DOM so it can be tested. `advance` ends the running phase;
- * the component calls it on `animationend`, and a timer calls it when no animation event arrives.
- */
 export function createViewSwitch<K>(
   key: Accessor<K>,
   nodes: Accessor<JSX.Element[]>,
@@ -135,7 +113,6 @@ export function createViewSwitch<K>(
         setPhase("idle")
         return
       }
-      // A key change during the fade-out keeps the view that was on screen when it started.
       if (phase() === "out") return
       if (!exit()) {
         setFrozen(undefined)
@@ -153,8 +130,6 @@ export function createViewSwitch<K>(
 
   return {
     phase,
-    // Router navigations run in a transition, so the key change can commit after this timer has already
-    // advanced outside it. Only the fade-out shows the frozen view; any other phase shows the live one.
     nodes: () => (phase() === "out" ? frozen() : undefined) ?? nodes(),
     advance,
   }

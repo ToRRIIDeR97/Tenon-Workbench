@@ -9,7 +9,6 @@ import {
 } from "../../src/mcp/oauth-provider"
 import type { McpAuth } from "../../src/mcp/auth"
 
-// Stub auth — only synchronous getters are exercised in these tests
 const stubAuth = {} as McpAuth.Interface
 
 const makeProvider = (config: ConstructorParameters<typeof McpOAuthProvider>[2]) =>
@@ -107,7 +106,6 @@ describe("MCP OAuth scope selection", () => {
   })
 })
 
-// In-memory stand-in for the mcp-auth.json store
 function memoryAuth() {
   const data: Record<string, McpAuth.Entry> = {}
   const update = (name: string, patch: Partial<McpAuth.Entry>, serverUrl?: string) =>
@@ -164,7 +162,6 @@ describe("McpOAuthProvider issuer binding", () => {
       redirect_uris: [],
       issuer: "https://as.example.com/",
     })
-    // A registration that would replace the configured client is not stored
     await provider.saveClientInformation({
       client_id: "other",
       redirect_uris: [],
@@ -235,7 +232,6 @@ describe("McpOAuthProvider issuer binding", () => {
     expect((await provider.clientInformation())?.issuer).toBe("https://as2.example.com")
   })
 
-  // Authorization server as2 that issues tokens for a code exchange; records every request
   function as2() {
     const requests: string[] = []
     const fetchFn = async (input: string | URL, init?: RequestInit) => {

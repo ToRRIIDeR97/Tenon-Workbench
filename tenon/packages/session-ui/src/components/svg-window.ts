@@ -1,14 +1,5 @@
 import DOMPurify from "dompurify"
 
-/**
- * Renders a completed ```svg fenced block as an inline diagram window.
- *
- * Agent output is untrusted: the markup is sanitized with DOMPurify's SVG profile (no scripts,
- * event handlers or links) and then shown in an iframe with an empty `sandbox` and a CSP that
- * blocks every network load, so a diagram cannot run code, navigate or reach the network.
- * SVG <style> rules stay inside the iframe instead of leaking into the app.
- */
-
 export type SvgWindowLabels = {
   title: string
   preview: string
@@ -41,7 +32,6 @@ const themeTokens: Record<Exclude<keyof SvgTheme, "font" | "scheme">, string> = 
   border: "--v2-border-border-base",
 }
 
-/** Intrinsic size from a viewBox, else from numeric (or px) width and height attributes. */
 export function svgSize(attrs: { viewBox?: string | null; width?: string | null; height?: string | null }) {
   const box = attrs.viewBox
     ?.trim()
@@ -59,7 +49,6 @@ function length(value: string | null | undefined) {
   return result > 0 ? result : undefined
 }
 
-/** The iframe document: a strict CSP, theme variables for the diagram, and the sanitized markup. */
 export function svgDocument(markup: string, theme: SvgTheme) {
   const csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"
   const vars = [
@@ -70,7 +59,6 @@ export function svgDocument(markup: string, theme: SvgTheme) {
     `--tenon-border:${theme.border}`,
   ].join(";")
   const font = theme.font.replace(/[<>;{}]/g, "")
-  // A color-scheme that differs from the app's gives the iframe an opaque canvas.
   const scheme = /^(normal|light|dark)$/.test(theme.scheme) ? theme.scheme : "normal"
   return [
     "<!doctype html><html><head>",
@@ -81,7 +69,6 @@ export function svgDocument(markup: string, theme: SvgTheme) {
   ].join("")
 }
 
-/** Sanitized, standalone SVG markup plus its intrinsic size, or undefined when there is no <svg>. */
 export function sanitizeSvg(source: string) {
   if (typeof document === "undefined" || !DOMPurify.isSupported) return
   const fragment = DOMPurify.sanitize(source, {
@@ -89,8 +76,6 @@ export function sanitizeSvg(source: string) {
     FORBID_TAGS: ["a", "foreignObject", "script"],
     FORBID_ATTR: ["target"],
     ADD_ATTR: ["dominant-baseline"],
-    // DOMPurify's default pattern without its URL schemes, so values like https://… are dropped;
-    // data: images still pass through DOMPurify's own data-URI rule. The CSP blocks the rest.
     ALLOWED_URI_REGEXP: /^(?:[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
     RETURN_DOM_FRAGMENT: true,
   })
@@ -189,9 +174,7 @@ function mount(wrapper: HTMLElement, pre: HTMLElement, source: string, labels: S
   wrapper.insertBefore(frame, pre)
 }
 
-/** While a block streams, a skeleton of the window stands in for the half-written source. */
 function mountSkeleton(wrapper: HTMLElement, pre: HTMLElement, labels: SvgWindowLabels) {
-  // Morphing a streamed block can drop the inserted nodes, so check for them rather than the flag.
   if (wrapper.querySelector(':scope > [data-slot="svg-window-skeleton"]')) return
   unmount(wrapper)
   const bar = document.createElement("div")
@@ -209,7 +192,6 @@ function mountSkeleton(wrapper: HTMLElement, pre: HTMLElement, labels: SvgWindow
   wrapper.insertBefore(skeleton, pre)
 }
 
-/** Mounts a window on every completed ```svg block under `root`; open (streaming) blocks show a skeleton. */
 export function mountSvgWindows(root: HTMLElement, labels: SvgWindowLabels) {
   for (const code of root.querySelectorAll<HTMLElement>("pre > code.language-svg")) {
     const pre = code.parentElement

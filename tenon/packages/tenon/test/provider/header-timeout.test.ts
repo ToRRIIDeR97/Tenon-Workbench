@@ -73,7 +73,6 @@ it.live("chunkTimeout raises a response stream error when SSE body stalls", () =
               return error
             }
           })
-          // @ai-sdk/provider-utils wraps body read failures in APICallError with the original as cause.
           const cause = APICallError.isInstance(error) ? error.cause : error
           expect(cause).toBeInstanceOf(ProviderError.ResponseStreamError)
         }),

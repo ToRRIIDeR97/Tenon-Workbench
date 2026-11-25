@@ -139,8 +139,6 @@ export const PtyApi = HttpApi.make("pty")
 export const PtyConnectApi = HttpApi.make("pty-connect").add(
   HttpApiGroup.make("pty-connect")
     .add(
-      // Decode PTY connection query fields in the raw handler after checking
-      // existence, preserving the established empty-404 response ordering.
       HttpApiEndpoint.get("connect", PtyPaths.connect, {
         params: Params,
         success: described(Schema.Boolean, "Connected session"),

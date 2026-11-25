@@ -33,7 +33,6 @@ export function parseShellEnv(out: Buffer) {
   return env
 }
 
-// Async so the probe never blocks the main process. The child is killed on timeout.
 function probe(shell: string, mode: "-il" | "-l", timeout: number) {
   return new Promise<Probe>((resolve) => {
     const chunks: Buffer[] = []
@@ -48,7 +47,6 @@ function probe(shell: string, mode: "-il" | "-l", timeout: number) {
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
     })
-    // Interactive shells ignore SIGTERM, so a stuck probe is killed outright.
     const timer = setTimeout(() => {
       settle({ type: "Timeout" })
       child.kill("SIGKILL")
@@ -94,7 +92,6 @@ export async function loadShellEnv(shell: string, logger: ShellEnvLogger, timeou
     logger.log(`[server] Loaded shell environment with -il (${Object.keys(interactive.value).length} vars)`)
     return interactive.value
   }
-  // A slow `.zshrc` (nvm, conda, prompt frameworks) can time out the interactive probe; a login shell skips it.
   if (interactive.type === "Timeout") logger.log(`[server] Interactive shell env probe timed out: ${shell}`)
 
   const login = await probe(shell, "-l", timeout)
@@ -107,11 +104,6 @@ export async function loadShellEnv(shell: string, logger: ShellEnvLogger, timeou
   return null
 }
 
-/**
- * PATH with the common install folders for CLIs and package managers appended when missing, for when no shell
- * environment loaded: a GUI app otherwise has only `/usr/bin:/bin:/usr/sbin:/sbin`, and every harness CLI looks
- * uninstalled. Existing entries keep their order.
- */
 export function fallbackPath(path: string, home: string) {
   const entries = path.split(":").filter(Boolean)
   const extra = [
@@ -131,12 +123,6 @@ export function mergeShellEnv(shell: Record<string, string> | null, env: Record<
   }
 }
 
-/**
- * The Windows equivalent of loading the login shell's PATH. A GUI app inherits the PATH Explorer had at
- * sign-in, so a CLI installed since then looks missing until the user signs out. `registry` holds the
- * current user and system Path values (as `reg query` prints them, unexpanded); their entries and the
- * usual CLI install folders are appended when missing. Existing entries keep their order.
- */
 export function windowsPath(path: string, registry: ReadonlyArray<string>, env: Record<string, string | undefined>) {
   const expand = (value: string) => value.replace(/%([^%]+)%/g, (whole, name: string) => env[name] ?? whole)
   const entries = path.split(";").filter(Boolean)
@@ -157,7 +143,6 @@ export function windowsPath(path: string, registry: ReadonlyArray<string>, env: 
       .trim()
       .replace(/[\\/]+$/, "")
       .toLowerCase()
-    // A folder built from a missing variable is relative ("\.bun\bin") or names "undefined".
     if (!key || key.startsWith("\\") || key.includes("undefined") || key.includes("%") || seen.has(key)) return false
     seen.add(key)
     return true
@@ -165,7 +150,6 @@ export function windowsPath(path: string, registry: ReadonlyArray<string>, env: 
   return [...entries, ...added.map((entry) => entry.trim())].join(";")
 }
 
-/** The current user's and the system's Path values from the registry, unexpanded. Empty off Windows. */
 export async function readRegistryPaths() {
   if (process.platform !== "win32") return []
   const keys = ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"]

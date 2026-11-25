@@ -9,15 +9,9 @@ import { useLanguage } from "@/context/language"
 import { createExitList } from "./exit-list"
 import type { SessionComposerRevertDock } from "./session-composer-region-controller"
 
-/**
- * The rollback rows on top of the composer's tray (the context strip and the composer below it). It
- * folds in through Reveal and, while closing, keeps rendering the last value it had.
- */
 export function SessionRevertTray(props: { dock: () => SessionComposerRevertDock | undefined }) {
   const rolled = () => (props.dock()?.items.length ? props.dock() : undefined)
   const last = createMemo<SessionComposerRevertDock | undefined>((previous) => rolled() ?? previous)
-  // The dock object is rebuilt on every read, so the tray takes accessors instead of remounting (which
-  // would reset its collapsed state, focus and row motion) whenever the rollback or its actions change.
   return (
     <Reveal open={!!rolled()}>
       <Show when={last()}>
@@ -67,8 +61,6 @@ export function SessionRevertDock(props: {
   }
 
   return (
-    // Same surface and radius as the context strip. The last 14px sit under the next row of the tray
-    // (the strip or the composer), as the strip's own bottom does, so the rows read as one surface.
     <div
       data-component="session-revert-dock"
       class="w-full overflow-hidden rounded-t-[24px] bg-v2-background-bg-layer-01 shadow-[inset_0_1px_0_var(--v2-border-border-muted),inset_1px_0_0_var(--v2-border-border-muted),inset_-1px_0_0_var(--v2-border-border-muted)]"
@@ -127,9 +119,7 @@ export function SessionRevertDock(props: {
         </div>
       </div>
 
-      {/* The list folds through Reveal and rows expand in and collapse out (createExitList). */}
       <Reveal open={!store.collapsed}>
-        {/* Scroll viewport ends above the composer */}
         <div class="flex max-h-42 flex-col overflow-y-auto px-5 pt-px pb-3">
           <For each={entries()}>
             {(entry, index) => (

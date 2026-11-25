@@ -11,7 +11,6 @@ import { SessionMessage } from "../message"
 import type { FileAttachment } from "../prompt"
 import { ThreadReference } from "../thread-reference"
 
-// A text attachment (a referenced thread) reaches the model as text; providers reject text media.
 const media = (file: FileAttachment): ContentPart => {
   const text = ThreadReference.inlineText(file)
   return text === undefined ? mediaPart(file) : { type: "text", text }
@@ -45,8 +44,6 @@ const toolCall = (tool: SessionMessage.AssistantTool, providerMetadata: Provider
 
 const toolResult = (tool: SessionMessage.AssistantTool, providerMetadata: ProviderMetadata | undefined) => {
   if (tool.state.status === "completed") {
-    // TODO: Materialize remote and managed URIs before provider-history lowering.
-    // ToolOutput.toResultValue rejects unresolved URIs rather than treating them as media bytes.
     const result =
       tool.provider?.executed === true && tool.state.result !== undefined
         ? tool.state.result
@@ -74,14 +71,8 @@ const toolResult = (tool: SessionMessage.AssistantTool, providerMetadata: Provid
   }
 }
 
-// Longest tool output kept when another provider's tool call is replayed as text.
 const REPLAYED_OUTPUT_LIMIT = 2_000
 
-/**
- * A tool call another provider ran (a hosted search, or a Codex or Claude Code tool, recorded under its harness)
- * as text. A different provider can't take it as a provider-executed part: Anthropic, OpenAI Chat and Gemini
- * reject server-tool results they don't know, which failed every later request on the thread.
- */
 const replayedTool = (tool: SessionMessage.AssistantTool): ContentPart => {
   const input = toolInput(tool)
   const target =
@@ -202,6 +193,5 @@ ${message.recent}
   }
 }
 
-/** Translate projected V2 Session history into canonical @tenon/llm context. */
 export const toLLMMessages = (messages: readonly SessionMessage.Message[], model: Model) =>
   messages.flatMap((message) => toLLMMessage(message, model))

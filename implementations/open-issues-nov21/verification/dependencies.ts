@@ -1,6 +1,3 @@
-// AC-13 (#259): every pinned dependency in tenon/ is at the newest release that satisfies `^current` and is at least
-// three days old (bunfig's minimumReleaseAge), apart from the documented exclusions. Prints each one that isn't and
-// exits 1. Run from anywhere: bun implementations/open-issues-nov21/verification/dependencies.ts
 import { readFileSync, readdirSync, existsSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
@@ -12,7 +9,6 @@ const AGE_MS = 259_200 * 1000
 const root = JSON.parse(readFileSync(path.join(tenon, "package.json"), "utf8"))
 const patched = new Set(Object.keys(root.patchedDependencies ?? {}).map((key) => key.slice(0, key.lastIndexOf("@"))))
 const overrides = new Set(Object.keys(root.overrides ?? {}))
-// Held back on purpose; see implementation.md AC-13 and #259.
 const held: Record<string, string> = {
   "@ai-sdk/google-vertex": "waits for the patched @ai-sdk/google",
   "@tanstack/solid-query": "<5.100",
@@ -20,7 +16,6 @@ const held: Record<string, string> = {
   "@solid-primitives/storage": "4.3.x",
   "ghostty-web": "git dependency",
   prettier: "a minor release reformats the repository",
-  // Added during P5 (implementation.md, "Test changes after the freeze"):
   "@tanstack/solid-virtual": "pins the patched @tanstack/virtual-core",
   "@effect/opentelemetry": "moves with the patched effect",
   "@effect/platform-node": "moves with the patched effect",

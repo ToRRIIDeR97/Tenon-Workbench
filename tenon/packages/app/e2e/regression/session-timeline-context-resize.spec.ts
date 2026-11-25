@@ -59,7 +59,6 @@ test.describe("regression: session timeline context group resize", () => {
 
     await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
     await expectSessionTitle(page, title)
-    // A working turn folds behind its live ticker; open it to reach the context group.
     await expandTurnSteps(page)
     const devtools = await page.context().newCDPSession(page)
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: 4 })

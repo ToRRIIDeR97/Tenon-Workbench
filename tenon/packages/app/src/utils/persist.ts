@@ -108,11 +108,6 @@ function quota(error: unknown) {
   return false
 }
 
-/**
- * Browser builds keep persisted state in localStorage under `<store>:<key>`. Keys written before the
- * rename start with `opencode.`; move each to its `tenon.` name once (desktop store files are renamed
- * by the main process). Returns how many keys moved.
- */
 export function migrateLegacyLocalStorage(storage: Storage | undefined = globalThis.localStorage) {
   if (!storage) return 0
   const names = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
@@ -562,7 +557,6 @@ function resolveTarget(target: PersistTarget, platform: Platform): PersistTarget
   }
 }
 
-/** Delete a per-window key from this window's storage. */
 export function removeWindowPersisted(key: string, platform: Platform) {
   removePersisted(resolveTarget(Persist.window(key), platform), platform)
 }

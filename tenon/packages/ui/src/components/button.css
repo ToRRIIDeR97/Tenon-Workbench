@@ -117,12 +117,11 @@
     line-height: var(--line-height-large);
     gap: 8px;
 
-    /* text-12-medium */
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);
     font-style: normal;
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 166.667% */
+    line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);
   }
 
@@ -137,7 +136,6 @@
     font-size: var(--font-size-small);
     gap: 8px;
 
-    /* text-12-medium */
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);
     font-style: normal;
@@ -155,12 +153,11 @@
 
     gap: 8px;
 
-    /* text-14-medium */
     font-family: var(--font-family-sans);
     font-size: 14px;
     font-style: normal;
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
+    line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);
   }
 

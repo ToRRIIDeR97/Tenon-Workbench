@@ -27,7 +27,6 @@ type SpawnLocalServerOptions = {
   onStdout?: (message: string) => void
   onStderr?: (message: string) => void
   onExit?: (code: number) => void
-  // Set on the server's env only, never on process.env, so no other child of this process inherits it.
   env?: Record<string, string>
 }
 
@@ -45,7 +44,6 @@ export function setDefaultServerUrl(url: string | null) {
   getStore().delete(DEFAULT_SERVER_URL_KEY)
 }
 
-// Async so the login-shell probe runs alongside app startup; it must finish before the sidecar env is built.
 export async function preferAppEnv(userDataPath: string) {
   const shell = process.platform === "win32" ? null : getUserShell()
   const shellEnv = shell ? await loadShellEnv(shell, getLogger()) : null
@@ -56,18 +54,12 @@ export async function preferAppEnv(userDataPath: string) {
     TENON_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
-  // Without a shell environment the bare GUI PATH hides Homebrew, npm and bun installs, so harness CLIs and npm
-  // look uninstalled. Not on Windows, whose PATH isn't colon-separated.
   if (!shellEnv && process.platform !== "win32")
     process.env.PATH = fallbackPath(process.env.PATH ?? "", app.getPath("home"))
-  // Windows has no login shell; its registry holds the PATH as it is now, CLIs installed since sign-in included.
   if (process.platform === "win32")
     process.env.PATH = windowsPath(process.env.PATH ?? "", await readRegistryPaths(), process.env)
-  // A set TENON_DB wins: the onboarding test uses ":memory:", and a user may pick their own file. Assigning
-  // undefined to process.env would store the string "undefined", so it is set only when there is a name.
   const database = stableDatabaseName(CHANNEL, app.isPackaged)
   if (!process.env.TENON_DB && database) process.env.TENON_DB = database
-  // The sidecar falls back to a download when this file is missing (development builds).
   if (app.isPackaged)
     process.env.TENON_RIPGREP_PATH = join(
       process.resourcesPath,
@@ -78,12 +70,9 @@ export async function preferAppEnv(userDataPath: string) {
   return shellEnv
 }
 
-// Returns at once so the caller can stop the child while it is still starting.
 export function spawnLocalServer(hostname: string, port: number, password: string, options: SpawnLocalServerOptions) {
   const sidecar = join(dirname(fileURLToPath(import.meta.url)), "sidecar.js")
   const child = utilityProcess.fork(sidecar, [], {
-    // Requests that name no folder fall back to the server's working directory. The app's own (a
-    // drive root or System32, depending on how it was launched) would boot a watcher over it.
     cwd: homedir(),
     env: createSidecarEnv(process.env, options.env),
     serviceName: SIDECAR_SERVICE_NAME,
@@ -163,14 +152,12 @@ export function spawnLocalServer(hostname: string, port: number, password: strin
     throw error
   })
 
-  // Polls until healthy; stops when the signal aborts (for example on a timeout) or the child exits.
   const waitHealthy = async (signal: AbortSignal) => {
     await ready
     const gone = new AbortController()
     void exit.promise.then(() => gone.abort())
     const stop = AbortSignal.any([signal, gone.signal])
     const url = `http://${hostname}:${port}`
-    // Probe first: a fast sidecar is often healthy by the time it reports ready.
     while (!stop.aborted) {
       if (await checkHealth(url, password, stop)) return
       await delay(100)
@@ -200,7 +187,6 @@ export function spawnLocalServer(hostname: string, port: number, password: strin
   }
 }
 
-// The path that last answered is tried first, so later polls make one request instead of two.
 let healthPaths = ["/api/health", "/global/health"]
 
 export async function checkHealth(url: string, password?: string | null, signal?: AbortSignal): Promise<boolean> {

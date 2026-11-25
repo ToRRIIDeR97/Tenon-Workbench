@@ -115,7 +115,6 @@ test("inserts a completed question between stable rows", async ({ page }, testIn
     partUpdated(toolPart(questionID, "question", "completed", input, { metadata: { answers: [["Yes"]] } })),
     600,
   )
-  // The answered question joins the turn as a step in a Worked card between the two texts.
   await expect(card.locator(`[data-timeline-part-id="${questionID}"]`)).toBeVisible()
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   await reportVisualStability(testInfo, "question-insert", trace, stablePairPlan(regions, 0))

@@ -228,9 +228,7 @@ export function createWslServersController(
       if (!isCurrentStartAttempt(id, attempt)) {
         try {
           sidecar.listener.stop()
-        } catch {
-          // ignore stop errors for stale sidecars
-        }
+        } catch {}
         return
       }
       sidecars.set(id, sidecar)
@@ -253,9 +251,6 @@ export function createWslServersController(
       const message = error instanceof Error ? error.message : String(error)
       if (!isCurrentStartAttempt(id, attempt)) return
       setRuntime(id, { kind: "failed", message })
-      // Without this, an Ubuntu-style silent failure leaves no trace in
-      // main.log — the controller captures the message in its state but
-      // nothing surfaces unless the user opens the WSL servers dialog.
       logger?.error("wsl sidecar failed to start", { id, distro: item.config.distro, message })
     }
   }
@@ -266,9 +261,7 @@ export function createWslServersController(
     sidecars.delete(id)
     try {
       existing.listener.stop()
-    } catch {
-      // ignore stop errors
-    }
+    } catch {}
   }
 
   const runJob = async <T>(job: WslJob, runner: (abort: AbortController) => Promise<T>) => {
@@ -395,9 +388,7 @@ export function createWslServersController(
       for (const existing of sidecars.values()) {
         try {
           existing.listener.stop()
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
       sidecars.clear()
     },
@@ -490,7 +481,6 @@ function startupFailure(code: number | null, signal: NodeJS.Signals | null) {
   return nativeT("desktop.wsl.error.serverExited", { code: code ?? "null", signal: signal ?? "null" })
 }
 
-// Re-export types used by callers
 export type {
   WslInstalledDistro,
   WslOnlineDistro,

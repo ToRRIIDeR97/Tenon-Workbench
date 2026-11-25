@@ -12,7 +12,6 @@ import { WorkspaceInstructions } from "@tenon/core/workspace-instructions"
 import { tmpdir } from "./fixture/tmpdir"
 
 const model = Model.make({ id: "gpt-test", provider: "test", route })
-// Mirrors the request a session runner builds: agent prompt, then the system context baseline.
 const baseline = [
   "Here is some useful information about the environment you are running in:\n<env>\n</env>",
   "Instructions from: /home/me/.config/opencode/AGENTS.md\nGlobal rule.",
@@ -52,7 +51,6 @@ describe("TenonContext.render", () => {
     expect(block).toContain(
       "## Workspace\nWorkspace root folder: /brain\nProject: Site (/brain/projects/Site)\nThread folder: /brain/projects/Site",
     )
-    // Each file is its own element, the most specific first.
     expect(block).toContain(
       '<agents-md path="/brain/projects/Site/AGENTS.md">\nUse tabs.\n\nPrefer small diffs.\n</agents-md>\n\n<agents-md path="/home/me/.config/opencode/AGENTS.md">\nGlobal rule.\n</agents-md>',
     )
@@ -72,7 +70,6 @@ describe("TenonContext.render", () => {
   test("clips instructions to the token budget, most specific file first", () => {
     const long = `Instructions from: /global/AGENTS.md\nGlobal.\n\nInstructions from: /brain/AGENTS.md\n${"x".repeat(10_000)}`
     const block = TenonContext.render(request([long]), {}, 100)
-    // Token.estimate counts four characters per token.
     expect(block).toContain(
       `<agents-md path="/brain/AGENTS.md">\n${"x".repeat(400)}\n[Instructions truncated]\n</agents-md>`,
     )

@@ -783,7 +783,6 @@ describe("tool.shell permissions", () => {
     }),
   )
 
-  // Pinned to cmd: in Git Bash a drive-less "/Users/..." path resolves under the Git install root, not the current drive.
   if (process.platform === "win32" && cmdShell) {
     it.live("normalizes external_directory workdir variants on Windows", () =>
       withShell(

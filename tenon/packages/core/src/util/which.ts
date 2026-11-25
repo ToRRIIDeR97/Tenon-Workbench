@@ -7,7 +7,6 @@ const isFile = (file: string) => {
   try {
     return statSync(file, { throwIfNoEntry: false })?.isFile() ?? false
   } catch {
-    // App execution aliases such as the WindowsApps python.exe refuse stat but still run; lstat sees their link.
     try {
       return lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() ?? false
     } catch {
@@ -21,11 +20,6 @@ const envValue = (env: NodeJS.ProcessEnv, name: string) =>
 
 const isBare = (cmd: string) => !/[\\/]/.test(cmd) && !/^[a-z]:/i.test(cmd)
 
-/**
- * Finds a bare command on PATH and PATHEXT only. `which`, cross-spawn and spawn itself all search
- * the working directory first on Windows, which would run a repository's own `git.cmd`, so relative
- * PATH entries are skipped too.
- */
 export function resolveWin32(cmd: string, env: NodeJS.ProcessEnv, exists = isFile) {
   const dirs = (envValue(env, "PATH") ?? envValue(process.env, "PATH") ?? "")
     .split(";")
@@ -41,11 +35,6 @@ export function resolveWin32(cmd: string, env: NodeJS.ProcessEnv, exists = isFil
   )
 }
 
-/**
- * What to hand to spawn for `cmd`: on Windows a bare name becomes its absolute PATH match, or null
- * when there is none, and callers must fail with `notFound` rather than fall back to the bare name.
- * Other platforms don't search the working directory, so `cmd` passes through.
- */
 export function spawnTarget(cmd: string, env: NodeJS.ProcessEnv = process.env) {
   if (process.platform !== "win32" || !isBare(cmd)) return cmd
   return resolveWin32(cmd, env)

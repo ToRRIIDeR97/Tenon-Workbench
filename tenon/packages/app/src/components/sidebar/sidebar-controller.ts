@@ -79,7 +79,6 @@ export type SidebarProjectItem = {
   entry: ProjectThreads
 }
 
-/** The group for threads in the workspace folder outside every Project. */
 export const BRAIN_GROUP = "__brain__"
 const HOME_SESSION_LIMIT = 64
 const ARCHIVED_THREAD_LIMIT = 500
@@ -87,14 +86,9 @@ const ARCHIVED_THREAD_LIMIT = 500
 export const projectThreadsQueryKey = (server: string, brain: string | undefined) =>
   ["second-brain", "project-threads", server, brain ?? ""] as const
 
-// Call after every Project mutation so the sidebar's Project list and threads catch up.
 export const invalidateProjectThreads = (queryClient: QueryClient, server: string) =>
   queryClient.invalidateQueries({ queryKey: ["second-brain", "project-threads", server] })
 
-/**
- * The selected workspace's Projects with their thread folders. The sidebar, Home, Notes and the
- * Projects page share this one cached query; Project mutations call `invalidateProjectThreads`.
- */
 export function useProjectThreads() {
   const layout = useLayout()
   const server = useServer()
@@ -114,16 +108,13 @@ export function useProjectThreads() {
       staleTime: 30_000,
       refetchOnMount: true,
       retry: false,
-      // The server is usually local, so a lost connection is no reason to pause.
       networkMode: "always" as const,
     }
   })
 }
 
-/** Every Project card of the selected workspace, any status; undefined while loading or after a failure. */
 export function useBrainProjects() {
   const query = useProjectThreads()
-  // Reading `data` while the query is pending suspends, so check the status first.
   const entries = () => (query.isPending || query.isError ? undefined : query.data)
   return {
     entries,
@@ -157,7 +148,6 @@ export function createSidebarController() {
     }),
   )
 
-  // The selected workspace (also called the Brain): the sidebar shows only its Projects and threads.
   const brainDirectory = layout.home.workspace
   const client = (directory: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory } })
 
@@ -175,7 +165,6 @@ export function createSidebarController() {
   )
   const refreshProjects = () => invalidateProjectThreads(queryClient, server.key)
 
-  // Agents write pages without going through the Projects page's list.
   createEffect(() => {
     const unsubscribe = serverSDK().event.listen((e) => {
       const event = e.details as { type: string; properties?: { phase?: string } }
@@ -188,9 +177,6 @@ export function createSidebarController() {
   const workspaces = () => layout.projects.list()
   const selectWorkspace = (directory: string) => layout.home.setSelection({ server: server.key, directory })
 
-  // A workspace whose folder was moved or deleted: the server answers its requests with a typed 404,
-  // and the sidebar offers to locate the folder or remove the workspace instead of failing. Each check boots
-  // the workspace's server instance, so the others wait until the switcher that shows their state opens.
   const [switcher, setSwitcher] = createStore({ open: false })
   const folderQueries = useQueries(() => ({
     queries: workspaces().map((workspace) => ({
@@ -210,11 +196,9 @@ export function createSidebarController() {
       retry: false,
     })),
   }))
-  /** true when the folder is gone, false when it is there, undefined until the check answers. */
   const folderMissing = (directory: string) =>
     folderQueries[workspaces().findIndex((workspace) => workspace.worktree === directory)]?.data
 
-  // Scan each workspace once per app session when it is first shown, so new project folders appear.
   const scanned = new Set<string>()
   const scan = (directory: string) =>
     scanProjects(client(directory)).then(async (result) => {
@@ -226,7 +210,6 @@ export function createSidebarController() {
     const key = `${server.key}:${directory}`
     if (!directory || scanned.has(key) || folderMissing(directory) !== false) return
     scanned.add(key)
-    // Reload the Project list only when the scan added cards; a failed scan is retried on the next visit.
     void scanProjects(client(directory))
       .then((result) => (result.created > 0 ? refreshProjects() : undefined))
       .catch((cause: unknown) => {
@@ -235,7 +218,6 @@ export function createSidebarController() {
       })
   })
 
-  /** "Scan for projects": rescan the selected workspace and report what changed. */
   const scanFolders = () => {
     const directory = brainDirectory()
     if (!directory) return
@@ -252,10 +234,6 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /**
-   * Add a folder from anywhere on this computer as a Project of the selected workspace. Rejects with the
-   * server's reason (for example a folder inside the workspace) so the add dialog can show it.
-   */
   const addProject = async (folder: string) => {
     const directory = brainDirectory()
     if (!directory) return
@@ -263,11 +241,9 @@ export function createSidebarController() {
     await refreshProjects()
   }
 
-  /** Linked Projects have an absolute folder; Projects inside the workspace's projects folder don't. */
   const isLinked = (project: SidebarProjectItem) =>
     /^([a-zA-Z]:)?[\\/]/.test(project.entry.project.location?.path ?? "")
 
-  /** Unlinking also archives the card; undo links the folder again (the scan reuses the card) and restores its status. */
   const unlinkProject = (project: SidebarProjectItem) => {
     const directory = brainDirectory()
     const folder = project.entry.project.location?.path
@@ -288,17 +264,9 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /**
-   * Take a Project off the workspace's list without touching its files: a linked folder is unlinked,
-   * a folder inside the workspace keeps its folder and has its card archived (a scan keeps known cards).
-   */
   const removeProject = (project: SidebarProjectItem) =>
     isLinked(project) ? unlinkProject(project) : archiveProject(project)
 
-  // Per-directory thread lists, kept live by session.created/updated/deleted events. Only expanded
-  // Projects load a list, whatever the Group by mode, so collapsed ones skip the request and their
-  // per-directory stores. The recent-thread index below still covers their root threads, and its
-  // parent links carry their child threads' state up to those roots.
   const directories = createMemo(() => {
     const brain = brainDirectory()
     const all = [
@@ -319,9 +287,6 @@ export function createSidebarController() {
     })),
   )
 
-  // Recent threads across every folder, so threads outside any Project still show.
-  // Reads the cache that `serverSync().homeSessions` keeps live from server events,
-  // the same one Home reads (the shell shares the app's QueryClient).
   const homeSessions = () => serverSync().homeSessions
   const sessionEvents = useQuery(() => ({
     queryKey: homeSessions().eventsKey,
@@ -334,9 +299,6 @@ export function createSidebarController() {
       serverSDK().client.v2.session.list(input, options),
     ),
   )
-  // Reconciled so a refetch that returns the same threads (e.g. after a reconnect) keeps
-  // their identity and does not re-render every row.
-  // Most session events leave this list as the same array; the memo stops them before the group and sort.
   const indexSessions = createMemo(() => homeSessions().sessions(sessionIndex.data, sessionEvents.data))
   const [indexStore, setIndexStore] = createStore({ sessions: [] as Session[] })
   createComputed(() =>
@@ -346,9 +308,6 @@ export function createSidebarController() {
     ),
   )
 
-  // `hidden` holds threads whose delete waits for its undo window to close; their children hide too.
-  // `childrenOpen` is a row's own choice to show or hide its child threads; `fetched` holds the child IDs
-  // loaded for a thread on demand, read back from the live session cache.
   const [local, setLocal] = createStore({
     hidden: {} as Record<string, boolean>,
     undoPending: 0,
@@ -365,7 +324,6 @@ export function createSidebarController() {
       !!id && depth < 64 && (local.hidden[id] || hidden(parents.get(id), depth + 1))
     return all.filter((session) => !hidden(session.id))
   })
-  // Unchanged threads keep their node objects, so their sidebar rows are not remounted.
   const stableNodes = createThreadNodeCache<Session>()
   const groups = createMemo(() => {
     return stableNodes(
@@ -377,11 +335,8 @@ export function createSidebarController() {
     )
   })
   const grouping = () => parseGrouping(state.grouping)
-  // How a thread's last turn ended while you were elsewhere: done, waiting on your reply, or failed. Opening the
-  // thread marks it seen.
   const notification = useNotification()
   const finishOf = (session: Pick<Session, "id">) => {
-    // The newest unseen ending decides: a failed turn followed by one that finished shows the finish.
     const unseen = notification.session.unseen(session.id)
     const last = unseen.at(-1)
     return finishMark({
@@ -394,8 +349,6 @@ export function createSidebarController() {
     const data = serverSync().session.data
     return threadState(data.session_status[session.id], needsYou(data, session.id))
   }
-  // Only expanded Projects load child threads; elsewhere a root has no child nodes. The session index's
-  // parent links still carry a child's state up to its root, with no request per folder.
   const childLinks = createMemo(() => homeSessions().parents(sessionIndex.data, sessionEvents.data))
   const linkedThreads = createMemo(() => {
     const data = serverSync().session.data
@@ -404,11 +357,6 @@ export function createSidebarController() {
     )
   })
   const linked = (session: Pick<Session, "id">) => linkedThreads().get(session.id) ?? []
-  /**
-   * What the sidebar shows, top to bottom, in the current mode. A Project or workspace card's ID is its
-   * `expanded` key. Attention and Recent mix Projects, so their roots run newest first. Cards are rebuilt on
-   * every thread or status change, so key a view by card ID; only the thread nodes keep their identity.
-   */
   const cards = createMemo<ThreadCard<Session>[]>(() => {
     const value = groups()
     const mode = grouping()
@@ -425,14 +373,12 @@ export function createSidebarController() {
       ? attentionCards(roots, stateOf, linked)
       : recentCards(roots, stateOf, Date.now(), linked)
   })
-  /** Root threads waiting on the user anywhere in the workspace, whichever grouping is showing. */
   const waitingCount = createMemo(() => {
     const value = groups()
     return [...value.projects.flatMap((group) => group.threads), ...value.workspace].filter(
       (node) => nodeState(node, stateOf, linked) === "approval",
     ).length
   })
-  /** Each Project's root threads by Project ID, so a row looks its threads up instead of scanning every group. */
   const projectThreads = createMemo(
     () => new Map(groups().projects.map((group) => [group.project.id, group.threads] as const)),
   )
@@ -469,7 +415,6 @@ export function createSidebarController() {
     if (!sessionID) return
     return knownSession(sessionID)?.directory ?? fetchedSession()?.directory
   })
-  /** Project the current route belongs to, derived from the thread or draft directory. */
   const activeProjectID = createMemo(() => {
     const draft = activeDraft()
     if (draft?.projectID) return draft.projectID
@@ -480,7 +425,6 @@ export function createSidebarController() {
     const brain = brainDirectory()
     if (brain && isWithinDirectory(brain, directory)) return BRAIN_GROUP
   })
-  // Expand a group only when the route enters it, so the user can still collapse the active group.
   createEffect(
     on(activeProjectID, (id) => {
       if (!id) return
@@ -504,8 +448,6 @@ export function createSidebarController() {
 
   const openThread = (session: Pick<Session, "id">) => navigate(sessionHref(server.key, session.id))
 
-  // Directory lists hold root threads only, and child threads (subagents) otherwise reach the sidebar only
-  // once their parent's page has loaded them, so fetch a thread's children when its rows are opened.
   const childLoads = new Set<string>()
   const loadChildren = (session: Pick<Session, "id" | "directory">) => {
     if (childLoads.has(session.id)) return
@@ -531,7 +473,6 @@ export function createSidebarController() {
     setLocal("childrenOpen", node.session.id, open)
     if (open) loadChildren(node.session)
   }
-  // Opening a thread (or one of its subagents) shows its lineage's children, so load those not fetched yet.
   createEffect(
     on(activeSessionID, (sessionID) => {
       const links = childLinks()
@@ -552,7 +493,6 @@ export function createSidebarController() {
     }
     const brain = brainDirectory()
     if (brain) return void drafts.create({ server: server.key, directory: brain })
-    // No workspace yet: a thread needs a folder, so ask for one.
     if (server.current) chooseFolder()
   }
 
@@ -583,15 +523,12 @@ export function createSidebarController() {
 
   const threadLabel = (session: Session) => sessionTitle(session.title) || session.id
 
-  // A directory's list holds every thread of its Tenon project, so a thread can sit in
-  // several loaded lists (e.g. the Brain folder and a `projects/<id>/` folder). Update them all.
   const loadedStores = () => directories().map((directory) => serverSync().child(directory, { bootstrap: false }))
   const dropSession = (sessionID: string) => {
     for (const [, setStore] of loadedStores())
       setStore("session", (items) => items.filter((item) => item.id !== sessionID))
   }
 
-  // Apply the server's copy right away; the later session.updated event is idempotent.
   const applySession = (info: Session) => {
     homeSessions().apply({ type: "session.updated", properties: { sessionID: info.id, info } })
     if (info.time.archived) return dropSession(info.id)
@@ -605,7 +542,6 @@ export function createSidebarController() {
     setOwn("session", (items) => [...items, info].sort((a, b) => a.id.localeCompare(b.id)))
   }
 
-  // Move off a thread that is about to leave the sidebar: to its parent, a neighbour, or Home.
   const leaveThread = (session: Session) => {
     if (activeSessionID() !== session.id) return
     const order = visibleThreads()
@@ -626,7 +562,6 @@ export function createSidebarController() {
             item.title = value
           }),
         )
-      // Recent threads outside any loaded list read the Home index, so rename (and roll back) there too.
       homeSessions().apply({
         type: "session.updated",
         properties: { sessionID: session.id, info: { ...session, title: value } },
@@ -683,10 +618,6 @@ export function createSidebarController() {
       )
       .then((result) => applySession(result.data))
 
-  /**
-   * Delete is deferred: the row hides now and `session.remove` (a hard delete) runs when the
-   * undo window closes. If the app quits first, the thread is simply not deleted.
-   */
   const deleteThread = (session: Session) => {
     const wasOpen = activeSessionID() === session.id
     leaveThread(session)
@@ -695,14 +626,11 @@ export function createSidebarController() {
     undo.push({
       title: language.t("secondBrain.sidebar.threadDeleted"),
       description: threadLabel(session),
-      // Undoing the delete of the open thread brings the user back to it.
       undo: () => {
         restore()
         if (wasOpen) openThread(session)
       },
       commit: () => {
-        // The server deletes a thread's children with it, so drop the whole subtree here; otherwise a
-        // child row can linger and its own delete fails with "not found".
         const removed = () => {
           const all = mergeSidebarSessions(directoryLists(), indexStore.sessions)
           const gone = new Set([session.id])
@@ -722,7 +650,6 @@ export function createSidebarController() {
           .api.session.remove({ sessionID: session.id, directory: session.directory })
           .then(removed)
           .catch((cause: unknown) => {
-            // Already deleted, e.g. along with its parent: treat it as done.
             if (isServerNotFoundError(cause)) return removed()
             restore()
             throw cause
@@ -744,7 +671,6 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /** Downloads the thread as the same JSON `opencode export` writes. */
   const exportThread = async (session: Pick<Session, "id" | "directory">) => {
     try {
       const data = await fetchSessionExport({
@@ -793,10 +719,6 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /**
-   * Archived threads in one folder, newest first, within the list limit. The server matches the folder
-   * exactly, so the workspace folder's list never includes threads from a Project's folder.
-   */
   const listArchivedThreads = (directory: string) =>
     serverSDK()
       .client.experimental.session.list(
@@ -805,18 +727,12 @@ export function createSidebarController() {
       )
       .then((result) => result.data.filter((session) => !!session.time.archived) as Session[])
 
-  /**
-   * Open a folder as a workspace and switch the sidebar to it. Its Projects come from its own
-   * projects folder, so opening a folder never adds a Project to another workspace.
-   * `initEmpty` runs `git init` in an empty folder; only user-picked folders get it, never deep links.
-   */
   const openFolder = async (directory: string, options: { initEmpty?: boolean } = {}) => {
     layout.projects.open(directory)
     server.projects.touch(directory)
     const sdk = serverSDK()
     const location = { directory }
     const current = () => sdk.api.project.current({ location })
-    // Only an `initEmpty` open needs to know whether the folder is empty.
     const project = await (
       options.initEmpty
         ? sdk.api.file.list({ path: ".", location }).then(async (files) => {
@@ -831,7 +747,6 @@ export function createSidebarController() {
     selectWorkspace(directory)
   }
 
-  /** Replace a workspace whose folder is gone with the folder the user picks. */
   const locateWorkspace = (directory: string) =>
     pickDirectory({
       server: server.current!,
@@ -844,7 +759,6 @@ export function createSidebarController() {
       },
     })
 
-  /** Drop a workspace from the list; its folder is not touched. */
   const removeWorkspace = (directory: string) => layout.projects.close(directory)
 
   const chooseFolder = () =>
@@ -897,7 +811,6 @@ export function createSidebarController() {
       title: language.t("secondBrain.command.undo"),
       category: language.t("command.category.view"),
       keybind: "mod+z",
-      // Only while an undo toast is open, and never in place of a text field's own undo.
       disabled: local.undoPending === 0,
       when: outsideEditable,
       onSelect: () => undo.undoLatest(),
@@ -955,7 +868,6 @@ export function createSidebarController() {
     },
   ])
 
-  // tenon://open-project and tenon://new-session, formerly handled by the legacy layout.
   const handleDeepLinks = (urls: string[]) => {
     if (!server.isLocal()) return
     for (const directory of collectOpenProjectDeepLinks(urls)) void openFolder(directory)
@@ -1000,7 +912,6 @@ export function createSidebarController() {
     finishOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
-    /** Child thread to parent thread, from the session index: covers subagents the synced store has not loaded. */
     parentLinks: childLinks,
     loading: () => projectsQuery.isLoading,
     failed: () => projectsQuery.isError,
@@ -1033,7 +944,6 @@ export function createSidebarController() {
 
 export type SidebarController = ReturnType<typeof createSidebarController>
 
-/** One controller for the sidebar and the pages that run its thread actions, so they share the undo queue. */
 export const { use: useSidebarController, provider: SidebarControllerProvider } = createSimpleContext({
   name: "SidebarController",
   gate: false,

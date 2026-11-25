@@ -66,7 +66,6 @@ export function useSessionArchive() {
       })
   }
 
-  // The legacy update route owns archive and pin state; the session.updated event re-adds or refreshes the row.
   const legacyUpdate = async (body: { pinned?: boolean; time?: { archived: null } }, sessionID: string) => {
     if ((await sdk().protocol) !== "v1" && !(await sdk().legacyProjectsAndMcp)) {
       throw new Error(language.t("common.requestFailed"))

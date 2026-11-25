@@ -20,11 +20,6 @@ import { createNewSessionDraftController } from "@/pages/new-session/new-session
 import { Greeting } from "@/pages/new-session/greeting"
 import { DirectoryDataProvider } from "@/pages/directory-layout"
 
-/**
- * Home's greeting and composer. The composer is the thread composer (`PromptInputV2Composer`) with the same draft
- * controller a new thread uses: attachments, skills, history, `@` and `/`, and the harness list that never waits on a
- * check. It works on the workspace folder's new-thread prompt; sending creates the thread and opens it.
- */
 export function HomeComposer(props: { directory: string }) {
   const server = useServer()
   return (
@@ -32,13 +27,10 @@ export function HomeComposer(props: { directory: string }) {
       {(directory) => (
         <ModelsProvider directory={() => directory}>
           <SDKProvider directory={directory}>
-            {/* `server` keeps the provider from moving the route to a directory URL: Home stays Home. */}
             <DirectoryDataProvider directory={directory} server={() => server.key}>
               <FileProvider>
                 <PromptProvider>
                   <CommentsProvider>
-                    {/* The prompt loads its saved text first; until then the greeting and an empty box hold the
-                        place, so the page doesn't shift. */}
                     <Suspense fallback={<HomeComposerPlaceholder />}>
                       <HomeComposerBody directory={directory} />
                     </Suspense>
@@ -72,7 +64,6 @@ function HomeComposerBody(props: { directory: string }) {
   const prompt = usePrompt()
   const draft = createNewSessionDraftController({ worktree: () => "main", resetWorktree: () => {} })
 
-  // Home starts on the harness chosen in Settings › Harnesses (or the last one used), like a new thread.
   let started = false
   createEffect(() => {
     if (started || !prompt.ready() || !settings.ready()) return
@@ -92,11 +83,7 @@ function HomeComposerBody(props: { directory: string }) {
       .join("")
   const [composing, setComposing] = createSignal(false)
 
-  // The workspace's General and its Projects, recent first. Picking one opens a new thread there with what you've
-  // typed and the harness you picked.
   const projectThreads = useProjectThreads()
-  // Read only once loaded: reading `data` while the query is pending would suspend the composer until the Projects
-  // list arrives. Until then the picker offers the workspace alone.
   const projects = createMemo(() =>
     (projectThreads.isSuccess && Array.isArray(projectThreads.data) ? projectThreads.data : [])
       .filter((entry) => entry.project.status === "active")
@@ -129,14 +116,12 @@ function HomeComposerBody(props: { directory: string }) {
 
   return (
     <div class="contents" onFocusIn={() => setComposing(true)} onFocusOut={() => setComposing(false)}>
-      {/* The headline's verb keeps rolling, except while the user is writing in the composer. */}
       <Greeting swap={{ paused: () => composing() || !!text().trim() }} />
       <PromptInputV2Composer
         controller={draft.input}
         harness={draft.harness}
         boxHeader={
           <>
-            {/* The workspace, or a Project: picking one opens a new thread there with what you've typed. */}
             <PromptProjectSelector controller={picker} placement="bottom-start" />
             <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
             <PromptBranchPicker

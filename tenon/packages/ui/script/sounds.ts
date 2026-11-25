@@ -1,13 +1,3 @@
-/**
- * Synthesizes Tenon's notification sounds, so they can be tuned and rebuilt instead of hand-edited.
- *
- * Three families, each with a sound for the three notification events (an agent finished, an agent needs you, an
- * error): Glass (soft FM bells), Soft (rounded mallet tones) and Pulse (short filtered blips). Every sound is short
- * (under 0.7 s), starts without a click, and peaks at -9 dBFS, near the older Tenon sounds.
- *
- * Run from tenon/packages/ui: `bun script/sounds.ts`. Needs ffmpeg on PATH to encode AAC; with `--wav` it writes
- * the WAV files only, to listen before encoding.
- */
 import path from "path"
 
 const RATE = 44_100
@@ -18,13 +8,11 @@ type Note = { at: number; freq: number; gain?: number }
 type Voice = (t: number, freq: number) => number
 type Sound = { name: string; length: number; notes: Note[]; voice: Voice; room?: number }
 
-/** A short raised-cosine attack (no click), then an exponential decay. */
 const envelope = (t: number, attack: number, decay: number) =>
   t < 0 ? 0 : t < attack ? 0.5 - 0.5 * Math.cos((Math.PI * t) / attack) : Math.exp(-(t - attack) / decay)
 
 const TAU = Math.PI * 2
 
-/** A soft bell: FM with a non-integer ratio whose brightness fades faster than the tone. */
 const glass =
   (decay: number, index: number): Voice =>
   (t, freq) => {
@@ -34,7 +22,6 @@ const glass =
     return (tone + shimmer) * envelope(t, 0.008, decay)
   }
 
-/** A rounded mallet: a sine with a touch of second and fourth partial that die first. */
 const soft =
   (decay: number): Voice =>
   (t, freq) => {
@@ -45,7 +32,6 @@ const soft =
     return (body + partials) * envelope(t, 0.008, decay)
   }
 
-/** A short blip: a band-limited triangle with a slight downward pitch glide. */
 const pulse =
   (decay: number): Voice =>
   (t, freq) => {
@@ -55,7 +41,6 @@ const pulse =
     return triangle * envelope(t, 0.005, decay)
   }
 
-// Pitches (Hz).
 const D5 = 587.33
 const E5 = 659.26
 const G5 = 783.99
@@ -65,10 +50,6 @@ const C5 = 523.25
 const A4 = 440
 const F4 = 349.23
 
-/**
- * Each family speaks the same three phrases: done rises (resolved), attention taps twice on one note (asking), error
- * falls (something went wrong). Error sits lowest and attention brightest, so they are told apart without looking.
- */
 const SOUNDS: Sound[] = [
   {
     name: "tenon-glass-done",
@@ -159,7 +140,6 @@ const SOUNDS: Sound[] = [
   },
 ]
 
-/** Renders a sound to mono samples, with a short three-tap room and a fade at the end. */
 export function render(sound: Sound) {
   const length = Math.round(sound.length * RATE)
   const dry = new Float64Array(length)
@@ -176,14 +156,12 @@ export function render(sound: Sound) {
     }
   }
   const mixed = dry.map((value, i) => (sound.room ? 0.82 * value + 0.18 * wet[i]! : value))
-  // The last 40 ms fade to silence, so the file never ends on a cut.
   const fade = Math.round(0.04 * RATE)
   for (let i = 0; i < fade; i++) mixed[length - 1 - i] *= i / fade
   const peak = mixed.reduce((max, value) => Math.max(max, Math.abs(value)), 0) || 1
   return mixed.map((value) => (value / peak) * PEAK)
 }
 
-/** 16-bit mono PCM WAV. */
 export function wav(samples: Float64Array) {
   const data = new DataView(new ArrayBuffer(44 + samples.length * 2))
   const text = (offset: number, value: string) =>

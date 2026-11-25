@@ -1,6 +1,3 @@
-// Worker-visible acceptance tests for the harness settings HTTP routes.
-// Run from tenon/packages/tenon (its preload isolates XDG_CONFIG_HOME):
-//   bun test --timeout 30000 ../../../Implementations/harness-settings-page/acceptance/routes.test.ts
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import path from "node:path"

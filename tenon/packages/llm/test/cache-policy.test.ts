@@ -39,8 +39,6 @@ describe("applyCachePolicy", () => {
         }),
       )
 
-      // No explicit cache field → auto policy fires → last system part + latest
-      // user message both get cache_control markers.
       expect(prepared.body).toMatchObject({
         system: [{ type: "text", text: "You are concise.", cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: [{ type: "text", text: "hi", cache_control: { type: "ephemeral" } }] }],
@@ -91,7 +89,6 @@ describe("applyCachePolicy", () => {
       )
 
       const body = prepared.body as { messages: Array<{ content: unknown }> }
-      // OpenAI doesn't accept cache_control on messages — policy must skip.
       const flat = JSON.stringify(body)
       expect(flat).not.toContain("cache_control")
       expect(flat).not.toContain("cachePoint")

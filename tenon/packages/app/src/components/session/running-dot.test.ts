@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-4), by inspection: running is a breathing blue dot.
-
 const src = join(import.meta.dir, "..", "..")
 const read = (path: string) => readFileSync(join(src, path), "utf8")
 

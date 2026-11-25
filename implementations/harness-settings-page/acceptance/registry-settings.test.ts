@@ -1,5 +1,3 @@
-// Worker-visible acceptance tests for the harness settings page (core level).
-// Run from tenon/packages/core: bun test ../../../Implementations/harness-settings-page/acceptance
 import { describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import { existsSync } from "node:fs"

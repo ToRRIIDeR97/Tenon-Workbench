@@ -41,7 +41,6 @@ export function googleScopes(access: "read" | "write") {
 
 export type GoogleClient = { clientId: string; clientSecret: string }
 
-/** Validates and trims a Desktop OAuth client, throwing the error code the Calendar page maps. */
 export function validateGoogleClient(clientId: string, clientSecret: string): GoogleClient {
   const id = clientId.trim()
   const secret = clientSecret.trim()
@@ -50,7 +49,6 @@ export function validateGoogleClient(clientId: string, clientSecret: string): Go
   return { clientId: id, clientSecret: secret }
 }
 
-/** The client compiled into this build, or undefined when the build has none or an invalid one. */
 export function builtInGoogleClient(env: { clientId?: string; clientSecret?: string }) {
   try {
     return validateGoogleClient(env.clientId ?? "", env.clientSecret ?? "")
@@ -59,7 +57,6 @@ export function builtInGoogleClient(env: { clientId?: string; clientSecret?: str
   }
 }
 
-/** Typed credentials win over the built-in client; a partly typed pair is validated, never replaced. */
 export function resolveGoogleClient(
   input: { clientId?: string; clientSecret?: string },
   builtIn: GoogleClient | undefined,
@@ -78,11 +75,6 @@ export function googleEventId(idempotencyKey: string) {
   return createHash("sha256").update(idempotencyKey).digest("hex").slice(0, 32)
 }
 
-/**
- * `timeZone` is the zone events.list was asked to render times in. Timed events keep their
- * wall-clock start and end in that zone, so it is the zone a later write must send back;
- * the event's own creation zone could name a different offset for the same wall time.
- */
 export function normalizeGoogleEvent(
   input: GoogleEventResponse,
   accountId: string,
@@ -190,20 +182,13 @@ export type GoogleTokenResponse = {
   access_token?: string
   refresh_token?: string
   expires_in?: number
-  /** Space-separated scopes the user granted; with granular consent this can be fewer than were asked for. */
   scope?: string
   error?: string
 }
 
-/**
- * The Calendar access a Google grant carries, read from the token response's `scope`: "write" needs event and
- * task writes, "read" needs at least the read-only calendar. Undefined when the user left Calendar unticked, so a
- * Gmail sign-in that also asked for Calendar only adds a Calendar account when Google granted it.
- */
 export function grantedCalendarAccess(scope: string | undefined): "read" | "write" | undefined {
   const granted = new Set((scope ?? "").split(/\s+/).filter(Boolean))
   const has = (item: string) => granted.has(`https://www.googleapis.com/auth/${item}`)
-  // Sync reads the primary calendar's details, which needs the calendar read scope either way.
   if (!has("calendar.readonly")) return undefined
   if (has("calendar.events") && has("tasks")) return "write"
   return has("tasks") || has("tasks.readonly") ? "read" : undefined
@@ -223,7 +208,6 @@ export async function requestGoogleToken(fetch: Fetch, endpoint: string, input: 
     signal: AbortSignal.timeout(30_000),
   })
   const value = (await response.json().catch(() => ({}))) as GoogleTokenResponse
-  // A revoked or expired refresh token needs new consent; retrying the exchange cannot succeed.
   if (value.error === "invalid_grant" && input.grant_type === "refresh_token") {
     throw new Error("google_reconnect_required")
   }
@@ -231,10 +215,6 @@ export async function requestGoogleToken(fetch: Fetch, endpoint: string, input: 
   return value
 }
 
-/**
- * Caches each account's access token until shortly before `expires_in`, so queued writes share one
- * exchange. Keyed by account: two accounts signed in through the same client never share a token.
- */
 export function createGoogleAccessTokens(input: {
   fetch: Fetch
   endpoint: string
@@ -259,7 +239,6 @@ export function createGoogleAccessTokens(input: {
     })
     if (!tokens.access_token) throw new Error("google_reconnect_required")
     if (tokens.refresh_token) await input.onRotate(config.accountId, tokens.refresh_token)
-    // Renew a minute early so a token never expires during a request.
     const lifetime = (tokens.expires_in ?? 0) * 1_000 - 60_000
     if (lifetime > 0) {
       cached.set(config.accountId, {
@@ -272,10 +251,6 @@ export function createGoogleAccessTokens(input: {
   }
   return {
     get,
-    /**
-     * Runs `request` with an access token. When a cached token is rejected (reconnect-required),
-     * the token is exchanged again and the request retried once before the error is reported.
-     */
     async with<T>(config: Credentials, request: (accessToken: string) => Promise<T>) {
       const reused = fresh(config)
       return request(await get(config)).catch(async (error) => {
@@ -284,7 +259,6 @@ export function createGoogleAccessTokens(input: {
         return request(await get(config))
       })
     },
-    /** Drops one account's token, or every token when no account is named. */
     clear(accountId?: string) {
       if (accountId) return void cached.delete(accountId)
       cached.clear()
@@ -294,13 +268,8 @@ export function createGoogleAccessTokens(input: {
 
 type Credentials = { accountId: string; clientId: string; clientSecret: string; refreshToken: string }
 
-/** The pre-multi-account store kept one connection in flat top-level keys. */
 export const GOOGLE_LEGACY_KEYS = ["clientId", "clientSecret", "refreshToken", "access", "accountLabel", "lastSyncedAt"]
 
-/**
- * Turns the flat single-account keys into one account entry, still encrypted, and tags the
- * untagged outbox entries with its ID. Returns undefined when there is nothing to migrate.
- */
 export function migrateLegacyGoogleStore<O extends { accountId?: string }, T extends { accountId?: string }>(input: {
   read: (key: string) => unknown
   id: string
@@ -322,7 +291,6 @@ export function migrateLegacyGoogleStore<O extends { accountId?: string }, T ext
   return {
     account: {
       id: input.id,
-      // The label was the primary calendar's summary or ID, which is the account's email address.
       ...(label?.includes("@") ? { email: label } : {}),
       label: label ?? "Google",
       clientId,
@@ -336,7 +304,6 @@ export function migrateLegacyGoogleStore<O extends { accountId?: string }, T ext
   }
 }
 
-/** The page reads the aggregate fields; `accounts` carries the per-account detail. */
 export function googleConnection(input: {
   configured: boolean
   builtInClient: boolean
@@ -361,7 +328,6 @@ export function googleConnection(input: {
   }
 }
 
-/** Drops succeeded entries first, then old failures. Queued (pending or offline) writes are never dropped. */
 export function pruneOutbox<T extends { state: OutboxState }>(entries: T[], limit = GOOGLE_OUTBOX_LIMIT) {
   const excess = entries.length - limit
   if (excess <= 0) return entries
@@ -376,16 +342,6 @@ export function pruneOutbox<T extends { state: OutboxState }>(entries: T[], limi
 
 type OutboxWriteKind = "create" | "update" | "delete"
 
-/**
- * Folds a newer write into an unfinished operation under the same idempotency key, so the user can
- * keep editing an item that is queued or failed. The Google ID and etag stay those of the original
- * operation: a new etag would hide a conflict. A create stays a create, and a queued delete gives
- * way to an edit. Undefined means the operation can be dropped: it deletes a create that Google has
- * no record of. `reached` is true when the operation began as a create that an earlier attempt may
- * have got to Google, so it is then deleted by its ID, and an edit of that delete goes back to a
- * create; tasks have no ID until Google assigns one and always pass false. `overwrite` is the user
- * choosing their version over Google's in a conflict, so the etag goes.
- */
 export function mergeQueuedWrite<T extends { providerId: string; etag?: string }>(
   queued: { kind: OutboxWriteKind; item: T; reached: boolean },
   next: { kind: OutboxWriteKind; item: T; overwrite?: boolean },
@@ -404,11 +360,6 @@ export function mergeQueuedWrite<T extends { providerId: string; etag?: string }
   return { kind: "delete" as const, item }
 }
 
-/**
- * What Google holds after a finished write, when a new write under the same key still edits that
- * item: the planner row stayed queued because the page has not heard of the finish yet. Undefined
- * is a real key collision: a finished delete, or another item.
- */
 export function finishedWriteTarget<T extends { accountId: string; providerId: string; taskListId?: string }>(
   result: T | null | undefined,
   next: T,
@@ -417,7 +368,6 @@ export function finishedWriteTarget<T extends { accountId: string; providerId: s
   return next.providerId === result.providerId || next.providerId.startsWith("pending:") ? result : undefined
 }
 
-/** The keys of finished writes, which sync reports so the planner stops showing them as queued. */
 export function settledWrites(
   operations: ReadonlyArray<{
     state: OutboxState
@@ -445,10 +395,6 @@ type GoogleErrorBody = {
   }
 }
 
-/**
- * Turns a failed Google API response into an error code the Calendar page can explain.
- * `reason` is Google's machine-readable reason (never message text), safe to log.
- */
 export function classifyGoogleError(status: number, url: string, body: string) {
   const api = new URL(url).hostname === "tasks.googleapis.com" ? "tasks" : "calendar"
   const parsed = (() => {
@@ -476,15 +422,11 @@ export function classifyGoogleError(status: number, url: string, body: string) {
   return { code, api, reason }
 }
 
-/** `attempts` counts the attempt that just failed. */
 export function outboxFailureState(message: string, attempts: number): "conflict" | "failed" | "offline" {
   if (message === "google_conflict") return "conflict"
-  // A disabled API or a missing scope needs the user to act; retrying cannot fix it.
   if (message.startsWith("google_api_disabled_") || message === "google_scope_missing") return "failed"
   const status = Number(message.match(/^google_http_(\d{3})$/)?.[1])
-  // Timeouts, rate limits and server errors are retried; any other HTTP error will not succeed later.
   if (status && !transientStatus(status)) return "failed"
-  // The write waits for the user to reconnect; sync stops at the token exchange until then.
   if (message === "google_reconnect_required") return "offline"
   return attempts >= GOOGLE_OUTBOX_MAX_ATTEMPTS ? "failed" : "offline"
 }
@@ -497,11 +439,6 @@ export const GOOGLE_EVENT_LIMIT = 5_000
 const titleLimit = 300
 const detailsLimit = 20_000
 
-/**
- * Fit a Google event to the planner's schema so one odd event cannot make the whole sync
- * fail: long titles and descriptions are cut, and a same-day event that ends at or before
- * its start gets a one-minute duration.
- */
 export function sanitizeProviderEvent(event: GoogleCalendarProviderEvent): GoogleCalendarProviderEvent {
   const title = truncate(event.title.trim(), titleLimit) || "Untitled event"
   const details = event.details?.trim() ? truncate(event.details.trim(), detailsLimit) : undefined
@@ -522,7 +459,6 @@ export function sanitizeProviderTask(task: GoogleTaskProviderTask): GoogleTaskPr
   }
 }
 
-/** At most `limit` events, keeping those whose start date is closest to `today` (YYYY-MM-DD). */
 export function nearestEvents<T extends { date: string }>(
   events: ReadonlyArray<T>,
   today: string,

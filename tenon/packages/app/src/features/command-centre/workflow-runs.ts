@@ -1,8 +1,3 @@
-/**
- * What a started workflow run has reported so far, and when it must stop. Pure: the run tracker
- * (`workflow-tracker.ts`) feeds it the director thread's text and the synced thread costs, and the run view draws
- * the result. A director reports on lines shaped `[[round N | role | status]] summary` (see `directorBrief`).
- */
 import { REPORT_STATUSES } from "./workflows"
 
 export type ReportStatus = (typeof REPORT_STATUSES)[number]
@@ -22,9 +17,7 @@ export type RunStatus = "running" | "paused" | "stopped" | "done" | "over-budget
 export type Run = {
   id: string
   workflowID: string
-  /** The director thread. */
   sessionID: string
-  /** The Project's ID. */
   project: string
   startedAt: number
   maxRounds: number
@@ -33,13 +26,11 @@ export type Run = {
   rounds: Round[]
 }
 
-/** What Resume sends a paused director. It is an instruction to an agent, not UI text, so it stays English. */
 export const RESUME_TEXT =
   "The run was paused. Carry on from where you stopped: finish the current step, keep reporting each step as [[round N | role | status]] summary, and follow the same rules."
 
 const REPORT_LINE = /\[\[\s*round\s+(\d+)\s*\|([^|\]]*)\|([^|\]]*)\]\]([^\n]*)/gi
 
-/** Every well-formed report line in `text`, in order. Malformed lines and unknown statuses are skipped. */
 export function parseReports(text: string): Report[] {
   return Array.from(text.matchAll(REPORT_LINE)).flatMap((match) => {
     const round = Number(match[1])
@@ -50,10 +41,6 @@ export function parseReports(text: string): Report[] {
   })
 }
 
-/**
- * `run` with `reports` merged into its rounds. The run passed in is not changed. A running run whose round was
- * approved is done; a run in any other status keeps it.
- */
 export function applyReports(run: Run, reports: ReadonlyArray<Report>): Run {
   const rounds = new Map(run.rounds.map((round) => [round.n, round.entries.map((entry) => ({ ...entry }))] as const))
   reports.forEach((report) => {
@@ -79,7 +66,6 @@ function outcome(entries: ReadonlyArray<RoundEntry>): Round["outcome"] {
 
 type Priced = { id: string; parentID?: string; cost?: number }
 
-/** The thread `rootID` and every thread under it (by `parentID`), each once; a parent cycle adds nothing. */
 export function runThreads(sessions: ReadonlyArray<Pick<Priced, "id" | "parentID">>, rootID: string) {
   const children = new Map<string, string[]>()
   sessions.forEach((session) => {
@@ -95,10 +81,6 @@ export function runThreads(sessions: ReadonlyArray<Pick<Priced, "id" | "parentID
   return Array.from(seen)
 }
 
-/**
- * What the thread `rootID` and every thread under it (by `parentID`) have cost. Unrelated threads, missing costs and
- * parent cycles add nothing, and a root that is not listed costs 0.
- */
 export function runSpend(sessions: ReadonlyArray<Priced>, rootID: string) {
   const costs = new Map<string, number>()
   sessions.forEach((session) => {
@@ -108,7 +90,6 @@ export function runSpend(sessions: ReadonlyArray<Priced>, rootID: string) {
   return runThreads(sessions, rootID).reduce((total, id) => total + (costs.get(id) ?? 0), 0)
 }
 
-/** Why a running run must stop now: its budget is spent (that wins), or a round past its cap was reported. */
 export function stopReason(run: Run, spend: number): "budget" | "rounds" | undefined {
   if (run.status !== "running") return undefined
   if (run.budgetUSD !== undefined && spend >= run.budgetUSD) return "budget"

@@ -16,9 +16,6 @@ const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
 const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
 
-// Avoid HttpApiSecurity alternatives here: Effect security middleware wraps the
-// full handler, so a downstream failure can make the next auth alternative run
-// and remap an authorized NotFound into Unauthorized.
 export class Authorization extends HttpApiMiddleware.Service<Authorization>()(
   "@tenon/ExperimentalHttpApiAuthorization",
   {
@@ -144,8 +141,6 @@ export const ptyConnectAuthorizationLayer = Layer.effect(
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.url, "http://localhost")
-        // A ticket stands in for credentials, so check it (without consuming it) and the Origin here,
-        // before routing loads an instance. The handler consumes it against the full scope.
         if (hasPtyConnectTicketURL(url)) {
           const ptyID = url.pathname.split("/")[2] ?? ""
           const allowed =

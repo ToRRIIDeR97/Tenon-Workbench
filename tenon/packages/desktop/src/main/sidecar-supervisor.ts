@@ -13,20 +13,11 @@ export function restartDelay(recentRestarts: number) {
   return Math.min(MAX_DELAY, INITIAL_DELAY * 2 ** recentRestarts)
 }
 
-/**
- * Restarts a sidecar that exits after it became ready, with exponential backoff and at most
- * MAX_RESTARTS attempts per RESTART_WINDOW. A failure of the first start is left to the caller.
- */
 export function superviseSidecar<T extends SupervisedSidecar>(input: {
   spawn: () => T
   log: (message: string, meta?: Record<string, unknown>) => void
   sleep?: (ms: number) => Promise<void>
   now?: () => number
-  /**
-   * Holds the sidecar's port while it is down, so no other local process can bind it and receive the
-   * renderers' credential and traffic during the backoff (#164). Resolves to the release, called just before
-   * the respawn binds the port again; a hold that fails is skipped.
-   */
   hold?: () => Promise<() => Promise<void>>
 }) {
   const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
@@ -53,7 +44,6 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
       },
     )
 
-  // The port's hold while the sidecar is down; released before a respawn or when the supervisor stops.
   let held: (() => Promise<void>) | undefined
   const release = async () => {
     const free = held
@@ -73,7 +63,6 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
     const time = now()
     restarts = restarts.filter((at) => time - at < RESTART_WINDOW)
     if (restarts.length >= MAX_RESTARTS) {
-      // The hold stays: renderers keep reaching a closed door instead of whatever binds the port next.
       input.log("sidecar restart limit reached", { restarts: restarts.length })
       return
     }
@@ -83,7 +72,6 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
     if (stopped) return release()
     input.log("restarting sidecar", { attempt: restarts.length, delay })
     await release()
-    // Stopped while the port was being released: the stop has already run, so nothing would stop this spawn.
     if (stopped) return
     current = input.spawn()
     watch(current, true)

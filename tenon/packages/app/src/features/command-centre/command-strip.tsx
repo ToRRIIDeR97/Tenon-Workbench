@@ -27,44 +27,26 @@ import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
 import { runsOnLabel, stripTarget } from "./command-strip-target"
 import { commandBackState } from "./thread-back"
 
-/** Recent threads the card's thread menu lists. */
 const THREAD_MENU = 8
 
-/**
- * The Command Centre card, a briefing. A handle just above the bottom edge of every page but the Command Centre;
- * Ctrl/Cmd+J or a click raises a 640px card named "Command Centre" with, in order: the counts (running, needs
- * you, done today); the oldest request waiting on you, answered right there (Allow, Deny) or opened (a question);
- * the running threads with their checklist step and progress; then the shown thread's last exchange (your last
- * message and the reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a
- * write, a thread menu (recent threads and New thread, #329), "Open full", and a composer that replies to the shown
- * thread on its own harness, or starts a new one on the model pill's. An approval or question on that thread is
- * answered in the thread, so the card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
- * over 300 ms emphasized-decelerate and drops out over 200 ms emphasized-accelerate; reduced motion snaps.
- */
 export function CommandStrip() {
   const language = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
-  // Back in the opened thread returns to wherever the strip was opened over.
   const back = () => ({ state: commandBackState(location.pathname + location.search) })
   const command = useCommand()
   const centre = useCommandCentre()
   const server = useServer()
-  // `fresh`: New thread was chosen, so the next send starts a thread instead of replying to the shown one.
-  // `chosen`: the thread picked in the thread menu (#329); the newest when it is gone or none was picked.
-  // `expanded`: Show more was chosen for the reply on show; `overflow`: that reply is taller than the cap.
   const [state, setState] = createStore({
     open: false,
     fresh: false,
     chosen: undefined as string | undefined,
     expanded: false,
     overflow: false,
-    /** The request being answered, and requests answered from here (the queue drops them on the next sync). */
     busy: undefined as string | undefined,
     answered: {} as Record<string, true>,
   })
   const settings = useSettings()
-  // The thread the card shows and replies to, and what it runs on (#329).
   const targetID = createMemo(() =>
     stripTarget(state.fresh ? null : state.chosen, centre.threads(), centre.latest()?.id),
   )
@@ -72,7 +54,6 @@ export function CommandStrip() {
   const lastReply = createMemo(() => centre.replyOf(targetID() ?? undefined))
   const lastAsk = createMemo(() => centre.askOf(targetID() ?? undefined))
   const waitingHere = () => centre.waitingOn(targetID() ?? undefined)
-  // A new thread starts on the pill's harness and model; the page's composer shares the list and the choice.
   const harness = createComposerHarness({
     scope: "command",
     directory: () => centre.directory() ?? "",
@@ -103,11 +84,9 @@ export function CommandStrip() {
   const brief = createMemo(() =>
     state.open ? commandBriefing(board(), (id) => serverSync().session.data.todo[id], Date.now()) : undefined,
   )
-  // A running thread's checklist is loaded once the card shows it; live updates arrive as todo.updated events.
   createEffect(() => {
     for (const run of brief()?.running.slice(0, BRIEFING_RUNNING) ?? []) void serverSync().session.todo(run.thread.id)
   })
-  // The thread's own folder routes the reply, as it does from the thread's page and the Waiting view.
   const answer = (entry: WaitingRequest, reply: "once" | "reject") => {
     if (state.busy) return
     setState("busy", entry.item.requestID)
@@ -126,7 +105,6 @@ export function CommandStrip() {
   let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
   let full: HTMLButtonElement | undefined
-  // Focus goes back where it was when the strip closes, so keyboard users are not dropped on <body>.
   let returnFocus: HTMLElement | undefined
   let reply: HTMLDivElement | undefined
   const measureReply = () => {
@@ -134,7 +112,6 @@ export function CommandStrip() {
     setState("overflow", reply.scrollHeight > reply.clientHeight + 1)
   }
   createResizeObserver(() => reply, measureReply)
-  // A new reply, or the card closing, goes back to the capped view.
   createEffect(
     on([lastReply, () => state.open], () => {
       setState("expanded", false)
@@ -154,14 +131,11 @@ export function CommandStrip() {
   ])
   createEffect(() => {
     if (state.open) {
-      // An old failure shouldn't hide the latest reply.
       centre.clearError()
       if (!card?.contains(document.activeElement)) returnFocus = document.activeElement as HTMLElement | undefined
-      // A disabled input (no workspace yet) can't take focus; "Open full" can.
       queueMicrotask(() => (input && !input.disabled ? input : full)?.focus())
       return
     }
-    // Making the card inert can already have dropped focus to <body>.
     if (document.activeElement !== document.body && !card?.contains(document.activeElement)) return
     const target = returnFocus?.isConnected ? returnFocus : undefined
     returnFocus = undefined
@@ -174,11 +148,8 @@ export function CommandStrip() {
     setState("open", false)
   })
 
-  // A send replies to the thread the card shows, so "yes, do it" lands where the question was asked. The text
-  // stays if sending fails; the draft is shared with the Command Centre page.
   const composer = createComposerController({
     send: async (text) => {
-      // A reply runs on its thread's harness; only a new thread takes the pill's pick.
       const id = targetID()
       const sent = await centre.send(
         text,
@@ -210,14 +181,9 @@ export function CommandStrip() {
   }
 
   return (
-    // Sits on the page panel's bottom edge (main ends 8px below the panel). The handle stays in place and
-    // the strip rises from it as a floating card, so nothing swaps or clips mid-animation.
     <div
       data-command-strip
       data-state={state.open ? "open" : "closed"}
-      // Only the handle and the open card take the pointer; the rest of the band stays the page's.
-      // On a thread the composer owns the page's bottom edge, so the strip sits on top of it, centred on the
-      // chat column (the composer region publishes its anchor) rather than the whole window.
       class="pointer-events-none absolute z-(--z-command-strip) h-5 -translate-x-1/2"
       style={commandStripStyle(commandStripAnchor())}
     >
@@ -243,12 +209,8 @@ export function CommandStrip() {
         inert={state.open ? undefined : true}
         classList={{
           "absolute inset-x-0 bottom-1.5 origin-bottom motion-reduce:duration-0": true,
-          // Visibility isn't transitioned on open: at the transition's first frame it still reads hidden, and the
-          // field couldn't take focus.
           "pointer-events-auto translate-y-0 scale-100 opacity-100 transition-[opacity,translate,scale] duration-medium ease-emphasized-decelerate":
             state.open,
-          // Hidden once the exit finishes (visibility flips at the end), so the closed card's input is not
-          // reachable by role queries, assistive tech or clicks.
           "invisible translate-y-3 scale-[0.97] opacity-0 transition-[opacity,translate,scale,visibility] duration-exit ease-emphasized-accelerate":
             !state.open,
         }}
@@ -275,7 +237,6 @@ export function CommandStrip() {
               data-slot="command-card-counts"
               class="ml-1.5 min-w-0 flex-1 truncate type-meta text-v2-text-text-muted"
             >
-              {/* An expression, not a <Show> callback, which would compute the text once and keep it. */}
               {brief()
                 ? language.t("secondBrain.commandCentre.strip.counts", {
                     running: brief()!.counts.running,
@@ -284,7 +245,6 @@ export function CommandStrip() {
                   })
                 : ""}
             </span>
-            {/* Undo for the latest reply's last write; after it the button reports how that went. */}
             <Show when={shown() ? centre.lastWriteOf(targetID() ?? undefined) : undefined} keyed>
               {(write) => (
                 <Show
@@ -313,7 +273,6 @@ export function CommandStrip() {
                 </Show>
               )}
             </Show>
-            {/* The thread the card replies to: recent Command Centre threads, or a new one. */}
             <MenuV2 gutter={4} modal={false} placement="bottom-end">
               <MenuV2.Trigger
                 as={ButtonV2}
@@ -353,7 +312,6 @@ export function CommandStrip() {
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>
           </div>
-          {/* What needs you: the oldest request, answered here; the rest are one click away in Waiting on you. */}
           <Show when={waiting()[0]} keyed>
             {(entry) => {
               const summary = entry.permission ? permissionSummary(entry.permission) : undefined
@@ -420,7 +378,6 @@ export function CommandStrip() {
               )
             }}
           </Show>
-          {/* What's running, newest first, with the checklist step it is on and how far it is. */}
           <Show when={brief()?.running.length ? brief() : undefined}>
             {(value) => (
               <ul data-slot="command-card-running" class="m-0 flex list-none flex-col p-0 px-1">
@@ -489,8 +446,6 @@ export function CommandStrip() {
                   </div>
                 )}
               </Show>
-              {/* The reply as the thread shows it (Markdown). Capped at about five lines; Show more lets it
-                  grow and scroll inside the card. */}
               <Show
                 when={!centre.error() && lastReply()}
                 fallback={
@@ -509,7 +464,6 @@ export function CommandStrip() {
                     class="w-full min-w-0 px-1 text-[13px] leading-[21px] text-v2-text-text-base [&_li]:my-0 [&_li>p]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                     classList={{
                       "max-h-[105px] overflow-hidden": !state.expanded,
-                      // A cut-off reply fades out, so the last line doesn't look like the end.
                       "[mask-image:linear-gradient(to_bottom,black_65%,transparent)]":
                         state.overflow && !state.expanded,
                       "max-h-64 overflow-y-auto": state.expanded,

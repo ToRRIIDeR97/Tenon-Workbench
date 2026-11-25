@@ -73,7 +73,6 @@ type SessionView = {
   pendingMessage?: string
   pendingMessageAt?: number
   todoCollapsed?: boolean
-  /** Whether this thread shows its terminal panel; each thread has its own tabs, so its own toggle. */
   terminalOpened?: boolean
 }
 
@@ -142,7 +141,6 @@ export const currentRoute = (pathname: string, search: string): LayoutRoute => {
     return {
       type: "session",
       sessionId: parts[3],
-      // A malformed key falls back to the selected server, where the session page reports the thread missing.
       server: parseServerKey(parts[1]),
     }
   }
@@ -266,7 +264,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       { ...target, migrate },
       createStore({
         sidebar: {
-          // The sidebar is the app's navigation, so it starts open.
           opened: true,
           width: DEFAULT_SIDEBAR_WIDTH,
           workspaces: {} as Record<string, boolean>,
@@ -285,8 +282,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           width: DEFAULT_FILE_TREE_WIDTH,
           tab: "changes" as "changes" | "all",
         },
-        // The side panel's own width; the chat panel takes the rest. Replaces the
-        // old `session.width`, which stored the chat width instead.
         sidePanel: {
           width: DEFAULT_SIDE_PANEL_WIDTH,
         },
@@ -448,9 +443,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         ? serverSync().data.project.find((x) => x.id === projectID)
         : serverSync().data.project.find((x) => x.worktree === project.worktree)
 
-      // Preserve local icon override from per-workspace localStorage cache (childStore.icon).
-      // Without this, different subdirectories of the same git repo would share the same
-      // icon from the database instead of using their individual overrides.
       const base = { ...metadata, ...project }
       if (childStore.icon) {
         return { ...base, icon: { ...base.icon, override: childStore.icon } }
@@ -615,7 +607,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       ready,
       home: {
         selection: createMemo(() => store.home.selection),
-        /** The open workspace: the selected folder, else the first open one. The sidebar switcher sets it. */
         workspace: createMemo(() => {
           const available = list()
           return (
@@ -694,7 +685,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       },
       terminal: {
         height: createMemo(() => ephemeral.terminalHeight ?? store.terminal.height),
-        // A drag previews the size; persisting serializes the whole layout, so it happens once, on release.
         preview(height: number | undefined) {
           setEphemeral("terminalHeight", height)
         },
@@ -712,7 +702,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           }
           setStore("review", "diffStyle", diffStyle)
         },
-        /** Closes the side panel. Its open state is shared by every thread, so a new thread calls this to start closed. */
         closePanel() {
           if (store.review?.panelOpened) setStore("review", "panelOpened", false)
         },

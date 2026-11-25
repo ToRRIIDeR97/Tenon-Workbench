@@ -1,6 +1,5 @@
 export * as ChatDisplay from "./chat-display"
 
-/** Tells agents that Tenon's chat renders ```svg fenced blocks as diagram windows (session-ui svg-window.ts). */
 export const svgGuidance = [
   "Tenon Workbench chat renders a fenced code block tagged `svg` as an inline diagram window.",
   "When a diagram, graph, or codebase map would explain something better than text, write one complete <svg> element with a viewBox inside a ```svg block.",
@@ -11,11 +10,6 @@ export const svgGuidance = [
   "When the `render_svg` tool is available (on the `tenon` MCP server), check every diagram with it before sending: look at the picture, fix each problem it lists, and render again until it reports none.",
 ].join("\n")
 
-/**
- * How an agent asks the user a question. External harnesses reach Tenon through the `ask_user`
- * tool of the `tenon` MCP server; native agents have the built-in `question` tool. A harness without
- * that server (an ACP agent with no HTTP MCP support) asks in its reply.
- */
 export const askGuidance = {
   harness:
     "When you are unsure and the choice matters, ask the user instead of guessing: call the `ask_user` tool on the `tenon` MCP server.",
@@ -24,29 +18,21 @@ export const askGuidance = {
     "When you are unsure and the choice matters, ask the user instead of guessing: put the question in your reply and wait for the answer.",
 } as const
 
-/** Inline ```html previews and ```html canvas artboards (the right panel's Canvas tab). */
 export const designGuidance = [
   "For a small visual (one component or a few variants), write one self-contained ```html fenced block. Inline CSS and JavaScript are fine; no network requests or external resources. It renders inline in a sandboxed window.",
   'For larger design work (whole pages or several screens), write one ```html canvas title="Name" block per artboard. Artboards appear in the Canvas tab of the right panel.',
   "Diagrams stay ```svg blocks.",
 ].join("\n")
 
-/** ```view blocks: the universal viewer for files the user should see, not just read about. */
 export const viewGuidance = [
   "To show the user a file (an image, video, sound, PDF, document, spreadsheet or 3D model), write a ```view fenced block with one path per line, relative to the thread folder (or an https URL for an image, video or sound on the web). Each line becomes a viewer window in the chat: images, video and audio play inline, 3D models (.glb, .gltf) turn in a viewport, PDFs page in a reader, and documents open in full with Open.",
   "Use it whenever the user asks to see, hear or check something, and after you make or change a visual or audio asset. The user can pin a file to the Project's artifacts and leave notes on it for you.",
   "The pinned files are listed on the Project's Artifacts page (notes_read `Artifacts.md`, paths relative to the Project's folder): check it when the user refers to the Project's assets, references or pinned files.",
 ].join("\n")
 
-/** File references the chat turns into links. */
 export const fileReferenceGuidance =
   "Cite files as inline code with a path relative to the thread folder, optionally with a line or range, like `src/app.tsx:42` or `src/app.tsx:42-58`. These become clickable in the chat."
 
-/**
- * Where Project work is recorded. Tenon is the source of truth for a Project's notes, roadmap, tasks, issues and
- * features; a linked GitHub repository mirrors the issues. Names the app tools by their bare names, which external
- * harnesses see on the `tenon` MCP server.
- */
 export const workGuidance = [
   "Tenon Workbench keeps each Project's notes, roadmap, tasks, issues, features and progress. When the Tenon app tools are available (notes_*, timeline_*, log_append, calendar_*, tasks_create, threads_list, project_setup, thread_start; on the `tenon` MCP server for external harnesses), use them for this without being asked by name:",
   "- Notes, docs, plans, specs, research or meeting notes: write a Tenon note with notes_write (notes_search first to update an existing page instead of duplicating it). Don't put them only in a repository file or only in your reply.",
@@ -58,14 +44,9 @@ export const workGuidance = [
   "Tenon is the main record. When the Project's folder is a GitHub repository and `gh` works, keep GitHub in step: for each new issue or feature task, also open a GitHub issue (`gh issue create`) and end the Tenon task's title with its number, like `Fix login redirect (#42)`; when you read GitHub issues the timeline lacks, add them as tasks the same way. Close the GitHub issue when the task is done. If `gh` is missing or signed out, record it in Tenon only and say so.",
 ].join("\n")
 
-/**
- * The thread's checklist. Every harness's own plan tool (todowrite, TodoWrite, Codex's plan) reaches the Tasks dock
- * above the composer (`SessionTodo.planFromToolCall`, `AcpHarness.planEvents`), but agents rarely write one unasked.
- */
 export const checklistGuidance =
   "For any task with three or more steps, keep a checklist with your todo or plan tool (todowrite, TodoWrite or update_plan, whichever you have): write it before starting, mark one step in progress at a time, and mark each step completed as soon as it is done. Tenon Workbench shows it above the composer as the user's progress bar, so keep it current until every step is completed or cancelled."
 
-/** All Tenon chat abilities for one kind of agent, kept short because harnesses receive it at every handoff. */
 export function abilities(agent: keyof typeof askGuidance) {
   return [
     askGuidance[agent],

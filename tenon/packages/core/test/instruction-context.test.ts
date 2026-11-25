@@ -111,7 +111,6 @@ describe("InstructionContext", () => {
           const delegate = (yield* SystemContext.initialize(yield* load("delegate"))).baseline
           expect(lead).toContain("global lead rules")
           expect(lead).not.toContain("global delegate rules")
-          // The global DELEGATE.md replaces the global AGENTS.md; the project has none, so its AGENTS.md stays.
           expect(delegate).toContain("global delegate rules")
           expect(delegate).not.toContain("global lead rules")
           expect(delegate).toContain("project rules")

@@ -214,19 +214,6 @@ export function applyDirectoryEvent(input: {
       }))
       break
     }
-    // case "session.archived": {
-    //   const properties = event.properties as { sessionID: string }
-    //   const result = Binary.search(input.store.session, properties.sessionID, (session) => session.id)
-    //   if (!result.found) break
-    //   const info = input.store.session[result.index]
-    //   input.setStore(
-    //     "session",
-    //     produce((draft) => void draft.splice(result.index, 1)),
-    //   )
-    //   cleanupSessionCaches(input.setStore, properties.sessionID)
-    //   if (!info?.parentID) input.setStore("sessionTotal", (value) => Math.max(0, value - 1))
-    //   break
-    // }
     case "session.moved":
     case SERVER_EVENT_NAMES.moved: {
       const moved = sessionMovedData(event.properties)

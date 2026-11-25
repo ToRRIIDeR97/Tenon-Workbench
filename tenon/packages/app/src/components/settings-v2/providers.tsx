@@ -41,7 +41,6 @@ export const SettingsProvidersV2: Component<{
 
   const connect = (provider?: string) => {
     providerConnect.select(provider)
-    // Over Settings, so Close and Escape return to it.
     void dialog.push(() => <DialogConnectProvider directory={props.directory} controller={providerConnect} />)
   }
 

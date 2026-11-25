@@ -10,8 +10,6 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { PartTable, SessionMessageTable, SessionTable, MessageTable } from "@tenon/core/session/sql"
 import { testEffect } from "./lib/effect"
 
-// Verification for #331 (plan author's check): the mentions come from the real tables — v2 session messages and v1
-// parts — for the Project folder's threads only.
 const it = testEffect(AppNodeBuilder.build(LayerNode.group([Database.node]), []))
 const repo = "ToRRIIDeR97/Tenon-Workbench"
 const url = (n: number) => `https://github.com/${repo}/pull/${n}`

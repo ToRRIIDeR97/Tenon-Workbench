@@ -158,7 +158,6 @@ describe("ACP harness", () => {
       content: [{ type: "content", content: { type: "text", text: "the poem" } }],
       _meta: claude(),
     })
-    // The PostToolUse hook's update: no status, the whole Agent tool response.
     const hook = update({
       sessionUpdate: "tool_call_update",
       toolCallId: "ag",
@@ -184,7 +183,6 @@ describe("ACP harness", () => {
       cachedWriteTokens: 1_100,
     }
 
-    // The hook after the result: the result is held, then settles with the usage.
     const late = AcpHarness.acpState()
     const held = [...start, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", late))
     expect(held.map((event) => event.type)).toEqual(["tool-call"])
@@ -192,12 +190,10 @@ describe("ACP harness", () => {
     expect(released).toHaveLength(1)
     expect(released[0]).toMatchObject({ type: "tool-result", id: "ag", providerMetadata: { acp: { usage } } })
 
-    // The hook before the result: the result goes out at once, with the usage.
     const early = AcpHarness.acpState()
     const events = [...start, hook, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", early))
     expect(events.at(-1)).toMatchObject({ type: "tool-result", providerMetadata: { acp: { usage } } })
 
-    // No hook at all: the turn's end releases the result without usage.
     const never = AcpHarness.acpState()
     ;[...start, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", never))
     const finish = AcpHarness.finishAcpTurn(Exit.succeed({ stopReason: "end_turn" }), never)
@@ -205,7 +201,6 @@ describe("ACP harness", () => {
   })
 
   test("an OpenCode subagent's result carries the token use OpenCode's server keeps for its session", async () => {
-    // The shape `opencode api GET /api/session/<id>` answered for a real subagent session (OpenCode 2.2.5).
     const answer = JSON.stringify({
       data: {
         id: "ses_child",
@@ -256,14 +251,12 @@ describe("ACP harness", () => {
     expect(asked).toEqual(["ses_child"])
     expect(withUsage.at(-1)).toMatchObject({ type: "tool-result", providerMetadata: { acp: { usage } } })
 
-    // The command that runs `opencode acp` runs `opencode api` the same way; without `acp` there is no lookup.
     const settings = { command: "opencode", args: ["acp"], env: {}, models: [] }
     const run = () => Effect.die("not called")
     expect(AcpHarness.openCodeUsageLookup({ run }, settings, "/w")).toBeFunction()
     expect(AcpHarness.openCodeUsageLookup({ run }, { ...settings, args: [] }, "/w")).toBeUndefined()
     expect(AcpHarness.openCodeUsageLookup({}, settings, "/w")).toBeUndefined()
 
-    // A session ID the agent reported is checked before it becomes part of an API path.
     const paths: string[] = []
     const record = (command: { args: ReadonlyArray<string> }) => {
       paths.push(command.args.at(-1) ?? "")
@@ -278,7 +271,6 @@ describe("ACP harness", () => {
   })
 
   test("a subagent OpenCode sends to work in the background keeps later turns from counting as silent", () => {
-    // OpenCode 2.2.5's answer for `background: true`; the next prompt waits until the subagent finishes.
     const text =
       "The subagent is working in the background (sessionID: ses_bg1). You will be notified automatically when it finishes."
     expect(AcpHarness.backgroundChild(text)).toBe("ses_bg1")
@@ -297,7 +289,6 @@ describe("ACP harness", () => {
       }),
     ].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", state))
     expect(state.tools.get("bg")?.background).toBe("ses_bg1")
-    // Its usage isn't read yet: the subagent hasn't finished.
     expect(state.tools.get("bg")?.childSession).toBeUndefined()
 
     const launched = new Map([["ses_bg1", 1_000]])
@@ -561,7 +552,6 @@ describe("ACP harness", () => {
       entries.reduce((total, item) => total + (item.text ?? item.output ?? "").length, 0)
     expect(result.providerMetadata.acp.truncated).toBe(true)
     expect(size(result.providerMetadata.acp.transcript)).toBeLessThanOrEqual(AcpHarness.TRANSCRIPT_LIMIT)
-    // Every tool still shows that it ran, even after outputs stop being kept.
     expect(result.providerMetadata.acp.transcript).toHaveLength(40)
     expect(result.providerMetadata.acp.transcript.every((item) => item.status === "completed")).toBe(true)
 
@@ -744,7 +734,6 @@ describe("ACP harness", () => {
         },
       },
     } as unknown as Config.Entry
-    // Global config may still define harnesses; the path places this document there.
     const instances = configuredInstances([{ ...document, path: "/g/opencode.json" } as Config.Entry], {}, "/g")
     expect(instances.map((instance) => `${instance.id}:${instance.driver}`)).toEqual([
       "opencode:opencode",
@@ -770,7 +759,6 @@ describe("ACP harness", () => {
       role,
       content: [{ type: "text" as const, text: value }],
     })
-    // Custom Agent answered u1, then Codex took u2 and u3, then the user switched back to Custom Agent.
     const metadata = {
       harnessContinuations: {
         "custom-agent": { nativeID: "acp-session", lastSeenMessageID: "u1" },
@@ -810,7 +798,6 @@ describe("ACP harness", () => {
     expect(AcpHarness.expandHome("agent")).toBe("agent")
   })
 
-  // The desktop app runs core under Node, where Bun globals throw at startup. Tests run under Bun and can't see that.
   test("core sources don't use Bun globals", async () => {
     const dir = path.join(import.meta.dir, "../src")
     const files = await Array.fromAsync(new Bun.Glob("**/*.ts").scan({ cwd: dir }))
@@ -821,7 +808,6 @@ describe("ACP harness", () => {
   })
 
   test("asks a form elicitation in the dock and maps the answers back", async () => {
-    // The shape Claude Code's ACP adapter sends for AskUserQuestion: one select plus its typed-answer companion each.
     const params = {
       mode: "form",
       sessionId: "s1",
@@ -897,9 +883,6 @@ describe("ACP harness", () => {
   })
 })
 
-// Claude Code's ACP adapter starts a session in its own Auto mode when the user set no `defaultMode`
-// (seen with claude-agent-acp 0.106: `currentModeId: "auto"`). In Auto, Accept edits or bypass it approves
-// actions itself and never asks Tenon, so the thread's Ask / Auto-edit / Full auto had nothing to answer.
 describe("safeAcpMode", () => {
   const catalog = (current: string) => ({
     currentModeId: current,

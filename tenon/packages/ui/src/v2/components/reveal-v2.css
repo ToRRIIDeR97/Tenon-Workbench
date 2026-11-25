@@ -1,7 +1,3 @@
-/* Reveal: expand/collapse through grid rows (0fr to 1fr) with opacity. Open: medium +
-   emphasized-decelerate. Close: short + emphasized-accelerate. The grid and the clip apply only while
-   moving; settled open is a plain block (flow-root, so margins stay inside as they do in a grid item) and
-   closed is display: none, so a settled reveal adds no layout work. */
 [data-component="reveal-v2"] {
   display: grid;
   grid-template-rows: 0fr;
@@ -25,7 +21,6 @@
     transition-duration: var(--v2-duration-medium);
     transition-timing-function: var(--v2-ease-emphasized-decelerate);
 
-    /* Opening from display: none starts from the closed state. */
     @starting-style {
       grid-template-rows: 0fr;
       opacity: 0;
@@ -44,8 +39,6 @@
   }
 }
 
-/* Variant line (a conditional line: form error, notice, dock label): opens over swap-in +
-   emphasized-decelerate and closes over short + ease-exit. */
 [data-component="reveal-v2"][data-variant="line"] {
   transition-duration: var(--v2-duration-short);
   transition-timing-function: var(--v2-ease-exit);
@@ -56,14 +49,12 @@
   }
 }
 
-/* Variant even (a folder opened and closed by hand): medium + ease-standard both ways. */
 [data-component="reveal-v2"][data-variant="even"],
 [data-component="reveal-v2"][data-variant="even"][data-phase="opening"] {
   transition-duration: var(--v2-duration-medium);
   transition-timing-function: var(--v2-ease-standard);
 }
 
-/* Variant inline (an item in a row): the same timing as line, through grid columns instead of rows. */
 [data-component="reveal-v2"][data-variant="inline"] {
   grid-template-rows: none;
   grid-template-columns: 0fr;

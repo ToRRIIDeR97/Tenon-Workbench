@@ -111,7 +111,6 @@ export const AppLayer = AppNodeBuilderV1.build(
 const rt = ManagedRuntime.make(AppLayer, { memoMap })
 type Runtime = Pick<typeof rt, "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose">
 
-/** Services provided by AppRuntime — i.e. what an Effect run via AppRuntime.runPromise can yield. */
 export type AppServices = ManagedRuntime.ManagedRuntime.Services<typeof rt>
 const wrap = (effect: Parameters<typeof rt.runSync>[0]) => attach(effect as never) as never
 

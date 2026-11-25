@@ -64,7 +64,6 @@ describe("verify AC-1 across providers", () => {
             SessionMessage.ToolStateCompleted.make({
               status: "completed",
               input: { command: "cat big.log" },
-              // "q" appears nowhere in the tool name or command, so counting it measures only the output.
               content: [{ type: "text", text: "q".repeat(10_000) }],
               structured: {},
             }),

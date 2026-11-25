@@ -109,7 +109,6 @@ function App() {
       observeElementRect: (instance, callback) =>
         observeElementRect(instance, (rect) => {
           rectObserverCallbacks++
-          // A fixed 600px viewport has no usable geometry while detached. Keep the last connected rect.
           if (!instance.scrollElement?.isConnected && rect.height === 0) {
             ignoredDetachedZeroRects++
             return

@@ -19,7 +19,6 @@ import { location } from "./fixture/location"
 import { testEffect } from "./lib/effect"
 import { toolIdentity, executeTool } from "./lib/tool"
 
-// A real folder, so grep can tell a file from a directory.
 const root = mkdtempSync(path.join(os.tmpdir(), "tenon-search-permissions-"))
 const workspace = path.join(root, "workspace")
 const outside = path.join(root, "outside")
@@ -48,7 +47,6 @@ const ripgrep = Layer.succeed(
     grep: (input) => Effect.sync(() => (searched.push(input.cwd), [])),
   }),
 )
-// The real resolver needs a project; this one marks anything outside the workspace as external, as it does.
 const mutation = Layer.succeed(
   LocationMutation.Service,
   LocationMutation.Service.of({

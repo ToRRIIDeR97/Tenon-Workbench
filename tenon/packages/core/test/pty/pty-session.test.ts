@@ -120,8 +120,6 @@ describe("pty", () => {
       expect(yield* pty.list()).toEqual([])
     }),
   )
-
-  // npm installs CLIs on Windows as .cmd shims, which a PTY can't start directly.
   ;(process.platform === "win32" ? it.live : it.live.skip)("runs a .cmd shim found on PATH", () =>
     Effect.gen(function* () {
       const dir = yield* Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "pty-shim-")))
@@ -220,13 +218,11 @@ describe("pty", () => {
       first.attachment.write("BBB\n")
       yield* waitForOutput(first.output, "BBB")
 
-      // A later attachment replays everything already buffered.
       const replayed = yield* attachCollecting(info.id)
       expect(replayed.attachment.replay).toContain("AAA")
       expect(replayed.attachment.replay).toContain("BBB")
       expect(replayed.attachment.cursor).toBeGreaterThan(0)
 
-      // Tail attachments skip the buffer and only see subsequent output.
       const tail = yield* attachCollecting(info.id, -1)
       expect(tail.attachment.replay).toBe("")
       expect(tail.attachment.cursor).toBe(replayed.attachment.cursor)
@@ -270,7 +266,6 @@ describe("pty", () => {
     () =>
       Effect.gen(function* () {
         const pty = yield* Pty.Service
-        // 1.5M four-byte emoji with no newlines: 3M UTF-16 code units, beyond the 2M-character limit.
         const info = yield* createPty("/usr/bin/env", [
           "sh",
           "-c",
@@ -293,16 +288,13 @@ describe("pty", () => {
         expect(full.replay.endsWith("\u{1F600}END")).toBe(true)
         expect(full.replay.length).toBeGreaterThanOrEqual(2 * 1024 * 1024)
         expect(full.replay.length).toBeLessThanOrEqual(2.5 * 1024 * 1024)
-        // The retained buffer never starts with half of a surrogate pair.
         const first = full.replay.charCodeAt(0)
         expect(first >= 0xdc00 && first <= 0xdfff).toBe(false)
 
-        // A cursor inside the trimmed region replays from the oldest retained output.
         const trimmed = yield* pty.attach(info.id, { cursor: 0, onData: () => {}, onEnd: () => {} })
         trimmed.detach()
         expect(trimmed.replay).toBe(full.replay)
 
-        // A cursor inside the retained region replays exactly the output after it.
         const resumed = yield* pty.attach(info.id, { cursor: total - 5, onData: () => {}, onEnd: () => {} })
         resumed.detach()
         expect(resumed.replay).toBe("\u{1F600}END")
@@ -322,7 +314,6 @@ describe("pty", () => {
         onEnd: () => {},
       })
       yield* pty.write(info.id, "AAA\n")
-      // Wait for the echo to land in the buffer before activating.
       yield* Effect.gen(function* () {
         while (true) {
           const probe = yield* pty.attach(info.id, { cursor: attachment.cursor, onData: () => {}, onEnd: () => {} })

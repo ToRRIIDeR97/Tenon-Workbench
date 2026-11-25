@@ -59,15 +59,11 @@ export const SessionTable = sqliteTable(
     time_archived: integer(),
   },
   (table) => [
-    // Project lists order by time_updated; the project_id prefix also serves the project foreign key.
     index("session_project_time_updated_idx").on(table.project_id, table.time_updated),
     index("session_workspace_idx").on(table.workspace_id),
     index("session_parent_idx").on(table.parent_id),
-    // Sidebar thread stats filter root, unarchived sessions by directory.
     index("session_directory_parent_archived_idx").on(table.directory, table.parent_id, table.time_archived),
-    // Global lists page by (time_updated, id).
     index("session_time_updated_id_idx").on(table.time_updated, table.id),
-    // V2 session lists order and cursor by (time_created, id), globally or within a project.
     index("session_project_time_created_id_idx").on(table.project_id, table.time_created, table.id),
     index("session_time_created_id_idx").on(table.time_created, table.id),
   ],

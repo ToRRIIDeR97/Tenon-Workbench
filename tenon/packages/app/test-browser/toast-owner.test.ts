@@ -3,7 +3,6 @@ import { createSignal, type JSX } from "solid-js"
 import { showToastV2, toasterV2 } from "@tenon/ui/v2/toast-v2"
 
 describe("showToastV2", () => {
-  // The toast registry is module state, so each test starts from an empty stack.
   beforeEach(() => {
     toasterV2.dismiss()
   })
@@ -52,9 +51,6 @@ describe("showToastV2", () => {
 
     const id = showToastV2({ description: "test", icon })
 
-    // Resolving the icon at call time creates an ownerless computation that is
-    // never disposed and tracks its dependencies forever; it must only resolve
-    // once the toast component renders.
     expect(reads).toBe(0)
     setTick(1)
     expect(reads).toBe(0)

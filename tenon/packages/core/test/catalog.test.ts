@@ -293,7 +293,6 @@ describe("CatalogV2", () => {
           model.time.released = 2000
           model.status = "deprecated"
         })
-        // The newest served model is the catalog default but has no route the runner supports.
         catalog.model.update(providerID, ModelV2.ID.make("unsupported"), (model) => {
           model.time.released = 3000
           model.api = { id: ModelV2.ID.make("unsupported"), type: "aisdk", package: "@ai-sdk/google" }

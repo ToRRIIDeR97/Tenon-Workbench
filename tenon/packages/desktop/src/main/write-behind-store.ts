@@ -1,9 +1,3 @@
-// In-memory view of the renderer's persisted stores. electron-store re-reads and
-// re-parses the whole file on every get and atomically rewrites it on every set,
-// synchronously on the main process. Renderer state changes (panel drags, tab
-// switches) arrive many times per second, so reads are served from memory and
-// writes are coalesced into one file write per store per `delay` ms.
-
 type Data = Record<string, unknown>
 
 export type WriteBehindBackend = {
@@ -32,9 +26,7 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
       if (value) {
         try {
           backend.write(item, value)
-        } catch {
-          // Keep main process alive if disk write or serialization fails.
-        }
+        } catch {}
       }
     }
     if (dirty.size === 0 && timer) {
@@ -58,8 +50,6 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
       data(name)[key] = value
       schedule(name)
     },
-    // Deletes and clears reach disk immediately: callers then check whether the
-    // file is empty and remove it.
     delete(name: string, key: string) {
       delete data(name)[key]
       dirty.add(name)
@@ -71,7 +61,6 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
       flush(name)
     },
     flush: () => flush(),
-    // The file was removed or replaced outside this cache.
     forget(name: string) {
       loaded.delete(name)
       dirty.delete(name)

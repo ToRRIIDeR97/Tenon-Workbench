@@ -4,15 +4,10 @@ export type CheckStatus = "pass" | "fail" | "warn" | "waiting" | "running"
 export type CheckRow = {
   id: "command" | "handshake" | "models" | "prompt" | "mcp" | "image" | "resume" | "platform"
   status: CheckStatus
-  /** Required rows must pass before the harness can be saved; the others only inform. */
   required: boolean
   detail?: string
 }
 
-/**
- * The add-harness checklist from the two checks the server runs: discovery (handshake, session, models) and
- * verification (one real prompt). `stage` says which is running; `error` is the first failure's message.
- */
 export function harnessChecklist(input: {
   stage: "idle" | "discover" | "verify" | "done"
   failedAt?: "discover" | "verify"
@@ -20,7 +15,6 @@ export function harnessChecklist(input: {
   discovery?: Harness.Discovery
   verification?: Harness.Verification
   platform: string
-  /** Shown when the test prompt finished with no text. */
   emptyReply?: string
 }): CheckRow[] {
   const found = input.discovery ?? input.verification
@@ -69,6 +63,5 @@ export function harnessChecklist(input: {
   ]
 }
 
-/** Whether every required row passed. */
 export const checklistPassed = (rows: ReadonlyArray<CheckRow>) =>
   rows.every((row) => !row.required || row.status === "pass")

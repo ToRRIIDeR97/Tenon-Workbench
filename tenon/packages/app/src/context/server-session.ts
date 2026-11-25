@@ -76,7 +76,6 @@ function legacyMessageSource(items: { info: Message; parts: Part[] }[]): Session
         return {
           id: item.info.id,
           type: "user" as const,
-          // Synthetic parts (a skill's instructions, a quote or comment note) are for the model, not the transcript.
           text: item.parts.flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : [])).join("\n"),
           time: item.info.time,
         }
@@ -92,7 +91,6 @@ function legacyMessageSource(items: { info: Message; parts: Part[] }[]): Session
     })
 }
 
-// Most markers describe the current HTTP attempt; deltaParts persists non-durable stream state across retries.
 type MessageLoadState = {
   touchedMessages: Set<string>
   removedMessages: Set<string>
@@ -182,7 +180,6 @@ function reconcileFetched<T extends { id: string }>(
     const item = live.get(id)
     if (item) result.set(id, item)
   }
-  // Events observed while the request is pending are the freshest client state for those identities.
   for (const id of options.touched ?? emptyIDs) {
     const item = live.get(id)
     if (item) result.set(id, item)
@@ -267,7 +264,6 @@ export function createServerSession(
 
   const indexLegacyMessage = (message: Message) => {
     const current = data.session_message[message.sessionID] ?? []
-    // Streaming re-sends the newest messages, so the scan starts from the end.
     if (current.findLast((item) => item.id === message.id)) return
     setData(
       "session_message",
@@ -430,7 +426,6 @@ export function createServerSession(
   const trackPartChange = (sessionID: string, messageID: string, partID: string) => {
     const load = messageLoads.get(sessionID)
     if (!load) return
-    // A part event keeps an existing parent when the fetched page omits it without overriding fetched metadata.
     const messages = data.message[sessionID]
     if (messages?.some((message) => message.id === messageID)) load.retainedMessages.add(messageID)
     const parts = load.touchedParts.get(messageID)
@@ -549,7 +544,6 @@ export function createServerSession(
         .map(([sessionID]) => sessionID),
     ])
 
-  // Runs for every event, so the protected set is only worked out once there is something to evict.
   const touch = (sessionID: string) => {
     seen.delete(sessionID)
     seen.add(sessionID)
@@ -561,7 +555,6 @@ export function createServerSession(
 
   const fetchMessages = async (sessionID: string, limit: number, before?: string, onAttempt?: () => void) => {
     if (messageApi && (await options?.protocol) !== "v1") {
-      // The route rejects anything over one history page, and loaded threads can hold more than that.
       const size = Math.min(limit, historyMessagePageSize)
       const request = (cursor?: string) =>
         (options?.retry ?? retry)(() => {
@@ -769,8 +762,6 @@ export function createServerSession(
     return page.some((message) => loaded.has(message.id))
   }
 
-  // `revalidate` merges the newest page into a cached thread on the V2 route instead of fetching `limit`. Paged-in
-  // older history stays, along with the cursor that continues it, so messages changed further back wait for a reload.
   const loadMessages = async (
     sessionID: string,
     limit: number,
@@ -778,7 +769,6 @@ export function createServerSession(
     mode?: "replace" | "prepend" | "revalidate",
   ) => {
     if (meta.loading[sessionID]) {
-      // A refresh that lands mid-load (say, while older history pages in) would be lost, so it runs after that load.
       if (mode !== "prepend") queuedLoads.set(sessionID, { limit, mode })
       return
     }
@@ -804,8 +794,6 @@ export function createServerSession(
       const revalidate = mode === "revalidate" && !!messageApi && (await options?.protocol) !== "v1"
       let page = await fetchMessages(sessionID, revalidate ? initialMessagePageSize : limit, before, attempt)
       if (generations.get(sessionID) !== active) return
-      // A page with no cached message in it would leave a gap in the history, so reload all that was loaded.
-      // At or under a page, that's the page just fetched, and a thread cached empty has a limit of 0.
       if (revalidate && limit > initialMessagePageSize && !page.complete && !overlapsLoaded(sessionID, page.session)) {
         page = await fetchMessages(sessionID, limit, before, attempt)
         if (generations.get(sessionID) !== active) return
@@ -866,8 +854,6 @@ export function createServerSession(
                 parents.map((parent) => ({ id: parent.message.id, part: parent.parts })),
               ),
             }
-      // A revalidated page that still shares nothing with the cache means more arrived than was fetched; keeping the
-      // old messages would leave a hole before this page, so it replaces the cached window and paging resumes from it.
       const gap = revalidate && !page.complete && !overlapsLoaded(sessionID, page.session)
       const preserveUnfetched =
         mode === "prepend" ||
@@ -901,7 +887,6 @@ export function createServerSession(
       const queued = queuedLoads.get(sessionID)
       queuedLoads.delete(sessionID)
       if (queued && generations.get(sessionID) === active) {
-        // Paged-in history may have grown the thread since the refresh was asked for.
         const limit = queued.mode === "revalidate" ? (meta.limit[sessionID] ?? queued.limit) : queued.limit
         void loadMessages(sessionID, limit, undefined, queued.mode).catch(() => undefined)
       }
@@ -928,7 +913,6 @@ export function createServerSession(
     })
   }
 
-  // Server-held queue-delivery inputs; V1 and older V2 servers have no queue route, so they report none.
   const loadQueue = async (sessionID: string) => {
     if ((await options?.protocol) === "v1") {
       setData("session_queue", sessionID, [])
@@ -952,7 +936,6 @@ export function createServerSession(
     await runInflight(inflight, sessionID, () => loadMessages(sessionID, limit))
   }
 
-  // A user row shows its turn's agent and model, so a streamed reply only re-projects it when those change.
   const parentOutdated = (sessionID: string, parentID: string, message: SessionMessageAssistant) => {
     const parent = data.message[sessionID]?.findLast((item) => item.id === parentID)
     return (
@@ -992,7 +975,6 @@ export function createServerSession(
     if (reduction.touched.length === 0) return
 
     const touched = new Set(reduction.touched)
-    // Only turns from the first touched message on can change, so normalize from that turn's start.
     let from = reduction.messages.findIndex((message) => touched.has(message.id))
     while (from > 0 && !isTurnStart(reduction.messages[from]!)) from--
     let parentID: string | undefined
@@ -1053,7 +1035,6 @@ export function createServerSession(
     const sessionID = event.data.sessionID
     const eventType = event.type as string
     const eventData = event.data as typeof event.data & { assistantMessageID?: string; finish?: string }
-    // A withdrawn input is gone; a steered one joins the transcript at its session.next.prompted event.
     if (eventType === "session.next.prompt.withdrawn" || eventType === "session.next.prompt.steered") {
       const messageID = (event.data as { messageID?: string }).messageID
       setData("session_queue", sessionID, (items) => items?.filter((item) => item.id !== messageID))
@@ -1079,7 +1060,6 @@ export function createServerSession(
       if (reduction.missing) hydrateV2Message(sessionID, reduction.missing)
     }
 
-    // The drain can start another step on its own for a steered or queued input, after an earlier step set idle.
     if (eventType === "session.next.step.started") setData("session_status", sessionID, { type: "busy" })
     if (eventType === "session.next.step.ended" || eventType === "session.next.step.failed") {
       if (eventData.assistantMessageID) hydrateV2Message(sessionID, eventData.assistantMessageID)
@@ -1101,8 +1081,6 @@ export function createServerSession(
         time: { ...info.time, updated: "created" in event ? event.created : info.time.updated },
       })
     }
-    // A harness or model switch made anywhere (another window, the Command Centre, a pick that landed while a turn
-    // ran) reaches every view, so the model pill always names the model the next turn runs on.
     if (eventType === "session.next.harness.switched" && info) {
       const switched = event.data as unknown as {
         instanceID: NonNullable<HarnessSession["harnessInstanceID"]>
@@ -1112,7 +1090,6 @@ export function createServerSession(
       const next: HarnessSession = {
         ...current,
         harnessInstanceID: switched.instanceID,
-        // No model means the harness default, as the server records it.
         harnessModel: switched.model,
         harnessRevision:
           (current.harnessRevision ?? 0) +
@@ -1122,10 +1099,6 @@ export function createServerSession(
     }
     if (event.type === "session.usage.updated" && info)
       remember({ ...info, cost: event.data.cost, tokens: event.data.tokens })
-    // if (event.type === "session.archived") {
-    //   if (info) remember({ ...info, time: { ...info.time, archived: event.created, updated: event.created } })
-    //   evict([sessionID])
-    // }
     if (event.type === "session.execution.started") setData("session_status", sessionID, { type: "busy" })
     if (
       event.type === "session.execution.succeeded" ||
@@ -1141,8 +1114,6 @@ export function createServerSession(
         next: event.data.at,
       })
     if (event.type === "session.forked") void resolve(sessionID, { force: true }).catch(() => {})
-    // A committed rollback deleted its boundary message and every later one on the server. The prompt that
-    // committed it may already be shown optimistically after them, so that one stays.
     if (eventType === "session.next.revert.committed") {
       const boundary = (event.data as { messageID?: string }).messageID
       const from = (items: { id: string }[] | undefined) => {
@@ -1170,7 +1141,6 @@ export function createServerSession(
         void resolve(eventID).catch(() => {})
     }
     switch (event.type) {
-      // v1 events keep the harness in `metadata`; normalizing keeps the thread's harness after a title or touch.
       case "session.created":
         remember(normalizeSessionInfo((event.properties as { info: Session }).info))
         return
@@ -1226,7 +1196,6 @@ export function createServerSession(
           return
         }
         const result = Binary.search(messages, messageKey(info), messageKey)
-        // Streaming re-sends the same message many times; with its sort key unchanged, update it in place.
         if (result.found && messages[result.index]?.id === info.id) {
           setData("message", info.sessionID, result.index, reconcile(info))
           return
@@ -1282,7 +1251,6 @@ export function createServerSession(
         const messages = data.message[part.sessionID]
         const load = messageLoads.get(part.sessionID)
         const missing = !messages?.findLast((message) => message.id === part.messageID)
-        // Outside a page load, accepting a part without its ordered parent event would create an unbounded orphan.
         if (
           missing &&
           (!load ||
@@ -1315,7 +1283,6 @@ export function createServerSession(
         deltaBases.delete(part.id)
         trackPartChange(part.sessionID, part.messageID, part.id)
         confirmOptimisticPart(part.sessionID, part.messageID, part)
-        // Deleting fires the key's signal even when it is absent, which would wake every reader of unchanged parts.
         if (data.part_text_accum_delta[part.id] !== undefined)
           setData(
             "part_text_accum_delta",
@@ -1338,7 +1305,6 @@ export function createServerSession(
       }
       case "message.part.removed": {
         const props = event.properties as { sessionID: string; messageID: string; partID: string }
-        // Part removal is event-only on the server, so its tombstone lasts until a later update or eviction.
         const pending = pendingParts.get(props.sessionID) ?? new Map<string, Set<string>>()
         const parts = pending.get(props.messageID) ?? new Set<string>()
         parts.add(props.partID)
@@ -1567,8 +1533,6 @@ export function createServerSession(
     async todo(sessionID: string, request?: { force?: boolean }) {
       touch(sessionID)
       if (data.todo[sessionID] !== undefined && !request?.force) return
-      // A v2 server keeps harness checklists too (saved from their plan calls) and still serves the route; one
-      // without it leaves the list empty, as before, rather than retrying.
       const v2 = (await options?.protocol) === "v2"
       return runInflight(inflightTodo, sessionID, () => {
         const active = generation(sessionID)

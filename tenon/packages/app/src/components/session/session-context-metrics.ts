@@ -24,23 +24,12 @@ type Context = {
   modelLabel: string
   limit: number | undefined
   input: number
-  /** Tokens in the context window: the harness's live report, else the last step's token counts. */
   total: number
   usage: number | null
-  /** A compaction finished after this message, so its figures describe the context before it. */
   compacted: boolean
-  /**
-   * False when `total` can't be the context in use: an external harness that sent no live context report, whose
-   * message tokens add up every model call in the turn.
-   */
   reported: boolean
 }
 
-/**
- * What every context surface shows (the composer ring, its menu, the Context tab), so they can't disagree (#310):
- * a share only when the context in use was reported and the window is known; tokens when it was reported without
- * a window; "unreported" when the total is only the turn's tokens, never shown against the window.
- */
 export type ContextReadout =
   | { kind: "none" }
   | { kind: "compacted" }
@@ -74,10 +63,8 @@ const lastAssistantWithTokens = (messages: Message[], selectedHarness?: string) 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
     if (msg.role !== "assistant") continue
-    // A compaction's summary reply measures the old context it summarised, not the one that follows.
     if (msg.summary) continue
     if (selectedHarness && harnessID(msg) !== selectedHarness) continue
-    // A harness's live context report counts before the step's tokens arrive.
     if (tokenTotal(msg) <= 0 && ((msg as HarnessAssistant).contextUsed ?? 0) <= 0) continue
     return msg
   }
@@ -94,17 +81,11 @@ const build = (
 
   const provider = providers.find((item) => item.id === message.providerID)
   const model = resolveModel(providers, provider, message.modelID)
-  // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
   const window = (item: AssistantMessage) => (item as HarnessAssistant).contextWindow || model?.limit.context
-  // An external harness may report its context only when a turn ends (OpenCode does), and a figure above the
-  // window is a token total, not context in use. Either way the newest real report from the same harness stands
-  // in, rather than the turn's summed tokens.
   const own = contextReport(message, window(message))
   const earlier = own ? undefined : lastReport(messages, message, window)
-  // A report from before a compaction describes the context that compaction replaced.
   const previous = earlier && !compactedAfter(messages, earlier, parts) ? earlier : undefined
   const limit = (own ? window(message) : previous?.contextWindow) || window(message)
-  // A harness's reported context in use wins: its token counts add up every model call in the turn.
   const live = own ?? previous?.contextUsed
   const total = live || tokenTotal(message)
   const reported =
@@ -125,20 +106,17 @@ const build = (
   }
 }
 
-/** A message's reported context in use, when it has one that fits its window. */
 const contextReport = (message: AssistantMessage, window: number | undefined) => {
   const used = (message as HarnessAssistant).contextUsed
   if (!used || used <= 0) return undefined
   return window && used > window ? undefined : used
 }
 
-/** True when the message reported a context in use larger than its window: a token total, not a context figure. */
 const overWindow = (message: AssistantMessage, window: number | undefined) => {
   const used = (message as HarnessAssistant).contextUsed
   return !!used && !!window && used > window
 }
 
-/** The newest message before `message` from the same external harness with a context report that fits. */
 const lastReport = (
   messages: Message[],
   message: AssistantMessage,
@@ -157,10 +135,6 @@ const lastReport = (
     )
 }
 
-/**
- * True when a compaction finished after `message`. A compaction carries no tokens; it shows as a `compaction` part
- * on the turn's user message, its ID (`<compaction message ID>:compaction`) ordered like message IDs.
- */
 const compactedAfter = (
   messages: Message[],
   message: AssistantMessage,
@@ -180,11 +154,6 @@ const compactedAfter = (
     )
 }
 
-/**
- * The model a message ran with. An external harness may name it by an alias: `provider/model`, or the model's id
- * without the provider prefix the provider list uses (an `opencode-go` id, #310). Exact ids win; an alias is
- * resolved only when it names one window.
- */
 const resolveModel = (providers: Provider[], provider: Provider | undefined, modelID: string) => {
   const exact = provider ? provider.models[modelID] : sharedModel(providers, modelID)
   if (exact) return exact
@@ -197,7 +166,6 @@ const resolveModel = (providers: Provider[], provider: Provider | undefined, mod
         ),
       ),
     )
-  // The message's own provider first: another provider listing the same model may run it with another window.
   if (provider) return sameBare([provider])
   const slash = modelID.indexOf("/")
   if (slash > 0) {
@@ -207,17 +175,12 @@ const resolveModel = (providers: Provider[], provider: Provider | undefined, mod
   return sameBare(providers)
 }
 
-/** The one model when every match has the same context window; otherwise unknown. */
 const agreed = (matches: Model[]) => {
   const first = matches[0]
   if (!first || matches.some((item) => item.limit.context !== first.limit.context)) return undefined
   return first
 }
 
-/**
- * An external harness reports itself, not a provider, as the source. When the known providers that list
- * the same model id all agree on its context window, that window applies; otherwise it stays unknown.
- */
 const sharedModel = (providers: Provider[], modelID: string) => {
   const matches = providers.flatMap((item) => {
     const model = item.models[modelID]

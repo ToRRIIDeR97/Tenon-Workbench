@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { asksUser, finishMark } from "./thread-finish"
 
-// Acceptance tests for implementations/harness-ux-batch-2 (AC-5): a finished thread says whether it is done or
-// waiting on the user.
-
 describe("AC-5 asksUser", () => {
   test("a reply that ends by asking something asks the user", () => {
     expect(asksUser("I found two options.\n\nWhich one do you want?")).toBe(true)

@@ -1,16 +1,9 @@
-/**
- * What the Command Centre hub shows, worked out from plain data so the views stay thin: a card per Project
- * (Hub), and a Project's crew, its Command Centre lead and the agents working in it (Project view).
- */
-
-/** The thread that started a session without being its parent: a delegated task placed in a Project. */
 export type Origin = { sessionID: string; commandCentre: boolean; lead?: boolean }
 export type TodoItem = { content: string; status: string }
 export type HarnessModelRef = { id: string; reasoningEffort?: string }
 export type ModelCatalogue = { models: ReadonlyArray<{ id: string; name: string }> }
 
 export type HubThreadState = "needs" | "running" | "idle"
-/** A Project's root thread, as the hub reads it. */
 export type HubThread = {
   id: string
   title: string
@@ -21,7 +14,6 @@ export type HubThread = {
   waiting: number
   origin?: Origin
   todos?: ReadonlyArray<TodoItem>
-  /** The thread that started this one as its delegate (a Project lead's delegates run as its children). */
   parentID?: string
 }
 export type HubProject = {
@@ -42,16 +34,12 @@ export type HubCard = {
   state: HubCardState
   working: number
   needs: number
-  /** Harness IDs in the Project: the Command Centre's first when it started one of its threads. */
   harnesses: string[]
-  /** One of the Project's threads was started by the Command Centre. */
   commandCentre: boolean
-  /** The line under the card: the most recently updated running thread, else the newest thread. */
   now?: { id: string; title: string; harness: string; updated: number }
 }
 export type CrewAgent = {
   id: string
-  /** Started by the Project's lead. */
   delegate?: boolean
   title: string
   harness: string
@@ -61,10 +49,6 @@ export type CrewAgent = {
   commandCentre: boolean
   updated: number
 }
-/**
- * Who leads a Project: its own lead thread (`project: true`), which the Command Centre gives goals to, or for older
- * Projects without one, the Command Centre thread that last started work there.
- */
 export type CrewLead = {
   id: string
   title: string
@@ -74,14 +58,12 @@ export type CrewLead = {
   state?: HubThreadState
 }
 
-/** Idle threads stay in a Project's crew this long after their last change. */
 export const RECENT_MS = 24 * 60 * 60 * 1000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** A session's origin, from the V2 `origin` field or the V1 `metadata.origin`; undefined when missing or malformed. */
 export function sessionOrigin(session: unknown): Origin | undefined {
   if (!isRecord(session)) return undefined
   const value = session.origin ?? (isRecord(session.metadata) ? session.metadata.origin : undefined)
@@ -95,10 +77,6 @@ export function sessionOrigin(session: unknown): Origin | undefined {
   }
 }
 
-/**
- * A session's harness and model. Normalized sessions carry them as fields; the sidebar's lists can carry them only in
- * `metadata`, as v1 events do.
- */
 export function sessionHarness(session: unknown, fallback: string): { harness: string; model?: HarnessModelRef } {
   if (!isRecord(session)) return { harness: fallback }
   const metadata = isRecord(session.metadata) ? session.metadata : {}
@@ -121,10 +99,6 @@ export function sessionHarness(session: unknown, fallback: string): { harness: s
   }
 }
 
-/**
- * Where a thread is in its checklist: the item in progress (1-based), else how many are done and the last one done,
- * else nothing started and the first item. Every item counts toward `of`, cancelled ones too.
- */
 export function todoStep(todos: ReadonlyArray<TodoItem> | undefined) {
   if (!todos?.length) return undefined
   const active = todos.findIndex((todo) => todo.status === "in_progress")
@@ -134,7 +108,6 @@ export function todoStep(todos: ReadonlyArray<TodoItem> | undefined) {
   return { n: 0, of: todos.length, text: todos[0]!.content }
 }
 
-/** The model's name as its harness lists it (else the id after its last `/`), with the reasoning effort. */
 export function modelLabel(model: HarnessModelRef | undefined, catalogue?: ModelCatalogue) {
   if (!model) return undefined
   const name = catalogue?.models.find((item) => item.id === model.id)?.name ?? model.id.split("/").at(-1) ?? model.id
@@ -145,11 +118,9 @@ export function modelLabel(model: HarnessModelRef | undefined, catalogue?: Model
 const newestFirst = <T extends { updated: number }>(items: ReadonlyArray<T>) =>
   items.toSorted((left, right) => right.updated - left.updated)
 
-/** A card per Project that isn't archived, in the order given. */
 export function hubCards(input: {
   projects: ReadonlyArray<HubProject>
   threads: Readonly<Record<string, ReadonlyArray<HubThread> | undefined>>
-  /** The harness the Command Centre runs on, shown first on Projects it works in. */
   commandCentreHarness?: string
 }): HubCard[] {
   return input.projects
@@ -180,10 +151,6 @@ export function hubCards(input: {
     })
 }
 
-/**
- * A Project's crew: the Command Centre thread that most recently started work here (when the caller knows it), and
- * the threads that need you, run, or changed in the last day, newest first.
- */
 export function projectCrew(input: {
   now: number
   threads: ReadonlyArray<HubThread>
@@ -223,10 +190,6 @@ export function projectCrew(input: {
   }
 }
 
-/**
- * A Project's crew split for the Project view: agents still working (those that need you first, then the running
- * ones) above the finished ones. Order within each group is kept.
- */
 export function crewGroups(agents: ReadonlyArray<CrewAgent>): { working: CrewAgent[]; finished: CrewAgent[] } {
   return {
     working: [

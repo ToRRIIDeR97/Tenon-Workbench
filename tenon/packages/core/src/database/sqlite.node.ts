@@ -52,8 +52,6 @@ const make = (options: Config) =>
       ? Statement.defaultTransforms(options.transformResultNames).array
       : undefined
 
-    // node:sqlite has no statement cache of its own (bun:sqlite's `query` has one), so keep a small LRU.
-    // Cached statements are shared, so every use sets its read options again.
     const statements = new Map<string, StatementSync>()
     const prepare = (query: string) => {
       const cached = statements.get(query)
@@ -131,8 +129,6 @@ const make = (options: Config) =>
         }),
     })
 
-    // Mirrors @effect/sql-sqlite-* 4.1: the connection is leased through one semaphore, single statements borrow
-    // it without a scope, and a failed COMMIT is rolled back before the connection is reused.
     const { acquirer, borrower, isTransaction, onCommitFailure, transactionAcquirer } = Client.makeSqliteAcquirers({
       connection: Effect.succeed(connection),
       semaphore: yield* Semaphore.make(1),
@@ -149,8 +145,6 @@ const make = (options: Config) =>
         onCommitFailure,
         isTransaction,
         releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
-        // Takes the write lock up front, so a transaction that writes after reading waits for busy_timeout
-        // instead of failing with SQLITE_BUSY. Drizzle's `{ behavior }` overrides it per transaction.
         beginTransaction: options.readonly === true ? "BEGIN" : "BEGIN IMMEDIATE",
         spanAttributes: [
           ...(options.spanAttributes ? Object.entries(options.spanAttributes) : []),

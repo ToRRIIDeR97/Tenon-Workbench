@@ -23,8 +23,6 @@ const asArray = (value: unknown): ReadonlyArray<unknown> => (Array.isArray(value
 export const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined
 
-// Guards record lookups keyed by spec- or model-controlled names against
-// prototype-inherited values (e.g. a parameter named `toString`).
 export const own = <T>(record: Readonly<Record<string, T>>, key: string): T | undefined =>
   Object.hasOwn(record, key) ? record[key] : undefined
 
@@ -106,7 +104,6 @@ const operationParameters = (
   pathItem: Record<string, unknown>,
   operation: Record<string, unknown>,
 ): Parsed<ReadonlyArray<PlannedField>> => {
-  // Operation-level parameters override path-level ones sharing (location, name).
   const declared = new Map<
     string,
     { readonly name: string; readonly location: string; readonly parameter: Record<string, unknown> }

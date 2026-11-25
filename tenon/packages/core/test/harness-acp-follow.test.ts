@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { AcpHarness } from "@tenon/core/harness/acp"
 
-// Shapes from OpenCode 2.2.5's `GET /api/session/:id/message`, newest first.
 const assistant = (id: string, content: unknown[], completed: number | null = 1) => ({
   id,
   type: "assistant",
@@ -42,7 +41,6 @@ describe("following an OpenCode agent's own turns", () => {
     expect(next.idle).toBe(true)
   })
 
-  // A read can land while OpenCode is still writing its reply (reasoning only, no text yet).
   test("leaves a reply that is still streaming for a later read", () => {
     const seen = new Set<string>()
     const pending = new Set<string>()

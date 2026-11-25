@@ -1,12 +1,9 @@
-// IMPORTANT: Set env vars BEFORE any imports from src/ directory
-// xdg-basedir reads env vars at import time, so we must set these first
 import os from "os"
 import path from "path"
 import fs from "fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 import { afterAll } from "bun:test"
 
-// Set XDG env vars FIRST, before any src/ imports
 const dir = path.join(os.tmpdir(), "opencode-test-data-" + process.pid)
 await fs.mkdir(dir, { recursive: true })
 afterAll(async () => {
@@ -26,8 +23,6 @@ afterAll(async () => {
     })
   }
 
-  // Windows can keep SQLite WAL handles alive until GC finalizers run, so we
-  // force GC and retry teardown to avoid flaky EBUSY in test cleanup.
   await rm(30)
 })
 
@@ -39,22 +34,17 @@ process.env["TENON_MODELS_PATH"] = path.join(import.meta.dir, "tool", "fixtures"
 process.env["TENON_EXPERIMENTAL_EVENT_SYSTEM"] = "true"
 process.env["TENON_EXPERIMENTAL_WORKSPACES"] = "true"
 
-// Set test home directory to isolate tests from user's actual home directory
-// This prevents tests from picking up real user configs/skills from ~/.claude/skills
 const testHome = path.join(dir, "home")
 await fs.mkdir(testHome, { recursive: true })
 process.env["TENON_TEST_HOME"] = testHome
 
-// Set test managed config directory to isolate tests from system managed settings
 const testManagedConfigDir = path.join(dir, "managed")
 process.env["TENON_TEST_MANAGED_CONFIG_DIR"] = testManagedConfigDir
 
-// Write the cache version file to prevent global/index.ts from clearing the cache
 const cacheDir = path.join(dir, "cache", "opencode")
 await fs.mkdir(cacheDir, { recursive: true })
 await fs.writeFile(path.join(cacheDir, "version"), "14")
 
-// Clear provider and server auth env vars to ensure clean test state
 delete process.env["ANTHROPIC_API_KEY"]
 delete process.env["OPENAI_API_KEY"]
 delete process.env["GOOGLE_API_KEY"]
@@ -83,15 +73,12 @@ delete process.env["OTEL_EXPORTER_OTLP_ENDPOINT"]
 delete process.env["OTEL_EXPORTER_OTLP_HEADERS"]
 delete process.env["OTEL_RESOURCE_ATTRIBUTES"]
 
-// Use in-memory sqlite
 process.env["TENON_DB"] = ":memory:"
 
-// Now safe to import from src/
 const { initProjectors } = await import("../src/server/projectors")
 
 initProjectors()
 
-// Test folders live under the temp folder. A test of the gate itself empties this list.
 const { Global } = await import("@tenon/core/global")
 const { ConfigTrust } = await import("@tenon/core/config/trust")
 await fs.writeFile(ConfigTrust.file(Global.Path.data), JSON.stringify([await fs.realpath(os.tmpdir())]))

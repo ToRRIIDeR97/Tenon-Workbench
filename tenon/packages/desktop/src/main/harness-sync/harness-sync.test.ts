@@ -72,7 +72,6 @@ describe("tools", () => {
       true,
     )
     expect(instructionsFile(env, "codex")).toBe("D:\\codex\\AGENTS.md")
-    // A relative override is ignored.
     expect(instructionsFile(env, "claude")).toBe("C:\\Users\\u\\.claude\\CLAUDE.md")
     expect(env.pathEnv).toBe("C:\\bin")
     const xdg = locationsFromEnv("/home/u", { XDG_CONFIG_HOME: "/xdg" }, false)
@@ -159,13 +158,11 @@ describe("sync file", () => {
     )
     expect(saved.revision).toBe(2)
     expect(saved.updatedBy).toBe("laptop")
-    // Default presets are not stored.
     expect(saved.tools.codex).toBeUndefined()
     expect((await load(file)).document).toEqual(saved)
     expect(await readHash(file)).toBe((await load(file)).hash)
     await expect(readHash(path.join(path.dirname(file), "missing.json"))).rejects.toThrow("not found")
 
-    // Sharing a skill needs its content; uploads provide it.
     const shared = presets("Hi", {}, ["greet", "greet"])
     await expect(save(file, 2, shared, {}, "laptop")).rejects.toThrow("greet")
     const withSkill = await save(
@@ -177,7 +174,6 @@ describe("sync file", () => {
     )
     expect(withSkill.sharedSkills).toEqual(["greet"])
     expect(Object.keys(withSkill.skills)).toEqual(["greet"])
-    // Later saves keep library content without re-uploading.
     expect((await save(file, 3, shared, {}, "laptop")).skills.greet).toEqual(skill({ "SKILL.md": "hi" }))
     expect((await save(file, 4, presets("Hi"), {}, "laptop")).skills).toEqual({})
 
@@ -201,7 +197,6 @@ describe("sync file", () => {
     expect(raw.tenon).toEqual({ mode: "append", text: "Tenon extra" })
     const doc = (await load(file)).document
     expect(render(doc, "tenon")).toBe("Rules\n\nTenon extra\n")
-    // A standalone save drops the key, and Tenon falls back to the shared preset.
     delete raw.tenon
     expect(render(parse(JSON.stringify(raw)), "tenon")).toBe("Rules\n")
   })
@@ -343,7 +338,6 @@ describe("instructions", () => {
     expect(captured.shared).toBe("Laptop rules\n")
     expect(captured.tools.claude).toEqual({ mode: "append", text: "Claude extra\n" })
     expect(captured.tools.antigravity).toEqual({ mode: "custom", text: "Gemini only\n" })
-    // OpenCode has no file yet, so it keeps the shared preset.
     expect(captured.tools.opencode).toEqual({ mode: "shared", text: "" })
 
     const saved = await save(file, created.revision, captured, {}, "laptop")
@@ -457,7 +451,6 @@ describe("skills", () => {
     expect(find(report, "tenon", "review")?.state).toBe("updated")
     expect(await readSkill(path.join(skillsDir(desk.locations, "codex"), "review"))).toEqual(local)
 
-    // Another computer receives it; its own skill with another name is untouched.
     const laptop = await machine("skills-laptop", ["opencode"])
     const mine = path.join(skillsDir(laptop.locations, "opencode"), "mine")
     await write(path.join(mine, "SKILL.md"), "mine")
@@ -466,14 +459,12 @@ describe("skills", () => {
     const target = path.join(skillsDir(laptop.locations, "opencode"), "review")
     expect(await readSkill(target)).toEqual(local)
 
-    // An outside edit is reported, then replaced, including extra files.
     await writeFile(path.join(target, "extra.md"), "extra")
     const checked = find(await applySkills(fromDrive, laptop.locations, laptop.state, "never"), "opencode", "review")
     expect([checked?.state, checked?.editedOutside]).toEqual(["differs", true])
     await applySkills(fromDrive, laptop.locations, laptop.state, "always")
     expect(await readText(path.join(target, "extra.md"))).toBeUndefined()
 
-    // Unsharing deletes unchanged copies Tenon wrote, keeps edited ones and the original.
     await writeFile(path.join(skillsDir(desk.locations, "codex"), "review", "SKILL.md"), "edited")
     const removed = await share(file, saved.revision, [], {})
     await applySkills(removed, laptop.locations, laptop.state, "always")

@@ -48,7 +48,6 @@ describe("HarnessAskUser", () => {
         }),
       )
       yield* Effect.addFinalizer(() => unsubscribe)
-      // The MCP endpoint calls `ask` from a plain HTTP handler, so only the context captured in `make` carries it.
       const asker = yield* HarnessAskUser.make(questions, sessionID).pipe(
         Effect.provideService(
           Location.Service,
@@ -87,7 +86,6 @@ describe("HarnessAskUser", () => {
       expect(yield* Effect.promise(() => ask([pick], 0))).toEqual({ type: "open" })
       expect((yield* questions.list()).map((item) => item.id)).toEqual([request.id])
 
-      // Answered between calls: the next call collects it at once, and a later one asks afresh.
       yield* questions.reply({ requestID: request.id, answers: [["SQLite"]] })
       expect(yield* Effect.promise(() => ask([pick], 0))).toEqual({ type: "answered", answers: [["SQLite"]] })
       expect(yield* Effect.promise(() => ask([pick], 0))).toEqual({ type: "open" })
@@ -116,12 +114,10 @@ describe("HarnessAskUser", () => {
       expect(yield* Effect.promise(() => asker.ask([pick], 0))).toEqual({ type: "open" })
       const [first] = yield* questions.list()
 
-      // The turn ends after a "still open" result: nobody is waiting, so the dock clears.
       yield* asker.endTurn
       expect(yield* questions.list()).toEqual([])
       expect(withdrawn).toEqual([first.id])
 
-      // The turn is stopped while a call waits: the call returns at once.
       const waiting = asker.ask([pick], 5)
       yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 0)))
       const [second] = yield* questions.list()
@@ -131,7 +127,6 @@ describe("HarnessAskUser", () => {
       expect(yield* questions.list()).toEqual([])
       expect(withdrawn).toEqual([first.id, second.id])
 
-      // Nothing open: ending another turn withdraws nothing.
       yield* asker.endTurn
       expect(withdrawn).toEqual([first.id, second.id])
     }),
@@ -146,7 +141,6 @@ describe("HarnessAskUser", () => {
       const [request] = yield* questions.list()
       yield* questions.reply({ requestID: request.id, answers: [["SQLite"]] })
       yield* asker.endTurn
-      // An answered question isn't withdrawn, but a later turn asking the same questions asks afresh.
       expect(withdrawn).toEqual([])
       expect(yield* Effect.promise(() => asker.ask([pick], 0))).toEqual({ type: "open" })
       const [fresh] = yield* questions.list()

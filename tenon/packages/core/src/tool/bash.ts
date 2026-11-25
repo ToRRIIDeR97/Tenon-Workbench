@@ -60,23 +60,6 @@ const modelOutput = (output: Output) => {
 const isTimeout = (error: AppProcess.AppProcessError) =>
   error.cause instanceof Error && error.cause.message === "Timed out"
 
-/**
- * Minimal V2 core shell boundary. Keep parity debt visible without pulling the
- * legacy shell runtime into core.
- */
-// TODO: Port tree-sitter bash / PowerShell parser-based approval reduction.
-// TODO: Port BashArity reusable command-prefix approvals.
-// TODO: Replace token-based command-argument external-directory advisories with parser-based detection.
-// TODO: Restore PowerShell and cmd-specific invocation/path handling on Windows.
-// TODO: Add plugin shell.env environment augmentation once V2 plugin hooks exist.
-// TODO: Add durable/live progress metadata streaming for long-running commands once V2 tool invocation progress context is wired.
-// TODO: Persist background job status and define restart recovery before exposing remote observation.
-// TODO: Re-add model-facing background launch only with owner-bound get/wait/cancel tools and completion delivery.
-// TODO: Add HTTP background-job observation only after durable status, restart recovery, and authorization are defined.
-// TODO: Revisit process-group cleanup and platform coverage with shell-specific tests if current AppProcess semantics do not fully cover it.
-// TODO: Revisit binary output handling if stdout/stderr decoding is text-only.
-// TODO: Stream full shell output into managed storage while retaining only a bounded in-memory preview.
-
 const shellTokens = (command: string) => command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []
 const unquote = (value: string) => value.replace(/^(['"])(.*)\1$/, "$2")
 const externalCommandDirectories = Effect.fn("BashTool.externalCommandDirectories")(function* (

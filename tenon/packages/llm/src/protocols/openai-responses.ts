@@ -29,9 +29,6 @@ const ADAPTER = "openai-responses"
 export const DEFAULT_BASE_URL = "https://api.openai.com/v1"
 export const PATH = "/responses"
 
-// =============================================================================
-// Request Body Schema
-// =============================================================================
 const OpenAIResponsesInputText = Schema.Struct({
   type: Schema.tag("input_text"),
   text: Schema.String,
@@ -65,9 +62,6 @@ const OpenAIResponsesItemReference = Schema.Struct({
   id: Schema.String,
 })
 
-// `function_call_output.output` accepts either a plain string or an ordered
-// array of content items so tools can return images in addition to text.
-// https://platform.openai.com/docs/api-reference/responses/object
 const OpenAIResponsesFunctionCallOutputContent = Schema.Union([OpenAIResponsesInputText, OpenAIResponsesInputImage])
 
 const OpenAIResponsesFunctionCallOutput = Schema.Union([
@@ -95,8 +89,6 @@ const OpenAIResponsesInputItem = Schema.Union([
 ])
 type OpenAIResponsesInputItem = Schema.Schema.Type<typeof OpenAIResponsesInputItem>
 
-// Mutable counterpart of the schema reasoning item so `lowerMessages` can fold
-// multiple streamed summary parts into the same item before flushing.
 type OpenAIResponsesReasoningInput = {
   type: "reasoning"
   id: string
@@ -119,10 +111,6 @@ const OpenAIResponsesToolChoice = Schema.Union([
   Schema.Struct({ type: Schema.tag("function"), name: Schema.String }),
 ])
 
-// Fields shared between the HTTP body and the WebSocket `response.create`
-// message. The HTTP body adds `stream: true`; the WebSocket message adds
-// `type: "response.create"`. Defining the shared shape once keeps the two
-// transports in sync without a destructure-and-strip dance.
 const OpenAIResponsesCoreFields = {
   model: Schema.String,
   input: Schema.Array(OpenAIResponsesInputItem),
@@ -180,10 +168,6 @@ const OpenAIResponsesStreamItem = Schema.Struct({
   call_id: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
   arguments: Schema.optional(Schema.String),
-  // Hosted (provider-executed) tool fields. Each hosted tool item carries its
-  // own subset of these — we capture them generically so we can surface the
-  // call's typed input portion and round-trip the full result payload without
-  // hand-rolling a per-tool schema.
   status: Schema.optional(Schema.String),
   action: Schema.optional(Schema.Unknown),
   queries: Schema.optional(Schema.Unknown),
@@ -198,11 +182,6 @@ const OpenAIResponsesStreamItem = Schema.Struct({
 })
 type OpenAIResponsesStreamItem = Schema.Schema.Type<typeof OpenAIResponsesStreamItem>
 
-// OpenAI Responses surfaces provider failures in two related shapes. The
-// streaming `error` event carries the details at the top level
-// (`{ type: "error", code, message, param, sequence_number }`), while
-// `response.failed` carries them under `response.error`. We capture both so
-// the parser can surface a useful provider-error message in either path.
 const OpenAIResponsesErrorPayload = Schema.Struct({
   code: optionalNull(Schema.String),
   message: optionalNull(Schema.String),
@@ -245,23 +224,16 @@ type ReasoningSummaryStatus = "active" | "can-conclude" | "concluded"
 
 interface ReasoningStreamItem {
   readonly encryptedContent: string | null | undefined
-  // Keyed by OpenAI's numeric `summary_index`. JS object keys coerce to
-  // strings, but typing the map as `Record<number, ...>` documents intent
-  // and matches the wire field.
   readonly summaryParts: Readonly<Record<number, ReasoningSummaryStatus>>
 }
 
 const invalid = ProviderShared.invalidRequest
 
-// =============================================================================
-// Request Lowering
-// =============================================================================
 const lowerTool = (tool: ToolDefinition, inputSchema: JsonSchema): OpenAIResponsesTool => ({
   type: "function",
   name: tool.name,
   description: tool.description,
   parameters: ToolSchemaProjection.openAI(inputSchema),
-  // TODO: Read this from OpenAI-specific tool options so direct LLM callers can opt into strict schemas.
   strict: false,
 })
 
@@ -320,8 +292,6 @@ const lowerUserContent = Effect.fn("OpenAIResponses.lowerUserContent")(function*
   return yield* ProviderShared.unsupportedContent("OpenAI Responses", "user", ["text", "media"])
 })
 
-// Tool results may carry structured text/images. Keep media as provider-native
-// content instead of JSON-stringifying base64 into a prompt string.
 const lowerToolResultContentItem = Effect.fn("OpenAIResponses.lowerToolResultContentItem")(function* (
   item: ToolContent,
 ) {
@@ -335,10 +305,7 @@ const lowerToolResultContentItem = Effect.fn("OpenAIResponses.lowerToolResultCon
 })
 
 const lowerToolResultOutput = Effect.fn("OpenAIResponses.lowerToolResultOutput")(function* (part: ToolResultPart) {
-  // Text/json/error results are encoded as a plain string for backward
-  // compatibility with existing cassettes and provider expectations.
   if (part.result.type !== "content") return ProviderShared.toolResultText(part)
-  // Preserve the narrowed array element type when compiled through a consumer package.
   const content: ReadonlyArray<ToolContent> = part.result.value
   return yield* Effect.forEach(content, lowerToolResultContentItem)
 })
@@ -443,9 +410,6 @@ const lowerMessages = Effect.fn("OpenAIResponses.lowerMessages")(function* (requ
     }
   }
 
-  // With store:false, OpenAI only accepts previous reasoning items when the
-  // complete item has encrypted state. Summary blocks for one item may carry
-  // that state only on the last block, so filter after they have been joined.
   return store === false
     ? input.filter(
         (item) => !("type" in item) || item.type !== "reasoning" || typeof item.encrypted_content === "string",
@@ -497,13 +461,6 @@ const fromRequest = Effect.fn("OpenAIResponses.fromRequest")(function* (request:
   }
 })
 
-// =============================================================================
-// Stream Parsing
-// =============================================================================
-// OpenAI Responses reports `input_tokens` (inclusive total) with a
-// `cached_tokens` subset, and `output_tokens` (inclusive total) with a
-// `reasoning_tokens` subset. Pass the totals through and derive the
-// non-cached breakdown.
 const mapUsage = (usage: OpenAIResponsesUsage | null | undefined) => {
   if (!usage) return undefined
   const cached = usage.input_tokens_details?.cached_tokens
@@ -530,16 +487,6 @@ const mapFinishReason = (event: OpenAIResponsesEvent, hasFunctionCall: boolean):
 
 const openaiMetadata = (metadata: Record<string, unknown>): ProviderMetadata => ({ openai: metadata })
 
-// Hosted tool items (provider-executed) ship their typed input + status +
-// result fields all in one item. We expose them as a `tool-call` +
-// `tool-result` pair so consumers can treat them uniformly with client tools,
-// only differentiated by `providerExecuted: true`.
-//
-// One record per OpenAI Responses item type that represents a hosted
-// (provider-executed) tool call: the common name we surface, plus an `input`
-// extractor that picks the fields the model actually populated for that tool.
-// Falling back to `{}` when an entry isn't fully typed keeps unknown tools
-// observable without rolling a per-tool schema.
 const HOSTED_TOOLS = {
   web_search_call: { name: "web_search", input: (item) => item.action ?? {} },
   web_search_preview_call: { name: "web_search_preview", input: (item) => item.action ?? {} },
@@ -572,8 +519,6 @@ const isReasoningItem = (
 ): item is OpenAIResponsesStreamItem & { type: "reasoning"; id: string } =>
   item.type === "reasoning" && typeof item.id === "string" && item.id.length > 0
 
-// Round-trip the full item as the structured result so consumers can extract
-// outputs / sources / status without re-decoding.
 const hostedToolResult = (item: OpenAIResponsesStreamItem) => {
   const isError = typeof item.error !== "undefined" && item.error !== null
   return isError ? { type: "error" as const, value: item.error } : { type: "json" as const, value: item }
@@ -606,10 +551,6 @@ type StepResult = readonly [ParserState, ReadonlyArray<LLMEvent>]
 
 const NO_EVENTS: StepResult["1"] = []
 
-// `response.completed` / `response.incomplete` are clean finishes that emit a
-// `finish` event; `response.failed` is a hard failure that emits a
-// `provider-error`. All three end the stream — kept in one set so `step` and
-// the protocol's `terminal` predicate stay in sync.
 const TERMINAL_TYPES = new Set(["response.completed", "response.incomplete", "response.failed"])
 
 const onOutputTextDelta = (state: ParserState, event: OpenAIResponsesEvent): StepResult => {
@@ -641,18 +582,6 @@ const onReasoningDone = (state: ParserState, _event: OpenAIResponsesEvent): Step
 const reasoningMetadata = (item: OpenAIResponsesStreamItem & { id: string }) =>
   openaiMetadata({ itemId: item.id, reasoningEncryptedContent: item.encrypted_content ?? null })
 
-// OpenAI Responses streams reasoning items in a stable order:
-//   `output_item.added` (reasoning) →
-//     `reasoning_summary_part.added` (index=0) →
-//     `reasoning_summary_text.delta` →
-//     `reasoning_summary_part.done` (index=0) →
-//     (repeat for index>0) →
-//   `output_item.done` (reasoning).
-// The handlers below rely on this ordering: `onOutputItemAdded` seeds the
-// per-item entry, `onReasoningSummaryPartAdded` for `summary_index === 0`
-// short-circuits when the entry already exists, and higher-index handlers
-// fold against the same entry. Behaviour for out-of-order events is
-// best-effort, not guaranteed.
 const onOutputItemAdded = (state: ParserState, event: OpenAIResponsesEvent): StepResult => {
   const item = event.item
   if (item && isReasoningItem(item)) {
@@ -888,11 +817,6 @@ const onResponseFinish = (state: ParserState, event: OpenAIResponsesEvent): Step
   return [{ ...state, lifecycle }, events]
 }
 
-// Build a single human-readable message from whatever the provider supplied.
-// When both code and message are present, prefix the code so consumers see
-// the failure mode (e.g. `rate_limit_exceeded: Slow down`) instead of just
-// the bare message — production rate limits and context-length failures used
-// to be indistinguishable from generic stream drops.
 const providerErrorMessage = (event: OpenAIResponsesEvent, fallback: string): string => {
   const nested = event.response?.error ?? undefined
   const message = event.message || nested?.message || undefined
@@ -948,14 +872,6 @@ const step = (state: ParserState, event: OpenAIResponsesEvent) => {
   return Effect.succeed<StepResult>([state, NO_EVENTS])
 }
 
-// =============================================================================
-// Protocol And OpenAI Route
-// =============================================================================
-/**
- * The OpenAI Responses protocol — request body construction, body schema, and
- * the streaming-event state machine. Used by native OpenAI and (once
- * registered) Azure OpenAI Responses.
- */
 export const protocol = Protocol.make({
   id: ADAPTER,
   body: {

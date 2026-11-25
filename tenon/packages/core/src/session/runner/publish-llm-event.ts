@@ -14,7 +14,6 @@ type Input = {
   readonly harnessInstanceID?: Harness.InstanceID
   readonly harnessModel?: Harness.ModelSelection
   readonly snapshot?: string
-  /** The catalog prices of a host model, used when the provider reports no cost. */
   readonly pricing?: ReadonlyArray<typeof ModelV2.Cost.Type>
 }
 
@@ -32,16 +31,11 @@ const tokens = (usage: Usage | undefined) => {
   }
 }
 
-/** Harness drivers that know the turn's cost put it in `usage.providerMetadata.harness.cost` (USD). */
 const harnessCost = (usage: Usage | undefined) => {
   const cost = usage?.providerMetadata?.harness?.cost
   return typeof cost === "number" && Number.isFinite(cost) && cost >= 0 ? cost : undefined
 }
 
-/**
- * USD from catalog prices per million tokens, as the V1 runtime computes it: the largest context tier
- * the prompt exceeds applies, and reasoning is charged at the output rate.
- */
 export const pricedCost = (
   pricing: ReadonlyArray<typeof ModelV2.Cost.Type> | undefined,
   used: ReturnType<typeof tokens>,
@@ -61,13 +55,11 @@ export const pricedCost = (
   return safe(total / 1_000_000)
 }
 
-/** Harness drivers that know the model's context window put it in `usage.providerMetadata.harness.contextSize`. */
 const harnessContextWindow = (usage: Usage | undefined) => {
   const size = usage?.providerMetadata?.harness?.contextSize
   return typeof size === "number" && Number.isFinite(size) && size > 0 ? size : undefined
 }
 
-/** Harness drivers that know the context in use after a step put it in `usage.providerMetadata.harness.contextUsed`. */
 const harnessContextUsed = (usage: Usage | undefined) => {
   const used = usage?.providerMetadata?.harness?.contextUsed
   return typeof used === "number" && Number.isFinite(used) && used >= 0 ? used : undefined
@@ -96,7 +88,6 @@ const settledOutput = (value: ToolOutput | undefined, result: ToolResultValue): 
   return { structured: record(settled.structured), content: settled.content }
 }
 
-/** Persist one provider turn without executing tools or starting a continuation turn. */
 export const createLLMEventPublisher = (events: EventV2.Interface, input: Input) => {
   const tools = new Map<
     string,
@@ -390,7 +381,6 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
       }
       case "tool-progress": {
         const tool = tools.get(event.id)
-        // A checkpoint that races the call's settlement carries nothing the result doesn't.
         if (!tool?.called || tool.settled) return
         yield* events.publish(SessionEvent.Tool.Progress, {
           sessionID: input.sessionID,
@@ -474,7 +464,6 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
         }
         return
       case "step-usage": {
-        // Only the open step's message takes a live value; the settlement carries the final one.
         if (assistantMessageID === undefined || stepSettlement) return
         const contextUsed = harnessContextUsed(event.usage)
         if (contextUsed === undefined) return

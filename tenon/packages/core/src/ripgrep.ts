@@ -8,13 +8,6 @@ import { AppProcess, collectStream, waitForAbort } from "./process"
 import { NonNegativeInt, PositiveInt, RelativePath } from "./schema"
 import { RipgrepBinary } from "./ripgrep/binary"
 
-/**
- * Small core-owned ripgrep execution adapter. It deliberately exposes raw
- * process-oriented rows, not model text or permission behavior. Search maps
- * these rows into filesystem results; leaf tools own
- * presentation and permission prompts.
- */
-
 const ERROR_BYTES = 8 * 1024
 const MAX_RECORD_BYTES = 64 * 1024
 const MAX_SUBMATCHES = 100

@@ -7,10 +7,6 @@ import { LocationServiceMap } from "@tenon/core/location-service-map"
 import { SessionV2 } from "@tenon/core/session"
 import { SessionTodo } from "@tenon/core/session/todo"
 
-// A delegating thread that ends its turn while a task runs must hear when the task finishes, or nothing carries the
-// work on: the Command Centre lead sat idle after its workers finished. While a task runs, the delegating thread is
-// also checked in with on an interval, can read the task's progress and can steer it.
-
 const parent = { id: "ses_lead", location: { directory: "/work" }, harnessInstanceID: "claude-code" }
 
 function fixture(options: { checkInMs?: number; waiting?: ReadonlyArray<string> } = {}) {
@@ -45,14 +41,12 @@ function fixture(options: { checkInMs?: number; waiting?: ReadonlyArray<string> 
     messages: () =>
       Effect.succeed([{ type: "assistant", content: [{ type: "text", text: "Built the rifle." }], error: undefined }]),
     active: Effect.succeed(new Set()),
-    // Nothing here ever promotes an input, so every queued prompt stays pending.
     queued: (id: string) =>
       Effect.succeed(
         prompts
           .filter((prompt) => prompt.sessionID === id && prompt.delivery === "queue")
           .map((prompt) => ({ prompt: { text: prompt.text } })),
       ),
-    // Each entry is the next queued input of an idle thread left from the last run.
     wakeQueued: (accept: (input: { prompt: { text: string } }) => boolean) =>
       Effect.sync(() => {
         woken.push(...(options.waiting ?? []).filter((text) => accept({ prompt: { text } })))
@@ -118,7 +112,6 @@ test("a task that finishes after the delegating turn ended queues a notice to th
         yield* tick()
         const notices = world.notices()
         expect(notices).toHaveLength(1)
-        // Queued, so a turn already running finishes first; resume left on, so an idle thread wakes.
         expect(notices[0]!.delivery).toBe("queue")
         expect(notices[0]!.resume).not.toBe(false)
         expect(notices[0]!.text).toContain("ses_task1")
@@ -184,7 +177,6 @@ test("a running task checks in with the delegating thread on an interval, withou
         expect(first[0]!.text).toContain("Guns A")
         expect(first[0]!.text).toContain("task_result")
         expect(first[0]!.text).toContain("message_task")
-        // The first check-in is still waiting for the thread, so later intervals add none.
         yield* wait(120)
         expect(world.checkIns()).toHaveLength(1)
       }),
@@ -272,7 +264,6 @@ test("a task the shutdown interrupts tells the delegating thread to start it aga
       }),
     ),
   )
-  // The scope above is closed, as at shutdown; only then does the session runner interrupt the task.
   world.fail.get("ses_task1")?.(new Error("Provider turn interrupted"))
   await Effect.runPromise(tick())
   const notices = world.notices()

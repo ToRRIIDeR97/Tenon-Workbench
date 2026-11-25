@@ -1,8 +1,5 @@
 export * as HarnessBrowserTools from "./browser-tools"
 
-// The Workbench panel's browser, offered to every harness through the `tenon` MCP server. The desktop
-// main process owns the browser and listens on a loopback URL; it passes the URL and a bearer token to
-// this server process in these variables. Without them (the web app, a remote server) the tools are absent.
 export const URL_ENV = "TENON_BROWSER_URL"
 export const TOKEN_ENV = "TENON_BROWSER_TOKEN"
 
@@ -159,10 +156,8 @@ export const TOOLS = [
 const names = new Set<string>(TOOLS.map((tool) => tool.name))
 export const isTool = (name: string) => names.has(name)
 
-/** An MCP tool result: text, an image (browser_screenshot), or both (render_svg's picture and its findings). */
 export type Result = { readonly text?: string; readonly image?: string; readonly mimeType?: string }
 
-// The desktop side runs an install for up to 180 s and waits on the user's answer to open a site.
 const TIMEOUT_SECONDS: Readonly<Record<string, number>> = { device_install: 200, browser_navigate: 200 }
 
 export async function call(

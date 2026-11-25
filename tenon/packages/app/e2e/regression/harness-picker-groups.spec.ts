@@ -26,7 +26,6 @@ test("Harness picker lists the built-in loop first, then external agents, with a
     route.fulfill({
       json: {
         location: { directory: fixture.directory, project: { id: fixture.project.id, directory: fixture.directory } },
-        // Server order puts a built-in external agent before the native loop; the picker regroups it.
         data: [
           harness("codex", "codex", "Codex"),
           harness("opencode", "opencode", "Default agent"),
@@ -39,13 +38,11 @@ test("Harness picker lists the built-in loop first, then external agents, with a
   )
 
   await page.goto("/")
-  // Home's model pill holds the harness list: its Harness row opens it.
   const pill = page.locator('[data-action="prompt-model-pill"]')
   await expect(pill).toBeEnabled()
   await pill.click()
   await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()
 
-  // The built-in loop comes first, then the external agents in server order, then "Add harness".
   const list = page.locator('[data-component="prompt-model-pill-panel"]')
   await expect(list.getByRole("menuitemradio")).toHaveText([
     "Default agent",

@@ -71,24 +71,17 @@ import { useCheckServerHealth } from "./utils/server-health"
 import { parseServerKey, requireServerKey, sessionHref } from "./utils/session-route"
 import { decode64 } from "./utils/base64"
 
-// File viewers pull in the diff renderer and shiki; only session views render them.
 const loadFile = () => import("@tenon/session-ui/file")
 const LazyFile = lazy(() => loadFile().then((module) => ({ default: module.File })))
-// Its own boundary: the first file view to load must not suspend the page around it, which
-// detaches the session timeline for a frame and resets its scroll position.
 const File = (props: ComponentProps<typeof LazyFile>) => (
   <Suspense>
     <LazyFile {...props} />
   </Suspense>
 )
-// The session page (timeline, review, terminal, composer) is the largest route. It loads on
-// demand and is prefetched once the app is idle, so the shell paints without it.
 const loadSessionPage = () => import("@/pages/session")
 const TargetSessionRouteContent = lazy(() =>
   loadSessionPage().then((module) => ({ default: module.TargetSessionRouteContent })),
 )
-// The other pages are small next to it. They are prefetched too, after the session page, so the first click
-// on a rail item swaps the page at once instead of waiting on its chunk.
 const pageLoaders = {
   newSession: () => import("@/pages/new-session"),
   calendar: () => import("@/pages/calendar"),
@@ -124,9 +117,6 @@ function TargetServerRoute(props: ParentProps) {
   })
 
   return (
-    // Owns the server-identity remount. Session changes must NOT remount this
-    // subtree (SessionRouteErrorBoundary resets and createSessionLineage
-    // re-resolves reactively instead); both rely on this key for server changes.
     <Show when={requireServerKey(params.serverKey)} keyed>
       <ServerSDKProvider server={conn}>
         <ServerSyncProvider server={conn}>{props.children}</ServerSyncProvider>
@@ -135,8 +125,6 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
-// A malformed server segment would throw in every server-scoped provider, so rewrite it to the
-// selected server; the session page then reports an unknown thread as not found.
 const TargetSessionRoute = () => {
   const params = useParams<{ serverKey: string; id: string }>()
   const server = useServer()
@@ -149,8 +137,6 @@ const TargetSessionRoute = () => {
   )
 }
 
-// Wraps the non-draft routes. They are gated on (and keyed to) the globally selected
-// server via ServerKey, then provide the server-scoped shell for that server.
 function SelectedServerProviders(props: ParentProps) {
   return (
     <ServerKey>
@@ -245,8 +231,6 @@ function BodyDesignClass() {
   return null
 }
 
-// Server-agnostic providers shared across every route. These live in the shared
-// shell (router root) so they stay mounted regardless of the active server/route.
 function SharedProviders(props: ParentProps) {
   return (
     <>
@@ -290,7 +274,6 @@ function DesktopCommands() {
   return null
 }
 
-// Server-scoped providers for the app shell.
 type ServerScopedShellProps = ParentProps<{
   directory?: () => string | undefined
   serverScoped?: JSX.Element
@@ -308,10 +291,6 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
   )
 }
 
-/**
- * The desktop widget's window: the selected server's data and the Command Centre, without the sidebar, pages or
- * the shell's background jobs (calendar sync, harness update notices), which the main window already runs.
- */
 function WidgetLayout() {
   return (
     <SelectedServerProviders>
@@ -339,8 +318,6 @@ function NewAppLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) {
   )
 }
 
-// The draft page only renders the prompt composer, so it drops TerminalProvider.
-// FileProvider and CommentsProvider stay because PromptInput uses file search and comment context.
 function DraftProviders(props: ParentProps) {
   return (
     <FileProvider>
@@ -394,8 +371,6 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean; start
 
   const [checkMode, setCheckMode] = createSignal<"blocking" | "background">("blocking")
 
-  // performs repeated health check with a grace period for
-  // non-http connections, otherwise fails instantly
   const [startupHealthCheck, healthCheckActions] = createResource(() =>
     props.disableHealthCheck
       ? true
@@ -566,14 +541,8 @@ export function AppInterface(props: {
   disableHealthCheck?: boolean
   startup?: Promise<void>
   serverScoped?: JSX.Element
-  /** `widget`: the desktop widget's window, which shows the widget instead of the app shell and its pages. */
   surface?: "app" | "widget"
 }) {
-  // The visual new layout lives in the router root so it remains mounted across
-  // route changes. Draft and session routes override only their server-bound data
-  // providers beneath it.
-  // The shell reuses AppBaseProviders' QueryClient, the one GlobalProvider's server sync
-  // writes to, so live session events reach the sidebar and Home queries.
   onMount(() => {
     if (props.surface !== "widget") prefetchPages()
   })
@@ -646,26 +615,22 @@ function Routes() {
   )
 }
 
-// Notes became the Projects page; older links (and wiki links inside pages) keep their view.
 function NotesRedirect() {
   const location = useLocation()
   return <Navigate href={`/projects${location.search}`} />
 }
 
-// Old draft URLs (/new-session?draftId=…) from before the sidebar shell.
 function LegacyDraftRedirect() {
   const [search] = useSearchParams<{ draftId?: string }>()
   return <Navigate href={search.draftId ? draftHref({ draftID: search.draftId }) : "/"} />
 }
 
-// Old directory-scoped session URLs (/:dir/session/:id) open on the selected server.
 function LegacySessionRedirect() {
   const server = useServer()
   const params = useParams<{ id: string }>()
   return <Navigate href={sessionHref(server.key, params.id)} />
 }
 
-// Old new-session URLs (/:dir/session) open a draft in that folder.
 function LegacyNewSessionRedirect() {
   const server = useServer()
   const drafts = useDrafts()

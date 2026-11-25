@@ -28,15 +28,8 @@ import {
   type WidgetModeState,
 } from "./widget-mode"
 
-/** How long a finished thread stays under Status. */
 const DONE_FOR_MS = 30 * 60_000
 
-/**
- * The desktop widget (docs/design.md, the Widgets workshop): one small card on the desktop showing whatever is
- * newest. A status update (a thread needs you, finishes or fails) turns it to Status, a Command Centre reply turns
- * it to Command, and after a quiet minute it settles on Note, a box that adds a dated entry to the vault's Inbox.
- * It never switches while you type in it; the tabs switch by hand. The window is sized to the card.
- */
 export function DesktopWidget() {
   const language = useLanguage()
   const platform = usePlatform()
@@ -51,7 +44,6 @@ export function DesktopWidget() {
 
   const apply = (next: WidgetModeState) => setState(next)
   const data = () => home.server.focusedSync().session.data
-  // Threads that need you first, then running ones.
   const runs = createMemo(() =>
     sessions.data
       .records()
@@ -64,7 +56,6 @@ export function DesktopWidget() {
   )
   const waiting = () => runs().filter((run) => run.status === "approval").length
 
-  // Status events: a thread starts needing you, or a running one stops (finished or failed).
   createEffect(
     on(
       () => runs().map((run) => `${run.record.session.id}:${run.status}`),
@@ -93,8 +84,6 @@ export function DesktopWidget() {
     ),
   )
 
-  // A new Command Centre reply turns it to Command. The first seconds are skipped, so the reply that loads with
-  // the widget doesn't count as new.
   createEffect(
     on(
       () => centre.lastReply(),
@@ -105,7 +94,6 @@ export function DesktopWidget() {
     ),
   )
 
-  // Settles back to Note after a quiet minute; also drops finished threads after half an hour.
   onMount(() => {
     const timer = setInterval(() => {
       const now = Date.now()
@@ -116,7 +104,6 @@ export function DesktopWidget() {
     onCleanup(() => clearInterval(timer))
   })
 
-  // The window is transparent around the card, so the page behind it must be too.
   onMount(() => {
     const root = document.documentElement
     root.style.background = "transparent"
@@ -127,7 +114,6 @@ export function DesktopWidget() {
     })
   })
 
-  // The window follows the card's height.
   onMount(() => {
     if (!card) return
     const observer = new ResizeObserver(() => {
@@ -165,7 +151,6 @@ export function DesktopWidget() {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setState("engaged", false)
         }}
       >
-        {/* The bar drags the window; its buttons don't. */}
         <div class="flex h-10 shrink-0 items-center gap-2 pl-3.5 pr-1.5 [app-region:drag]">
           <span
             class="inline-flex h-[22px] items-center rounded-full px-2.5 text-[11.5px] [font-weight:560]"
@@ -255,7 +240,6 @@ export function DesktopWidget() {
   }
 }
 
-/** Note: a box whose Enter adds the text to the vault's Inbox as a dated entry; Shift+Enter is a new line. */
 function NoteFace(props: { summary: string; onTyping: (typing: boolean) => void }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -319,7 +303,6 @@ function NoteFace(props: { summary: string; onTyping: (typing: boolean) => void 
   )
 }
 
-/** Adds the note to Inbox.md, creating it when missing; retried when the page changed meanwhile. */
 async function addToInbox(client: Parameters<typeof readVaultPage>[0], text: string, label: string) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const current = await readVaultPage(client, INBOX_PATH)
@@ -346,7 +329,6 @@ async function addToInbox(client: Parameters<typeof readVaultPage>[0], text: str
   return false
 }
 
-/** Status: what needs you first, then running threads, then the ones that finished in the last half hour. */
 function StatusFace(props: {
   runs: { record: { session: { id: string; title?: string }; projectName: string }; status?: string }[]
   done: { id: string; title: string }[]
@@ -420,7 +402,6 @@ function StatusFace(props: {
   )
 }
 
-/** Command: the Command Centre's latest exchange and a composer that replies to that thread. */
 function CommandFace(props: { open: (path: string) => void; onTyping: (typing: boolean) => void }) {
   const language = useLanguage()
   const centre = useCommandCentre()
@@ -444,7 +425,6 @@ function CommandFace(props: { open: (path: string) => void; onTyping: (typing: b
           </div>
         )}
       </Show>
-      {/* The reply as the thread shows it (Markdown), scrolling inside the card when it's long. */}
       <Show
         when={!centre.error() && centre.lastReply()}
         fallback={

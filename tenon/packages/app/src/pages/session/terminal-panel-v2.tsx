@@ -45,7 +45,6 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
   onCleanup(() => terminal.cancelFocus())
 
   const [store, setStore] = createStore({
-    // The thread whose opening of the panel has been answered (a first terminal started, or none needed).
     servedKey: undefined as string | undefined,
     recovered: {} as Record<string, boolean>,
     view: typeof window === "undefined" ? 1000 : (window.visualViewport?.height ?? window.innerHeight),
@@ -71,8 +70,6 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
     if (port) makeEventListener(port, "resize", sync)
   })
 
-  // Opening the panel on a thread with no terminals starts one. Only opening does: closing the last tab while the
-  // panel is open closes the panel (below) instead of starting a replacement behind it.
   createEffect(
     on(
       () => [opened(), terminal.ready(), terminal.key()] as const,

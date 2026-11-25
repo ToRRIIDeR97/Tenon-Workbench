@@ -426,8 +426,6 @@ describe("OpenAI Responses route", () => {
     }),
   )
 
-  // Regression: screenshot/read tool results must stay structured so base64
-  // image data is not JSON-stringified into `function_call_output.output`.
   it.effect("lowers image tool-result content as structured input_image items", () =>
     Effect.gen(function* () {
       const prepared = yield* LLMClient.prepare<OpenAIResponses.OpenAIResponsesBody>(
@@ -599,9 +597,6 @@ describe("OpenAI Responses route", () => {
         LLM.request({
           model,
           prompt: "hi",
-          // The user passed one invalid entry alongside a valid one. Keep the
-          // valid one so the request still succeeds rather than failing on a
-          // typo from upstream config.
           providerOptions: { openai: { include: ["reasoning.encrypted_content", "bogus.thing"] } },
         }),
       )
@@ -642,10 +637,6 @@ describe("OpenAI Responses route", () => {
 
   it.effect("requests encrypted reasoning by default for GPT-5 reasoning models", () =>
     Effect.gen(function* () {
-      // The native OpenAI facade configures GPT-5 stateless (store: false) with
-      // reasoningSummary: "auto" by default. Without `include`, a follow-up
-      // turn cannot replay reasoning state, so the facade also opts into
-      // `reasoning.encrypted_content` automatically.
       const prepared = yield* LLMClient.prepare<OpenAIResponses.OpenAIResponsesBody>(
         LLM.request({
           model: OpenAI.configure({ baseURL: "https://api.openai.test/v1/", apiKey: "test" }).responses("gpt-5.2"),
@@ -1335,10 +1326,6 @@ describe("OpenAI Responses route", () => {
         Effect.provide(fixedResponse(sseEvents({ type: "error", code: "rate_limit_exceeded", message: "Slow down" }))),
       )
 
-      // Prefix the code so consumers see the failure mode, not just the
-      // sometimes-generic provider message. The bare message alone meant
-      // production errors like rate limits were indistinguishable from
-      // unrelated stream failures.
       expect(response.events).toEqual([{ type: "provider-error", message: "rate_limit_exceeded: Slow down" }])
     }),
   )
@@ -1363,10 +1350,6 @@ describe("OpenAI Responses route", () => {
     }),
   )
 
-  // Regression: `response.failed` carries the failure details under
-  // `response.error`, not at the top level. The previous handler only
-  // checked top-level `message`/`code` and so always emitted the bare
-  // "OpenAI Responses response failed" string, hiding the real cause.
   it.effect("surfaces response.failed details from response.error", () =>
     Effect.gen(function* () {
       const response = yield* LLMClient.generate(request).pipe(
@@ -1406,11 +1389,6 @@ describe("OpenAI Responses route", () => {
 
   it.effect("surfaces error event details even when they arrive nested under response.error", () =>
     Effect.gen(function* () {
-      // Some OpenAI-compatible proxies and older SDK versions wrap the
-      // top-level error fields into a nested `response.error` payload
-      // when they bubble up an HTTP error as an SSE `error` event. Honour
-      // both shapes so the user still sees the underlying cause instead
-      // of the catch-all string.
       const response = yield* LLMClient.generate(request).pipe(
         Effect.provide(
           fixedResponse(

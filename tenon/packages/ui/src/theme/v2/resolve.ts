@@ -26,7 +26,6 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
-/** v2 ramps: 100 = lightest, 1200 = darkest — wider spread than v1 `generateScale`. */
 function generateV2HueScale(seed: HexColor, isDark: boolean): HexColor[] {
   const base = hexToOklch(seed)
   const chromaBoost = isDark ? 1 : 1.05
@@ -55,7 +54,6 @@ function generateV2HueScale(seed: HexColor, isDark: boolean): HexColor[] {
   )
 }
 
-/** Grey ramp: 100 = lightest, 1200 = darkest. Derived from palette neutral → ink like v1. */
 function generateV2NeutralScale(neutral: HexColor, ink: HexColor, isDark: boolean): HexColor[] {
   const scale = generateNeutralScale(neutral, isDark, ink)
   return isDark ? scale.toReversed() : scale
@@ -105,7 +103,6 @@ function readPalette(variant: ThemeVariant): PaletteInput {
   throw new Error("Theme variant requires `palette` or `seeds`")
 }
 
-/** Build v2 primitive ramps (100 = lightest). Alpha ramps are static in `v2/styles/colors.css`. */
 export function generateV2Primitives(variant: ThemeVariant, isDark: boolean): Record<string, V2ColorValue> {
   const colors = readPalette(variant)
   const grey = generateV2NeutralScale(colors.neutral, colors.ink, isDark)

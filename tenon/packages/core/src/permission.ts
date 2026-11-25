@@ -56,7 +56,6 @@ export const AskResult = Schema.Struct({
 export type AskResult = typeof AskResult.Type
 
 export interface AssertOptions {
-  // Prompt even when configured or saved rules allow the request. Deny rules still block it.
   readonly alwaysAsk?: boolean
 }
 
@@ -152,8 +151,6 @@ const layer = Layer.effect(
       const requested = agentID ?? session.agent
       const agent = yield* agents.resolve(requested)
       if (agent) return agent.permissions
-      // A Session can name an agent this Location no longer defines (renamed, removed, or from another folder's
-      // config). Its calls follow the default agent's rules rather than all being refused without a prompt.
       const fallback = yield* agents.default()
       if (!fallback) return missingAgentPermissions
       yield* EffectRuntime.logWarning("permission agent not found; using the default agent's rules", {
@@ -225,7 +222,6 @@ const layer = Layer.effect(
           if (result.effect === "allow" && !options?.alwaysAsk) return
           const item = yield* create(request(input), input.agent, options?.alwaysAsk)
           return yield* restore(Deferred.await(item.deferred)).pipe(
-            // A wait interrupted before any reply (the harness turn ended) withdraws the prompt from the dock.
             EffectRuntime.onInterrupt(() =>
               pending.has(item.request.id)
                 ? events.publish(Event.Replied, {

@@ -104,8 +104,6 @@ export function List<T>(props: ListProps<T> & { ref?: (ref: ListRef) => void }) 
 
     if (!options?.ref) return
 
-    // Force a refetch even if the value is unchanged.
-    // This is important for programmatic changes like Tab completion.
     if (prev === value) {
       void refetch()
       return
@@ -274,7 +272,6 @@ export function List<T>(props: ListProps<T> & { ref?: (ref: ListRef) => void }) 
               const input = node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ? node : inputRef
               input?.focus()
 
-              // Prevent global listeners (e.g. dnd sensors) from cancelling focus.
               event.stopPropagation()
             }}
           >

@@ -22,8 +22,6 @@ const DEFAULT_BUFFER = 20_000
 const DEFAULT_KEEP_TOKENS = 8_000
 const TOOL_OUTPUT_MAX_CHARS = 2_000
 const SUMMARY_OUTPUT_TOKENS = 4_096
-// Providers bill images by pixel dimensions, not by base64 length, and cap a typical image near
-// this many tokens. Other media (for example PDFs) still scale with their encoded size.
 const IMAGE_TOKENS = 1_600
 const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
 <template>
@@ -215,11 +213,6 @@ export const buildPrompt = (input: { readonly previousSummary?: string; readonly
   ].join("\n\n")
 }
 
-/**
- * Records a compaction: summarizes the older part of `entries` with `summarize` and keeps the newest turns as they are.
- * Resolves false, recording nothing, when there is nothing to summarize, the prompt exceeds `limit`, or the summary
- * comes back empty. Runs for any summarizer: the in-process model, or a harness's one-off prompt on Tenon's side.
- */
 export const record = Effect.fn("SessionCompaction.record")(function* (
   events: EventV2.Interface,
   input: {
@@ -227,7 +220,6 @@ export const record = Effect.fn("SessionCompaction.record")(function* (
     readonly entries: readonly Entry[]
     readonly reason: "auto" | "manual"
     readonly keepTokens?: number
-    /** The longest summary prompt the summarizer can read, in estimated tokens. */
     readonly limit?: number
     readonly summarize: (prompt: string) => Effect.Effect<string | undefined>
   },
@@ -266,7 +258,6 @@ export const make = (dependencies: Dependencies) => {
     input: Input & { readonly reason?: "auto" | "manual" },
   ) {
     const reason = input.reason ?? "auto"
-    // An automatic compaction needs the model's context size; one the user asked for runs without it.
     const context = input.model.route.defaults.limits?.context
     const known = context !== undefined && context > 0
     if (!known && reason === "auto") return false

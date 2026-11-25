@@ -33,7 +33,6 @@ const ServerApi = HttpApi.make("test-server-authorization").add(
       HttpApiEndpoint.get("probe", "/api/probe", {
         success: Schema.String,
       }),
-      // Stands in for the PTY connect route so requests reach the middleware.
       HttpApiEndpoint.get("connect", "/api/pty/:ptyID/connect", {
         params: Schema.Struct({ ptyID: Schema.String }),
         success: Schema.String,

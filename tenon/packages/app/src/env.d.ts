@@ -24,5 +24,4 @@ declare module "*.mp4" {
   export default src
 }
 
-// Keeps this file a module, as it was when it declared the solid-dnd directive.
 export {}

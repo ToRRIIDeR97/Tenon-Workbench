@@ -127,7 +127,6 @@ const layer = Layer.effect(
           question: "deny",
           plan_enter: "deny",
           plan_exit: "deny",
-          // mirrors github.com/github/gitignore Node.gitignore pattern for .env files
           read: {
             "*": "allow",
             "*.env": "ask",
@@ -135,13 +134,9 @@ const layer = Layer.effect(
             "*.env.example": "allow",
           },
           tenon_write: "ask",
-          // A user's MCP server can reach outside the folder (send mail, post, open issues), so each call asks
-          // and the thread's mode answers, as for the V2 agents; an unattended routine refuses it.
           mcp: "ask",
         })
 
-        // Command Centre threads read untrusted mail, so what can act on it or send it out asks first. Each
-        // agent lists only what it would otherwise allow: an ask must not widen a deny. User rules still win.
         const commandCentre = path.basename(ctx.directory) === HarnessAppTools.COMMAND_CENTRE_FOLDER
         const commandAsks = (...permissions: string[]) =>
           commandCentre ? permissions.map((permission) => ({ permission, pattern: "*", action: "ask" as const })) : []
@@ -309,7 +304,6 @@ const layer = Layer.effect(
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
         }
 
-        // Ensure Truncate.GLOB is allowed unless explicitly configured
         for (const name in agents) {
           const agent = agents[name]
           const explicit = agent.permission.some((r) => {
@@ -397,7 +391,6 @@ const layer = Layer.effect(
         yield* plugin.trigger("experimental.chat.system.transform", { model: resolved }, { system })
         const existing = yield* InstanceState.useEffect(state, (s) => s.list())
 
-        // TODO: clean this up so provider specific logic doesnt bleed over
         const authInfo = yield* auth.get(model.providerID).pipe(Effect.orDie)
         const isOpenaiOauth = model.providerID === "openai" && authInfo?.type === "oauth"
 
@@ -410,7 +403,6 @@ const layer = Layer.effect(
             },
           },
           temperature: 0.3,
-          // The system prompt here is Tenon's own agent-generation prompt.
           allowSystemInMessages: true,
           messages: [
             ...(isOpenaiOauth

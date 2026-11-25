@@ -700,9 +700,6 @@ describe("LLMClient tools", () => {
 
   it.effect("respects maxSteps and stops the loop", () =>
     Effect.gen(function* () {
-      // Every script entry asks for another tool call. With maxSteps: 2 the
-      // runtime should run at most two model rounds and then exit even though
-      // the model still wants to keep going.
       const toolCallStep = sseEvents(
         toolCallChunk("call_x", "get_weather", '{"city":"Paris"}'),
         finishChunk("tool_calls"),

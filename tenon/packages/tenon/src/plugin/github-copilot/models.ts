@@ -5,7 +5,6 @@ const item = Schema.Struct({
   model_picker_enabled: Schema.Boolean,
   id: Schema.String,
   name: Schema.String,
-  // every version looks like: `{model.id}-YYYY-MM-DD`
   version: Schema.String,
   supported_endpoints: Schema.optional(Schema.Array(Schema.String)),
   policy: Schema.optional(
@@ -101,7 +100,6 @@ function build(key: string, remote: SelectableItem, url: string, prev?: Model): 
         ? "chat"
         : undefined
   const prices = remote.billing?.token_prices
-  // Copilot prices are AIC per billing batch; Tenon stores USD per million tokens.
   const usdPerMillion = prices && prices.batch_size > 0 ? 10_000 / prices.batch_size : 0
 
   const model: CopilotModel = {
@@ -113,7 +111,6 @@ function build(key: string, remote: SelectableItem, url: string, prev?: Model): 
       npm: isMsgApi ? "@ai-sdk/anthropic" : "@ai-sdk/github-copilot",
       ...(endpoint ? { endpoint } : {}),
     },
-    // API response wins
     status: "active",
     limit: {
       context: remote.capabilities.limits.max_context_window_tokens ?? remote.capabilities.limits.max_prompt_tokens,
@@ -141,7 +138,6 @@ function build(key: string, remote: SelectableItem, url: string, prev?: Model): 
       },
       interleaved: false,
     },
-    // existing wins
     family: prev?.family ?? remote.capabilities.family,
     name: prev?.name ?? remote.name,
     cost: {
@@ -149,7 +145,6 @@ function build(key: string, remote: SelectableItem, url: string, prev?: Model): 
       output: (prices?.default.output_price ?? 0) * usdPerMillion,
       cache: {
         read: (prices?.default.cache_price ?? 0) * usdPerMillion,
-        // `/models` exposes cached-input reads only; per-request billing accounts for cache writes.
         write: 0,
       },
     },
@@ -236,7 +231,6 @@ export async function get(
     }),
   )
 
-  // prune existing models whose api.id isn't in the endpoint response
   for (const [key, model] of Object.entries(result)) {
     const m = remote.get(model.api.id)
     if (!m) {
@@ -246,7 +240,6 @@ export async function get(
     result[key] = build(key, m, baseURL, model)
   }
 
-  // add new endpoint models not already keyed in result
   for (const [id, m] of remote) {
     if (id in result) continue
     result[id] = build(id, m, baseURL)

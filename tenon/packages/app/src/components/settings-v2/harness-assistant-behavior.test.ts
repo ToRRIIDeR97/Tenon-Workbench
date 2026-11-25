@@ -53,7 +53,6 @@ describe("harness assistant behavior", () => {
     const proposal = parseProposal(block('{"id":"agy","command":"/usr/local/bin/agy","args":["acp"]}'))!
     expect(proposalAction(proposal, new Set())).toBe("review")
     expect(proposalAction(proposal, new Set([proposalKey(proposal)]))).toBe("test")
-    // Changed arguments are a new command and need a new approval.
     expect(proposalAction({ ...proposal, args: ["acp", "--yolo"] }, new Set([proposalKey(proposal)]))).toBe("review")
   })
 

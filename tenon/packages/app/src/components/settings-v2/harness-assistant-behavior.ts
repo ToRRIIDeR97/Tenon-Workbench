@@ -9,14 +9,9 @@ export type HarnessProposal = {
   model?: string
 }
 
-// Marks messages the app sends into the chat, so they render as status instead of user text.
 export const testResultPrefix = "Second Brain test result:"
 const requestMarker = "\n\nRequest: "
 
-/**
- * The assistant can run on any harness. ACP agents receive no Second Brain system prompt, so the
- * task instructions travel inside the first user message.
- */
 export function setupInstructions(request: string) {
   return (
     [
@@ -39,7 +34,6 @@ export function setupInstructions(request: string) {
   )
 }
 
-/** The part of a user message to show in the chat: the request without the instructions. */
 export function displayedUserText(text: string) {
   const index = text.indexOf(requestMarker)
   return text.startsWith("You are helping me set up an agent CLI") && index >= 0
@@ -50,7 +44,6 @@ export function displayedUserText(text: string) {
 const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 const slug = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/
 
-/** The last valid ```harness block in an assistant reply, if any. */
 export function parseProposal(text: string): HarnessProposal | undefined {
   const blocks = Array.from(text.matchAll(/```harness[^\n]*\n([\s\S]*?)```/g), (match) => match[1] ?? "")
   return blocks.reverse().flatMap((block) => {
@@ -76,8 +69,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-// A proposal comes from a model that may have read untrusted text, so these launchers, which
-// would run whatever their arguments say, are never tested or saved as a harness.
 const refusedLaunchers = new Set([
   "sh",
   "bash",
@@ -104,32 +95,23 @@ const refusedLaunchers = new Set([
   "xargs",
 ])
 
-/** Whether a proposed command is a shell, interpreter or download tool rather than an agent CLI. */
 export function refusedCommand(command: string) {
   const name = (command.split(/[\\/]/).at(-1) ?? command).toLowerCase().replace(/\.(exe|cmd|bat|com|ps1)$/, "")
   return refusedLaunchers.has(name) || /^python[\d.]*$/.test(name)
 }
 
-/** Identity of a proposal's runnable part; a changed name alone doesn't need a new test. */
 export const proposalKey = (proposal: HarnessProposal) =>
   JSON.stringify([proposal.command, proposal.args, proposal.model ?? ""])
 
-/**
- * What to do with a new proposal. Testing starts the command on this computer, so it runs on its
- * own only when the user already approved this exact command; otherwise the user reviews it first.
- */
 export function proposalAction(proposal: HarnessProposal, approved: ReadonlySet<string>) {
   if (refusedCommand(proposal.command)) return "refused" as const
   return approved.has(proposalKey(proposal)) ? ("test" as const) : ("review" as const)
 }
 
-/** Message sent back to the assistant after a test, so it can fix a failing proposal. */
 export function testResultMessage(result: { verification?: Harness.Verification; error?: string }) {
   if (result.error) return `${testResultPrefix} FAILED. ${result.error}\nFix the proposal and send a new harness block.`
   const verification = result.verification
   if (!verification?.ok) {
-    // An agent without a working default model often answers nothing; listing models lets the
-    // assistant pick one instead of investigating further.
     const models = verification?.models.slice(0, 20).map((model) => model.id) ?? []
     const hint = models.length
       ? `\nIt may need a model. Add "model" with one of the IDs it offers: ${models.join(", ")}${verification && verification.models.length > models.length ? ", …" : ""}.`

@@ -45,7 +45,6 @@ describe("heaviestContextItems", () => {
       ["PR-3 implementor", "subagent", 2, "u2"],
       ["Check the build", "message", 1, "u1"],
     ])
-    // 4000 output chars plus one input key (16) at four characters a token.
     expect(items[0]!.tokens).toBe(1004)
   })
 

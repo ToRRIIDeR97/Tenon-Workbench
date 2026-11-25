@@ -151,7 +151,6 @@ function FieldLabelInfoIcon() {
 }
 
 export interface FieldLabelProps extends ComponentProps<"label"> {
-  /** When set, shows the info icon with a tooltip containing this text. */
   tooltip?: string
 }
 
@@ -237,7 +236,6 @@ function FieldSuffix(props: ParentProps<ComponentProps<"div">>) {
   )
 }
 
-/** Optional layout wrapper around the control. */
 function FieldControl(props: ParentProps<ComponentProps<"div">>) {
   const [local, rest] = splitProps(props, ["class", "classList", "children"])
 

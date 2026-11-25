@@ -1,6 +1,3 @@
-// Independent verification tests for the built-in Google OAuth client.
-// Written by the plan author from the same criteria, with different boundary cases.
-// Run from tenon/packages/desktop: bun test ../../../implementations/google-builtin-client/verification
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import path from "node:path"

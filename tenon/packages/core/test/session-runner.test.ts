@@ -1174,7 +1174,6 @@ describe("SessionRunnerLLM", () => {
       yield* setup
       const session = yield* SessionV2.Service
       response = fragmentFixture("text", "text-first", ["Earlier answer"]).completeEvents
-      // Longer than the 1,000 tokens kept verbatim, so there is an older part to summarize.
       yield* session.prompt({
         sessionID,
         prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
@@ -1186,7 +1185,6 @@ describe("SessionRunnerLLM", () => {
       responses = [fragmentFixture("text", "text-summary", ["## Objective\n- Keep the earlier task"]).completeEvents]
       yield* session.compact({ sessionID })
 
-      // One summary request, nothing else: compaction doesn't start a turn.
       expect(requests).toHaveLength(1)
       expect(userTexts(requests[0])[0]).toContain("Earlier question")
       const context = yield* (yield* SessionStore.Service).context(sessionID)

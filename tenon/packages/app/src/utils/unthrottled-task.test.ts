@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { soon } from "./unthrottled-task"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-17, added mid-run): while the window is hidden, live
-// event work runs as message-channel tasks, which the browser doesn't throttle, instead of on timers.
-
 const setHidden = (hidden: boolean) => Object.defineProperty(document, "hidden", { value: hidden, configurable: true })
 
 describe("AC-17 soon", () => {

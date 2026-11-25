@@ -25,10 +25,6 @@ import { useSDK } from "@/context/sdk"
 import { useArtifacts } from "@/features/artifacts/artifacts"
 import { ProjectArtifactsBoard } from "@/features/artifacts/artifacts-view"
 
-/**
- * The Canvas tab: the thread's designs, and the Project's pinned files to review with notes. With pinned files a
- * switch picks between the two boards.
- */
 export function SessionCanvasTab() {
   const language = useLanguage()
   const sdk = useSDK()
@@ -62,16 +58,13 @@ export function SessionCanvasTab() {
   )
 }
 
-/** The thread's designs as artboards on a pan/zoom board, or one of them shown large. */
 function DesignsBoard() {
   const canvas = useDesignCanvas()
   const language = useLanguage()
   const byKey = createMemo(() => new Map(canvas.designs().map((design) => [design.key, design])))
-  // Keys, not designs, drive the views: a streamed token or a closing fence keeps every card and frame.
   const keys = createMemo(() => canvas.designs().map((design) => design.key), [], {
     equals: (a, b) => a.length === b.length && a.every((key, index) => key === b[index]),
   })
-  // The selection is a key, or the id of a design opened from the thread before its key was known.
   const selected = createMemo(() => {
     const value = canvas.selected()
     if (!value) return undefined
@@ -81,7 +74,6 @@ function DesignsBoard() {
   const title = (design: Design) => design.title ?? language.t("secondBrain.canvas.untitled")
 
   return (
-    // The board and a design shown large fade through to each other.
     <ViewSwitch key={selected() ?? ""} class="h-full">
       <Show
         when={selected()}
@@ -117,22 +109,16 @@ function DesignsBoard() {
   )
 }
 
-/**
- * One design shown large. A design that is streaming when it opens draws live, with a Drawing chip and
- * a Preview / Code switch; one from history shows as a finished page, as before.
- */
 function LargeDesign(props: { design: CanvasDesign; designKey: string; title: string }) {
   const canvas = useDesignCanvas()
   const language = useLanguage()
   const prompt = usePrompt()
-  // Notes (#326): click an element, write a note, pin it; send the pins together. They stay, marked sent, as a record.
   const [inspect, setInspect] = createStore({
     on: false,
     hover: undefined as Rect | undefined,
     picked: undefined as PickedDesignElement | undefined,
     draft: "",
     scroll: { x: 0, y: 0 },
-    /** The picked element stays marked while its note is written. */
     chosen: undefined as Rect | undefined,
   })
   let overlay: HTMLDivElement | undefined
@@ -151,7 +137,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
     setInspect({ picked: undefined, draft: "", chosen: undefined })
     return id
   }
-  // `only` puts just one note in the composer (Send now); the tray sends every pending one in one message.
   const sendNotes = (only?: string) => {
     const sending = canvasNotesStore.send(props.designKey, only)
     if (sending.length === 0) return
@@ -177,14 +162,12 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
     parts.push({ type: "text", content: `\n${text}\n`, start: end, end: end + text.length + 2 })
     prompt.set(parts, end + text.length + 2)
     setInspect({ on: false, hover: undefined })
-    // With no thread composer mounted the notes stay in the draft to send by hand.
     if (only === undefined) submitComposer()
   }
   const live = untrack(() => !!props.design.streaming)
   const [view, setView] = createStore<{ mode: "preview" | "code" }>({ mode: "preview" })
   const large = createMemo(() => designTooLarge(props.design.source))
   let code: HTMLPreElement | undefined
-  // Code follows the source to its end while it streams.
   createEffect(
     on(
       () => [props.design.source, view.mode] as const,
@@ -200,7 +183,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
   )
   return (
     <div class="flex h-full min-h-0 flex-col" data-canvas-design={live ? "live" : "history"}>
-      {/* In a narrow panel the view switch and Use wrap below the title instead of squeezing it. */}
       <div class="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 px-3 pb-2">
         <div class="flex min-w-0 flex-1 basis-48 items-center gap-2">
           <TooltipV2 placement="bottom" value={language.t("secondBrain.canvas.back")}>
@@ -252,7 +234,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
               <SegmentedControlItemV2 value="code">{language.t("secondBrain.canvas.code")}</SegmentedControlItemV2>
             </SegmentedControlV2>
           </Show>
-          {/* Laid out while drawing too, only hidden, so the header (and the frame below it) doesn't move at the end. */}
           <ButtonV2
             size="small"
             variant="neutral"
@@ -268,7 +249,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
         </div>
       </div>
       <div class="relative min-h-0 flex-1 px-3 pb-3">
-        {/* Both views stay mounted, so switching never rebuilds the frame. */}
         <div
           class="relative size-full overflow-hidden rounded-[12px] border border-v2-border-border-muted bg-[#fff]"
           classList={{ hidden: view.mode === "code" }}
@@ -295,7 +275,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
               />
             </Show>
           </Show>
-          {/* Drawn by the app over the frame, never by the design: the highlight, the pins and the note. */}
           <div ref={overlay} class="pointer-events-none absolute inset-0" data-slot="canvas-notes-overlay">
             <Show when={inspect.on && (inspect.chosen ?? inspect.hover)}>
               {(rect) => (
@@ -332,7 +311,6 @@ function LargeDesign(props: { design: CanvasDesign; designKey: string; title: st
                 <form
                   class="pointer-events-auto absolute flex w-[240px] max-w-[calc(100%-16px)] flex-col gap-2 rounded-[16px] bg-v2-background-bg-floating p-2.5 shadow-[0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-raised)] animate-enter"
                   style={{
-                    // Kept inside the frame: near its right edge the note opens to the element's left.
                     left: `${Math.max(8, Math.min(picked().rect.x - inspect.scroll.x, (overlay?.clientWidth ?? 9999) - 248))}px`,
                     top: `${Math.max(8, picked().rect.y - inspect.scroll.y + picked().rect.height + 6)}px`,
                   }}

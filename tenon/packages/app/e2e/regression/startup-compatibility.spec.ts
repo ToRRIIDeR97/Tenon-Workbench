@@ -16,7 +16,6 @@ test("opens Home with the managed sidecar's mixed API", async ({ page }, testInf
     project: fixture.project,
     pageMessages: () => ({ items: [] }),
   })
-  // The managed sidecar combines current sessions with legacy projects and MCP.
   await page.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === "/api/health" || path === "/global/health") return route.fulfill({ json: { healthy: true } })

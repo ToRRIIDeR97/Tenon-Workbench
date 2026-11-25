@@ -6,19 +6,12 @@ import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { useLanguage } from "@/context/language"
 import { permissionSummary } from "./permission-summary"
 
-// Commands or paths shown before "Show N more".
 const VISIBLE = 3
 
-/**
- * One approval: what will happen in one line, the exact commands or paths under it, then Deny and Allow once.
- * Both buttons split: Allow once offers "always" and letting the whole thread run; Deny offers a reason for the
- * agent. A request that reaches outside the folder keeps the warning tone and offers no "always".
- */
 export function SessionPermissionDock(props: {
   request: PermissionRequest
   responding: boolean
   onDecide: (response: "once" | "always" | "reject", message?: string) => void
-  /** Allows this request and switches the thread to Full auto. Left out where there is no thread. */
   onAllowThread?: () => void
 }) {
   const language = useLanguage()
@@ -104,7 +97,6 @@ export function SessionPermissionDock(props: {
           </div>
         }
       >
-        {/* Denying with a reason: the built-in agent reads it from the reply; other harnesses get it as a queued message. */}
         <form
           class="flex items-center gap-2"
           onSubmit={(event) => {
@@ -141,11 +133,6 @@ export function SessionPermissionDock(props: {
   )
 }
 
-/**
- * One pill: the main action and a chevron half that opens a menu, clipped by one rounded wrapper with a hairline
- * between them. Each half draws its focus ring inside, since the wrapper clips. Just the pill when there is nothing
- * to offer.
- */
 function SplitButton(props: {
   label: string
   variant: "outline" | "contrast"

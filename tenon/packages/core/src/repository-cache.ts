@@ -1,10 +1,3 @@
-/**
- * Local tracking checkouts for remote Git references, one per remote and
- * branch. Each checkout permanently tracks a single ref: the requested branch
- * when the cache key has one, otherwise the remote default branch. Content
- * follows "newest wins": refresh fetches and hard-resets, so readers may
- * observe the checkout move underneath them.
- */
 import path from "path"
 import { Context, Effect, Layer, Schema } from "effect"
 import { FSUtil } from "./fs-util"
@@ -147,9 +140,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | Git.Service | EffectFl
                 const existing = yield* git.repo.discover(AbsolutePath.make(localPath))
                 const origin = existing ? yield* git.remote.get(existing) : undefined
                 const originReference = origin ? Repository.parse(origin) : undefined
-                // Discovery walks upward, so an enclosing repository with a
-                // matching origin could masquerade as the cache entry; reuse
-                // requires the checkout to live exactly at the cache path.
                 const worktree = existing ? yield* fs.resolve(localPath) : undefined
                 const reuse = Boolean(
                   existing &&
@@ -190,9 +180,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | Git.Service | EffectFl
                       .pipe(Effect.mapError((error) => new FetchFailedError({ repository, message: error.message })))
                   }
 
-                  // Checking out the tracked ref before resetting keeps the
-                  // checkout self-healing even if it was left on another
-                  // branch.
                   const branch = input.branch ?? (yield* git.history.defaultRemoteBranch(existing))
                   if (branch) {
                     yield* git.sync

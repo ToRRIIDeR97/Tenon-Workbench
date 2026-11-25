@@ -9,5 +9,4 @@ export interface Interface {
   ) => Effect.Effect<void, Tool.RegistrationError, Scope.Scope>
 }
 
-/** Narrow registration-only Location capability. */
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/Tools") {}

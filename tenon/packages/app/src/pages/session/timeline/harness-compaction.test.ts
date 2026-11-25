@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { observedCompactions } from "./harness-compaction"
 
-// #332 (variant A): a harness compacts inside its own process; Tenon sees it only as context in use dropping.
 const reply = (id: string, parentID: string, contextUsed?: number, harnessInstanceID = "claude-code") =>
   ({ id, parentID, role: "assistant", harnessInstanceID, contextUsed }) as never
 

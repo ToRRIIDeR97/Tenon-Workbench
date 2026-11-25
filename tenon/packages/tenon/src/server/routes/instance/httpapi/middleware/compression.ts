@@ -6,7 +6,6 @@ import { HttpBody, HttpRouter, HttpServerRequest, HttpServerResponse } from "eff
 const gzipAsync = promisify(gzip)
 const deflateAsync = promisify(deflate)
 
-// Keep the server's compressible content-type set stable across HTTP backend changes.
 const COMPRESSIBLE_CONTENT_TYPE_REGEX =
   /^\s*(?:text\/(?!event-stream(?:[;\s]|$))[^;\s]+|application\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\.dart|vnd\.ms-fontobject|vnd\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-www-form-urlencoded)|font\/(?:otf|ttf)|image\/(?:bmp|vnd\.adobe\.photoshop|vnd\.microsoft\.icon|vnd\.ms-dds|x-icon|x-ms-bmp)|message\/rfc822|model\/gltf-binary|x-shader\/x-fragment|x-shader\/x-vertex|[^;\s]+?\+(?:json|text|xml|yaml))(?:[;\s]|$)/i
 
@@ -16,7 +15,6 @@ const THRESHOLD_BYTES = 1024
 
 type Encoding = "gzip" | "deflate"
 
-// Loopback clients gain nothing from compression and would pay its CPU cost on every response.
 const LOOPBACK_HOST_REGEX = /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d+)?$/i
 
 function pickEncoding(acceptEncoding: string | undefined): Encoding | undefined {

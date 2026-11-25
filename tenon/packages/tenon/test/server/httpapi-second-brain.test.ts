@@ -43,7 +43,6 @@ const it = testEffect(Layer.mergeAll(appLayer, httpApiLayer, AppNodeBuilder.buil
 function request(route: string, init?: RequestInit) {
   const url = new URL(route, "http://localhost")
   return HttpClientRequest.fromWeb(new Request(url, init)).pipe(
-    // fromWeb already carries the query parameters; repeating url.search would send them twice.
     HttpClientRequest.setUrl(url.pathname),
     HttpClient.execute,
   )
@@ -75,7 +74,6 @@ describe("second brain project threads HttpApi", () => {
           headers,
           body: JSON.stringify({ name: "Alpha", outcome: "Ship alpha" }),
         }).pipe(Effect.flatMap(json<BrainProject.Info>))
-        // A Project created without a linked folder runs in its visible `projects/<name>` folder.
         const alphaDirectory = path.join(test.directory, alpha.location!.path!)
         expect(alpha.location?.path).toBe("projects/Alpha")
         yield* Effect.promise(() => mkdir(alphaDirectory, { recursive: true }))
@@ -83,7 +81,6 @@ describe("second brain project threads HttpApi", () => {
 
         const list = () =>
           request("/second-brain/project-threads", { headers }).pipe(Effect.flatMap(json<BrainProject.ThreadSummary[]>))
-        // Listing never turns opened Workspaces into Projects; only an explicit ensure does.
         const first = yield* list()
         expect(first).toHaveLength(1)
         const folder = first.find((item) => item.project.id === alpha.id)
@@ -167,7 +164,6 @@ describe("second brain project folders HttpApi", () => {
       expect(yield* post("/second-brain/projects/link")).toMatchObject({ folders: 1, created: 1 })
       const linked = (yield* threads()).find((entry) => entry.project.location?.path === outside)
       expect(linked).toMatchObject({ threadDirectory: outside, project: { status: "active" } })
-      // The link lives in the workspace manifest, so it survives a reload.
       const manifest = yield* Effect.promise(() =>
         Bun.file(path.join(test.directory, ".tenon", "workspace.json")).json(),
       )
@@ -257,7 +253,6 @@ describe("second brain errors and recovery HttpApi", () => {
       expect(
         yield* Effect.promise(() => readFile(path.join(test.directory, ".tenon", "calendar-v1.json"), "utf8")),
       ).toBe(calendar)
-      // The emptied legacy folder is gone too.
       expect(yield* Effect.promise(() => readdir(test.directory))).not.toContain(".second-brain")
     }),
   )

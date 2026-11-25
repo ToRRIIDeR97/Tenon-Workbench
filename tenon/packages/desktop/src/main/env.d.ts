@@ -2,7 +2,6 @@ interface ImportMetaEnv {
   readonly TENON_CHANNEL: string
   readonly MAIN_VITE_GOOGLE_CLIENT_ID?: string
   readonly MAIN_VITE_GOOGLE_CLIENT_SECRET?: string
-  /** A public Microsoft identity client for Outlook mail (desktop redirect http://localhost). */
   readonly MAIN_VITE_MICROSOFT_CLIENT_ID?: string
 }
 

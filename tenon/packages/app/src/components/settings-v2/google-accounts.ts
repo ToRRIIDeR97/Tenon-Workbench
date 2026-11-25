@@ -1,9 +1,5 @@
 import type { GoogleAccount, MailAccount } from "@/context/platform"
 
-/**
- * One row per Google address: its Gmail mail account and its Calendar connection, matched by address, so the
- * Accounts page shows one account with a switch for each. Calendar-only accounts get a row too.
- */
 export function googleAccountRows(mail: ReadonlyArray<MailAccount>, calendar: ReadonlyArray<GoogleAccount>) {
   const key = (address: string | undefined) => address?.trim().toLowerCase()
   const gmail = mail.filter((account) => account.provider === "gmail")

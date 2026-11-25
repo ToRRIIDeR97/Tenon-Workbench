@@ -1,18 +1,8 @@
-// Inspect mode for a canvas design (#326). The design is untrusted model HTML in a sandboxed frame, so the picker runs
-// inside it and only reports plain data back: a short CSS path, the tag, the element's text and where it sits. The
-// app draws the highlight, the note and the pins over the frame itself, and never trusts anything else the frame says.
-
-/** The message type the app and the picker share; replies add `:hover`, `:pick` or `:scroll`. */
 export const DESIGN_INSPECT = "tenon-design-inspect"
 
 export type Rect = { x: number; y: number; width: number; height: number }
 export type PickedDesignElement = { selector: string; tag: string; text: string; rect: Rect }
 
-/**
- * The picker, as plain script text (never a compiled function: a bundler's helpers wouldn't exist in the frame).
- * While the app has switched inspect on, it reports the hovered element's box, turns a click into a pick instead of
- * the design's own click handling, and reports scrolling so the app's pins follow the page.
- */
 export const designInspectScript = `<script>
 function tenonCssPath(el) {
   var parts = []
@@ -63,7 +53,6 @@ if (typeof document !== "undefined") (function () {
 })()
 </script>`
 
-/** A pick from the frame as plain, bounded data, with its box in page coordinates; anything else is undefined. */
 export function pickedDesignElement(data: unknown): PickedDesignElement | undefined {
   if (!isRecord(data) || data.type !== `${DESIGN_INSPECT}:pick`) return undefined
   if (typeof data.selector !== "string" || typeof data.tag !== "string" || typeof data.text !== "string")
@@ -78,13 +67,11 @@ export function pickedDesignElement(data: unknown): PickedDesignElement | undefi
   }
 }
 
-/** The hovered element's box from a `:hover` message (null when the highlight should clear), else undefined. */
 export function designInspectHover(data: unknown): Rect | null | undefined {
   if (!isRecord(data) || data.type !== `${DESIGN_INSPECT}:hover`) return undefined
   return data.rect === undefined ? null : toRect(data.rect)
 }
 
-/** The frame's scroll position from a `:scroll` message, else undefined. */
 export function designInspectScroll(data: unknown) {
   if (!isRecord(data) || data.type !== `${DESIGN_INSPECT}:scroll`) return undefined
   return toPoint(data.scroll)

@@ -7,10 +7,6 @@ export type ComputerUseState = {
   stopped?: number
 }
 
-/**
- * Who uses which computer use, by harness: Codex and Claude Code have their own; Tenon's built-in agent and the other
- * ACP harnesses get the Cua Driver through Tenon; anything else can't reach Tenon's tools and gets none.
- */
 export function computerUseByHarness(harnesses: ReadonlyArray<{ id: string; name: string; driver: string }>) {
   const result = { own: [] as string[], tenon: ["Tenon"], none: [] as string[] }
   for (const harness of harnesses) {
@@ -21,7 +17,6 @@ export function computerUseByHarness(harnesses: ReadonlyArray<{ id: string; name
   return result
 }
 
-/** macOS: the two grants the driver needs, each with its Privacy & Security pane. */
 export function grantRows(state: ComputerUseState) {
   return [
     {
@@ -37,7 +32,6 @@ export function grantRows(state: ComputerUseState) {
   ]
 }
 
-/** What the user still has to do for computer use to work, once the Project has it on (#333). */
 export function computerUseNotice(state: ComputerUseState): "install" | "permissions" | undefined {
   if (!state.enabled) return undefined
   if (!state.installed) return "install"
@@ -45,7 +39,6 @@ export function computerUseNotice(state: ComputerUseState): "install" | "permiss
   return undefined
 }
 
-/** The Cua Driver's own install command for the platform (cua.ai). */
 export function installCommand(platform: string) {
   return platform === "win32"
     ? "irm https://cua.ai/driver/install.ps1 | iex"

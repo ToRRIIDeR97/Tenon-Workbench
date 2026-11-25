@@ -1,4 +1,3 @@
-// Verification edge cases for AC-2 and AC-5 (written before implementation, frozen with the acceptance tests).
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
 import { Database } from "@tenon/core/database/database"

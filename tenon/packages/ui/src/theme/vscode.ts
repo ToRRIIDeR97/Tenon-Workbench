@@ -3,7 +3,6 @@ import type { DesktopTheme, HexColor, ThemePaletteColors } from "./types"
 type TokenColor = { scope?: string | string[]; settings?: { foreground?: string } }
 type VscodeTheme = { name?: string; type?: string; colors?: Record<string, string>; tokenColors?: TokenColor[] }
 
-/** VS Code theme files are JSON with comments and trailing commas. */
 export function parseJsonc(text: string): unknown {
   const stripped = text
     .replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_match, string?: string) => string ?? "")
@@ -11,7 +10,6 @@ export function parseJsonc(text: string): unknown {
   return JSON.parse(stripped)
 }
 
-/** `#rgb`, `#rrggbb` or `#rrggbbaa` as `#rrggbb`; anything else is undefined. */
 export function hex(value: string | undefined): HexColor | undefined {
   const match = value?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i)
   if (!match) return undefined
@@ -20,7 +18,6 @@ export function hex(value: string | undefined): HexColor | undefined {
   return `#${full.toLowerCase()}`
 }
 
-// Tenon syntax keys and the TextMate scopes that colour them, most specific first.
 const SYNTAX: Record<string, string[]> = {
   "syntax-comment": ["comment"],
   "syntax-keyword": ["keyword", "storage.type", "storage"],
@@ -34,12 +31,6 @@ const SYNTAX: Record<string, string[]> = {
   "syntax-punctuation": ["punctuation"],
 }
 
-/**
- * A VS Code colour theme as a Tenon theme. The editor's background and text, its button colour and the terminal's
- * ANSI colours fill Tenon's palette; `tokenColors` fill the syntax colours. Tenon has one variant per mode, so the
- * theme's own mode gets the colours and the other mode keeps them too (a dark theme stays dark in light mode).
- * Returns undefined when the file has no editor background and foreground.
- */
 export function vscodeToDesktopTheme(input: unknown, id: string): DesktopTheme | undefined {
   if (!input || typeof input !== "object") return undefined
   const theme = input as VscodeTheme
@@ -83,7 +74,6 @@ function syntaxOverrides(tokens: TokenColor[]) {
   )
 }
 
-/** A file name as a theme id: lower case, words joined by dashes, prefixed so it never shadows a built-in. */
 export const importedThemeId = (name: string) =>
   `vscode-${
     name

@@ -34,7 +34,6 @@ export interface DiffInput extends CompareInput {
 }
 
 export interface RestoreInput {
-  /** Paths are relative to the project root. */
   readonly files: ReadonlyMap<RelativePath, ID>
 }
 
@@ -43,43 +42,16 @@ export interface PreviewInput extends RestoreInput {
 }
 
 export interface Interface {
-  /**
-   * Capture the current Location-scoped filesystem state as a content-addressed
-   * tree. Returns `undefined` when snapshots are disabled, unsupported, or the
-   * best-effort capture fails.
-   */
   readonly capture: () => Effect.Effect<ID | undefined>
 
-  /**
-   * List project-relative paths changed between two captured trees without
-   * loading file contents or generating patches.
-   */
   readonly files: (input: CompareInput) => Effect.Effect<readonly RelativePath[], Error>
 
-  /**
-   * Generate structured per-file diffs between two captured trees. `context`
-   * controls unchanged lines around each unified diff hunk.
-   */
   readonly diff: (input: DiffInput) => Effect.Effect<readonly File.Diff[], Error>
 
-  /**
-   * Preview the filesystem result of a selective restore without modifying the
-   * worktree. Each project-relative path maps to the tree it would be restored
-   * from.
-   */
   readonly preview: (input: PreviewInput) => Effect.Effect<readonly File.Diff[], Error>
 
-  /**
-   * Restore selected project-relative paths from their associated trees. A path
-   * absent from its selected tree is removed; paths outside the map are untouched.
-   */
   readonly restore: (input: RestoreInput) => Effect.Effect<void, Error>
 
-  /**
-   * Replace the snapshot index with a captured tree and check out all its entries.
-   * Files absent from the tree remain untouched. Prefer selective `restore` when
-   * only known paths should change.
-   */
   readonly checkout: (snapshot: ID) => Effect.Effect<void, Error>
 }
 
@@ -94,8 +66,6 @@ const layer = Layer.effect(
     const global = yield* Global.Service
     const location = yield* Location.Service
     let source = yield* git.repo.discover(location.project.directory)
-    // A folder outside any git repository is snapshotted on its own, in the same private git folder layout, unless
-    // it is the home folder or a filesystem root.
     const standalone = !isBroadFolder(location.directory, os.homedir())
     let worktree = source
       ? AbsolutePath.make(yield* fs.realPath(source.worktree).pipe(Effect.orDie))
@@ -129,7 +99,6 @@ const layer = Layer.effect(
 
     const enabled = Effect.fnUntraced(function* () {
       if (Config.latest(yield* config.entries(), "snapshots") === false) return false
-      // Git can be initialized after this Location was opened.
       if (!source) {
         source = yield* git.repo.discover(location.directory)
         if (!source) return standalone
@@ -269,7 +238,6 @@ function failure(operation: Error["operation"], cause: unknown) {
   })
 }
 
-/** Legacy persisted session diff shape. */
 export type LegacyFileDiff = {
   file?: string
   patch?: string

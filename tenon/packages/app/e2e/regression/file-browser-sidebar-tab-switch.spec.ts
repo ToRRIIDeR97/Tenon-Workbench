@@ -9,13 +9,10 @@ const sessionID = "ses_file_browser_sidebar"
 const title = "File browser sidebar"
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const files = Array.from({ length: 80 }, (_, index) => `file-${String(index).padStart(2, "0")}.ts`)
-// Marks the file-browser sidebar DOM node so a remount (fresh node) is detectable.
 const PROBE = "original"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-// The file-browser sidebar must stay mounted across preview/pinned file-tab
-// switches. Remounting resets scroll and filter state.
 test("keeps the file-browser sidebar mounted when switching file tabs", async ({ page }) => {
   await setup(page)
 
@@ -179,7 +176,6 @@ async function setup(
       )
       localStorage.setItem(
         "tenon.global.dat:layout",
-        // A side panel wide enough to keep the file tree beside the viewer instead of collapsing it.
         JSON.stringify({ review: { diffStyle: "split", panelOpened: true }, sidePanel: { width: 720 } }),
       )
       localStorage.setItem(

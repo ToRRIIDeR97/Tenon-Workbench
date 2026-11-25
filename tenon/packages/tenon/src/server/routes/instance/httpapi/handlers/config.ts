@@ -36,7 +36,6 @@ export const configHandlers = HttpApiBuilder.group(InstanceHttpApi, "config", (h
 
     const approveFolder = Effect.fn("ConfigHttpApi.approveFolder")(function* () {
       yield* configSvc.approveFolder()
-      // Disposal also reopens the location, so both config readers start over.
       yield* markInstanceForDisposal(yield* InstanceState.context)
       return { root: (yield* configSvc.trust()).root, trusted: true, withheld: [] }
     })

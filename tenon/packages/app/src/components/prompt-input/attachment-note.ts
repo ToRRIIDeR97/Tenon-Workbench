@@ -2,9 +2,6 @@ import { createStore } from "solid-js/store"
 import { documentKind, frameTimes, mediaPlan, slideCount, type ModelInputs } from "./attachment-media"
 import { mediaDuration } from "./attachment-prepare"
 
-// What an attachment's card says about how it will reach the model (#330, variant A): the plan for the selected
-// model's inputs, with the clip's length, how many frames a video becomes, or how many slides a deck has.
-
 export type NoteDetails = { seconds?: number; slides?: number }
 type Key =
   | "secondBrain.attachment.videoFile"
@@ -20,7 +17,6 @@ type Key =
 const clock = (seconds: number | undefined) =>
   seconds === undefined ? "…" : `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`
 
-/** The card's line as an i18n key and its values; undefined for a file sent as it is that needs no note. */
 export function attachmentNote(
   mime: string,
   inputs: ModelInputs,
@@ -55,7 +51,6 @@ export function attachmentNote(
   return undefined
 }
 
-/** Length and slide counts, read once per attachment in the background. */
 export function createNoteDetails() {
   const [details, setDetails] = createStore<Record<string, NoteDetails>>({})
   const started = new Set<string>()

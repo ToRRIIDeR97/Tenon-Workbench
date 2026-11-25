@@ -2,10 +2,8 @@ import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
-/** A dropped folder goes out as a directory mention; the server lists it for the agent. */
 const FOLDER_MIME = "application/x-directory"
 
-// Video, audio and documents are accepted too (#330); the app turns what a model can't read into frames or text.
 const mediaExtensions = new Map([
   ["mp4", "video/mp4"],
   ["m4v", "video/x-m4v"],
@@ -39,7 +37,6 @@ const mediaExtensions = new Map([
 ])
 const mediaMimes = new Set(mediaExtensions.values())
 
-/** What the composer's file picker offers. */
 export const acceptedAttachments = [
   "video/*",
   "audio/*",
@@ -122,10 +119,6 @@ export type PromptInputV2AttachmentConfig = {
   store?: (file: File) => Promise<{ id: string; url: string }>
 }
 
-/**
- * A drop's folders and files. A folder dragged from the file manager arrives as an empty, typeless File; only its
- * entry says it is a directory, and only while the drop event runs, so this is read before anything awaits.
- */
 export function sortDrop(transfer: DataTransfer | null | undefined) {
   const items = Array.from(transfer?.items ?? []).flatMap((item) => {
     if (item.kind !== "file") return []
@@ -139,7 +132,6 @@ export function sortDrop(transfer: DataTransfer | null | undefined) {
   }
 }
 
-/** A dropped folder as a directory mention (`@name`) carrying its full path, or undefined without a path. */
 export function folderMention(file: File, path: string | undefined) {
   if (!path) return
   return {
@@ -177,8 +169,6 @@ export function createPromptInputV2Attachments(
     }
     const blob = input.store ? await input.store(file) : await blobReference(file)
     const sourcePath = input.getPathForFile?.(file) || undefined
-    // Native clipboard images arrive with a fresh timestamped filename on every paste, so identical
-    // clipboard content is matched on bytes alone.
     const duplicate = target.prompt
       .current()
       .some(
@@ -252,8 +242,6 @@ export function createPromptInputV2Attachments(
     event.preventDefault()
     input.setDraggingType(null)
     const plainText = event.dataTransfer?.getData("text/plain")
-    // A thread row dragged from the sidebar ("thread:<id>\n<title>") becomes a thread reference; the
-    // server swaps the tenon-thread:// attachment for that thread's text (app utils/thread-reference.ts).
     if (plainText?.startsWith("thread:")) {
       const [id = "", ...rest] = plainText.slice("thread:".length).split("\n")
       const title = rest.join(" ").trim() || id
@@ -278,7 +266,6 @@ export function createPromptInputV2Attachments(
     }
     const drop = sortDrop(event.dataTransfer)
     drop.folders.forEach((file) => {
-      // The desktop shell knows a dropped folder's path; a browser doesn't, and then it can't be referenced.
       const part = folderMention(file, input.getPathForFile?.(file))
       if (!part) return input.warn()
       input.focusEditor()

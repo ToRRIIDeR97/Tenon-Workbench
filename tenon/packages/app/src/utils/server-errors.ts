@@ -29,7 +29,6 @@ export function formatServerError(error: unknown, translate?: Translator, fallba
   const unwrapped = unwrapNamedError(error)
   if (isConfigInvalidErrorLike(unwrapped)) return parseReadableConfigInvalidError(unwrapped, translate)
   if (isProviderModelNotFoundErrorLike(unwrapped)) return parseReadableProviderModelNotFoundError(unwrapped, translate)
-  // Transport errors carry only their tag ("UnexpectedStatus", "RequestError") as the message: show a sentence.
   if (error instanceof Error && isErrorTag(error.message)) return fallback ?? readableRequestError(translate)
   if (error instanceof Error && error.message) return error.message
   if (typeof error === "string" && error) return error
@@ -52,8 +51,6 @@ function readableRequestError(translate?: Translator) {
 const ERROR_TOAST_WINDOW_MS = 10_000
 const errorToasts = new Map<string, number>()
 
-// When a server goes away every open Project fails the same way. Callers pass a key naming the
-// server and error kind, and only the first claim within the window shows a toast.
 export function claimErrorToast(kind: string, now = Date.now()) {
   for (const [key, at] of errorToasts) {
     if (now - at >= ERROR_TOAST_WINDOW_MS) errorToasts.delete(key)
@@ -70,10 +67,6 @@ function unwrapNamedError(error: unknown): unknown {
   return error
 }
 
-// Client-synthesized session not-found errors share one constructor and
-// predicate so the message contract cannot drift between the sync store
-// (server-session.ts), the route lineage (session-lineage.ts), and the
-// not-found fallback matching (session.tsx).
 const sessionNotFoundMessage = (sessionID: string) => `Session not found: ${sessionID}`
 
 export function sessionNotFoundError(sessionID: string) {
@@ -84,8 +77,6 @@ export function isLocalSessionNotFoundError(error: unknown, sessionID: string) {
   return error instanceof Error && error.message === sessionNotFoundMessage(sessionID)
 }
 
-// The promise client throws declared error bodies as plain objects, and Solid's
-// ErrorBoundary wraps non-Error values as `new Error("Unknown error", { cause })`.
 export function isSessionNotFoundError(error: unknown, sessionID: string) {
   const candidates = [unwrapNamedError(error), error instanceof Error ? error.cause : undefined]
   return candidates.some((candidate) => {
@@ -95,7 +86,6 @@ export function isSessionNotFoundError(error: unknown, sessionID: string) {
   })
 }
 
-// A server 404 for a missing resource, e.g. a session already deleted along with its parent.
 export function isServerNotFoundError(error: unknown) {
   const candidates = [unwrapNamedError(error), error instanceof Error ? error.cause : undefined]
   return candidates.some(
@@ -107,7 +97,6 @@ export function isServerNotFoundError(error: unknown) {
   )
 }
 
-/** The server's answer when a request names a workspace folder that was moved or deleted. */
 export function isWorkspaceFolderMissing(error: unknown) {
   return [error, unwrapNamedError(error)].some(
     (candidate) =>

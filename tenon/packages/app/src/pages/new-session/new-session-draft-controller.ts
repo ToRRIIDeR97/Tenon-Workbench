@@ -69,8 +69,6 @@ export function createNewSessionDraftController(workspace: { worktree: () => str
     })
   })
 
-  // A draft started from Home sends once the prompt and harness list have loaded. If the harness it
-  // was started with is no longer available, the prompt stays in the composer instead.
   createEffect(() => {
     const draftID = searchParams.draftId
     if (!draftID || !prompt.ready() || !harness.instances() || harness.loading()) return

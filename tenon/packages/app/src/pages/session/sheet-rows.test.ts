@@ -27,7 +27,6 @@ describe("sheetRows", () => {
   }
 
   test("shows ods date cells as the spreadsheet's own date and time", async () => {
-    // Berlin skips 02:00-03:00 on 2024-03-31; a local-time conversion would show 03:30.
     const zone = process.env.TZ
     process.env.TZ = "Europe/Berlin"
     try {

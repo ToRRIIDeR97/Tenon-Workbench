@@ -28,15 +28,9 @@ export type EffectSQLiteRunResult = readonly never[]
 export interface EffectSQLiteSessionOptions {
   logger: EffectLoggerShape
   cache: EffectCacheShape
-  /** Include bound values in `EffectDrizzleQueryError`. Off by default: values can hold secrets. */
   paramsInErrors?: boolean
 }
 
-/**
- * Runs Drizzle's Effect SQLite query builders (`drizzle-orm/sqlite-core/effect`) on a generic Effect `SqlClient`.
- * Upstream's `drizzle-orm/effect-sqlite-bun` and `-node` drivers do the same, but each requires its own
- * `@effect/sql-sqlite-*` client service.
- */
 export class EffectSQLiteSession<TRelations extends AnyRelations> extends SQLiteEffectSession<
   EffectSQLiteRunResult,
   EffectSQLiteQueryEffectHKT,
@@ -89,12 +83,6 @@ export class EffectSQLiteSession<TRelations extends AnyRelations> extends SQLite
     )
   }
 
-  /**
-   * Runs `transaction` through `SqlClient.withTransaction`, so the client's transaction handling applies:
-   * savepoints for nested calls, rollback on failure or interruption, and cleanup after a failed COMMIT.
-   * `config.behavior` picks the top-level `BEGIN` statement; without it the client's default is used.
-   * Nested calls ignore `config` and open a savepoint.
-   */
   override transaction<A, E, R>(
     transaction: (tx: EffectSQLiteTransaction<TRelations>) => Effect.Effect<A, E, R>,
     config?: SQLiteTransactionConfig,
@@ -116,7 +104,6 @@ export class EffectSQLiteTransaction<TRelations extends AnyRelations> extends SQ
 > {
   static override readonly [entityKind]: string = "EffectSQLiteTransaction"
 
-  /** Opens a savepoint inside the current transaction. */
   override transaction<A, E, R>(
     transaction: (
       tx: SQLiteEffectTransaction<EffectSQLiteQueryEffectHKT, EffectSQLiteRunResult, TRelations>,

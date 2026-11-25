@@ -7,7 +7,6 @@ import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionExecution } from "../execution"
 
-/** Current-process routing for implicit-local Locations. Future remote placement belongs here. */
 const layer = Layer.effect(
   SessionExecution.Service,
   Effect.gen(function* () {

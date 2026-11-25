@@ -20,8 +20,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// P3 · Vault (implementations/notes-command-centre/implementation.md, AC-3.1 … AC-3.8)
-
 const noopBootstrapLayer = Layer.succeed(
   InstanceBootstrapService.Service,
   InstanceBootstrapService.Service.of({ run: Effect.void }),
@@ -59,7 +57,6 @@ type Page = {
   revision: string
 }
 
-// Every test gets its own vault root.
 const withVault = Effect.gen(function* () {
   const test = yield* TestInstance
   const root = yield* tmpdirScoped()
@@ -240,7 +237,6 @@ describe("vault", () => {
       const files = yield* Effect.promise(() => walk(root))
       const own = files.find((file) => file.split(path.sep).includes("log") && file.endsWith(".md"))
       expect(own).toBeDefined()
-      // Another machine's log, synced in.
       yield* Effect.promise(() =>
         writeFile(
           path.join(path.dirname(own!), "other-machine.md"),
@@ -323,7 +319,6 @@ describe("vault", () => {
         await writeFile(path.join(folder, "Plan.md"), "# Plan")
         await writeFile(path.join(folder, "Plan-DESKTOP-ABC123.md"), "# Plan v2")
         await writeFile(path.join(folder, "Plan-LAPTOP-9F2K1-2.md"), "# Plan v3")
-        // An ordinary hyphenated name is not a conflict copy.
         await writeFile(path.join(folder, "Desktop-setup.md"), "# Setup")
       })
       const conflicts = yield* request("/second-brain/vault/conflicts", { headers }).pipe(
@@ -347,7 +342,6 @@ describe("vault", () => {
         await writeFile(path.join(test.directory, "notes", "a.md"), "# A")
         await writeFile(path.join(test.directory, "notes", "b.md"), "# B")
       })
-      // The migrate route and the move a first vault request makes start together.
       const [migrated, listed] = yield* Effect.all(
         [
           request("/second-brain/vault/migrate", { method: "POST", headers }).pipe(

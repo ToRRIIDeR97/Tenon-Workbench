@@ -41,26 +41,17 @@ function isAllowedDataMime(kind: ViewerKind, mimeType: string | undefined) {
   return false
 }
 
-// Tables stop here; the source view still has every row.
 const MAX_ROWS = 500
 
-/**
- * Renders markdown, tables, JSON, PDF, video, spreadsheets and Word documents in the file tab.
- * `source` shows the file as text (the regular viewer), for kinds that have a rendered/source switch.
- */
 export function FileViewer(props: {
   kind: ViewerKind
   directory: string
   path: string
-  /** The file as the server read it: text, or base64 for binary files. */
   content?: { content: string; encoding?: string; mimeType?: string }
   source: () => JSX.Element
   onReady?: () => void
-  /** The file as Tenon writes it (live mode), or once it has saved this view's write. */
   live?: { text?: string; writing: boolean }
-  /** Blocks to flash after a write or edit finished: the text before and after it. */
   flash?: { id: number; before: string; after: string }
-  /** `source()` shows the agent's tracked edits (live while an edit streams) instead of the raw text. */
   tracked?: boolean
 }) {
   onMount(() => props.onReady?.())
@@ -68,14 +59,12 @@ export function FileViewer(props: {
   const platform = usePlatform()
   const [mode, setMode] = createSignal<"rendered" | "source">("rendered")
   const textKind = () => props.kind === "markdown" || props.kind === "csv" || props.kind === "json"
-  // Large binaries come through the desktop's tenon-file:// URL; elsewhere, the base64 the server read.
   const [url] = createResource(
     () => (textKind() ? undefined : { directory: props.directory, path: props.path, kind: props.kind }),
     async (input) => {
       if (platform.fileViewerURL) {
         const desktopUrl = await platform.fileViewerURL(input.directory, input.path).catch(() => undefined)
         if (desktopUrl) return desktopUrl
-        // On Desktop, if fileViewerURL refused (e.g. symlink extension mismatch), never fall back to data: for PDFs.
         if (input.kind === "pdf") return undefined
       }
       if (props.content?.encoding === "base64" && isAllowedDataMime(input.kind, props.content.mimeType)) {
@@ -155,12 +144,10 @@ export function FileViewer(props: {
             <JsonView text={text()} fallback={props.source} />
           </Match>
           <Match when={props.kind === "pdf" && url()}>
-            {/* Chromium's PDF viewer: pages, zoom, search and text selection. */}
             <iframe class="min-h-[70vh] w-full flex-1 border-0" src={url()} title={props.path} />
           </Match>
           <Match when={props.kind === "video" && url()}>
             <div class="flex justify-center px-4 pb-40">
-              {/* Fixed black: the letterbox around a video stays black in either theme. */}
               <video class="max-h-[70vh] max-w-full rounded-xl bg-[#000]" src={url()} controls preload="metadata" />
             </div>
           </Match>
@@ -220,7 +207,6 @@ function Table(props: { rows: string[][]; header?: boolean }) {
   )
 }
 
-/** Splits CSV/TSV text, honouring quoted fields with embedded delimiters, quotes and newlines. */
 export function parseDelimited(text: string, delimiter: string) {
   const rows: string[][] = []
   let row: string[] = []
@@ -304,7 +290,6 @@ function JsonNode(props: { name?: string; value: unknown; depth: number }): JSX.
   )
 }
 
-// A file that can't be read or parsed shows the viewer's "can't be shown" text, never an app error.
 async function bytesOf(url: string) {
   const response = await fetch(url).catch(() => undefined)
   if (!response?.ok) return
@@ -371,7 +356,6 @@ function Doc(props: { url: string }) {
       if (!bytes) return ""
       const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer as ArrayBuffer }).catch(() => undefined)
       if (!result) return ""
-      // Workspace content is untrusted: scripts and remote loads are stripped before it reaches the page.
       return sanitizeMarkdown(result.value)
     },
   )
@@ -399,7 +383,6 @@ function Doc(props: { url: string }) {
   )
 }
 
-/** The raw text while Tenon writes it, with the caret at its end. */
 export function LiveSource(props: { text: string }) {
   let pre: HTMLPreElement | undefined
   return (

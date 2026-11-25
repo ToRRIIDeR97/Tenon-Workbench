@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { captionChanges, dictationLanguageName, replaceBeforeCaret } from "./dictation-review"
 
-// #328: the caption names the language in use, and a final transcript that differs from it is flagged and can be
-// swapped back.
 describe("dictationLanguageName", () => {
   test("AC-4 a language code is named in the app's language", () => {
     expect(dictationLanguageName("en", "en")).toBe("English")
@@ -64,7 +62,6 @@ describe("replaceBeforeCaret", () => {
   })
 })
 
-// AC-6 also covers the textarea composers (Home, the Command Centre page and card), not just the thread's editor.
 describe("replaceBeforeCaret in a textarea", () => {
   const field = (text: string) => {
     document.body.innerHTML = ""

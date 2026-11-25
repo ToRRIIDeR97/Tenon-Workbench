@@ -54,16 +54,11 @@ export default function BrainHomePage() {
     target: { directory },
   })
 
-  // The sidebar workspace switcher owns this choice; the page only follows it.
   const directory = () => layout.home.workspace() ?? ""
 
-  // Usage left per harness, for the Home card. The server caches each harness's answer for a minute.
   const [usageTick, setUsageTick] = createSignal(0)
   const usageTimer = setInterval(() => setUsageTick((value) => value + 1), 60_000)
   onCleanup(() => clearInterval(usageTimer))
-  // A failed check keeps the last answer (or none): reading an errored resource would throw and take Home down.
-  // It starts empty, so reading it never suspends Home while the server asks every harness for its usage (slow on a
-  // first start).
   let lastUsage: Awaited<ReturnType<typeof listHarnessUsage>> = []
   const [usage] = createResource(
     () => (directory() ? { directory: directory(), tick: usageTick() } : undefined),
@@ -77,12 +72,9 @@ export default function BrainHomePage() {
   const usageReports = createMemo(() =>
     (usage.latest ?? []).filter((report) => report.status === "available" && report.windows.length > 0),
   )
-  // The usage card names each harness from the last harness list the server gave for this workspace.
   const harnessName = (id: string) =>
     rememberedHarnesses(serverSDK().server.http.url, directory())?.find((item) => item.id === id)?.name ?? id
 
-  // First run: offer the built-in agent setup once, unless every built-in agent is already installed and signed in.
-  // It runs in the server's non-project assistant folder, so a new user needs no workspace for it.
   const dialog = useDialog()
   createEffect(() => {
     if (!settings.ready() || settings.harnesses.setupPrompted()) return
@@ -99,9 +91,7 @@ export default function BrainHomePage() {
   })
 
   const projects = useBrainProjects()
-  // Cached per workspace, so Today paints at launch and a background sync updates it in place.
   const calendar = createCalendarResource(() => directory() || undefined, client)
-  // A window left open overnight moves to the new day when it next takes focus.
   const [today, setToday] = createSignal(localDateKey(new Date()))
   makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
   const [google, googleActions] = createResource(async () => platform.googleCalendar?.status())
@@ -121,7 +111,6 @@ export default function BrainHomePage() {
   )
   const projectNames = createMemo(() => new Map((projects.list() ?? []).map((project) => [project.id, project.name])))
   const allToday = createMemo<TodayItem[]>(() => {
-    // A failure shows inline below instead.
     const snapshot = calendar.snapshot()
     const day = today()
     const events = (snapshot?.events ?? [])
@@ -149,7 +138,6 @@ export default function BrainHomePage() {
       .filter((record) => !!agentRunStatus(data.session_status[record.session.id], needsYou(data, record.session.id)))
   })
 
-  // Recent threads that aren't already under Running work, from every open folder.
   const resumeSessions = createMemo(() => {
     const running = new Set(runningSessions().map((record) => record.session.id))
     return tenonSessions.data
@@ -190,14 +178,10 @@ export default function BrainHomePage() {
           </PageEmpty>
         }
       >
-        {/* The same new-thread layout as a draft: the greeting, then a composer whose top row says where the
-            thread runs and whose one pill picks the harness, model, reasoning and speed. It scales with the window. */}
         <div class="@container">
           <div
             class={`mx-auto flex ${NEW_SESSION_CONTENT_WIDTH} flex-col gap-[clamp(24px,4vh,48px)] px-6 pb-12 pt-[12vh]`}
           >
-            {/* The greeting, then the thread composer itself: its top row says where the thread runs and its one
-                pill picks the harness, model, reasoning and speed. */}
             <HomeComposer directory={directory()} />
 
             <RevealShow when={!!(projects.failed() || calendar.error())}>
@@ -241,8 +225,6 @@ export default function BrainHomePage() {
               </section>
             </Show>
 
-            {/* Runs start and stop live: the section opens and closes, and a run that starts later enters.
-              The column gap moves inside the reveal (-mt-8 / pt-8), so a closed section takes no room. */}
             <Reveal open={runningSessions().length > 0} class="-mt-8">
               <PageSection
                 class="pt-8"
@@ -284,7 +266,6 @@ export default function BrainHomePage() {
               </PageSection>
             </Reveal>
 
-            {/* Today stays once the calendar has loaded, with a one-line row when nothing is due. */}
             <Show when={calendar.snapshot()}>
               <PageSection
                 id="brain-home-today"
@@ -344,7 +325,6 @@ export default function BrainHomePage() {
                               )}
                             </Show>
                           </button>
-                          {/* Beside the row's button, since a checkbox can't sit inside one. */}
                           <Show when={item.kind === "task" && item.value}>
                             {(task) => (
                               <span class="absolute inset-y-0 left-3 flex w-12 items-center">
@@ -371,7 +351,6 @@ export default function BrainHomePage() {
               </PageSection>
             </Show>
 
-            {/* One line per harness: its fullest plan window. Harnesses without plan windows are left out. */}
             <Show when={usageReports().length > 0}>
               <PageSection id="brain-home-usage" title={language.t("secondBrain.home.usage")}>
                 <ul class="flex flex-col">

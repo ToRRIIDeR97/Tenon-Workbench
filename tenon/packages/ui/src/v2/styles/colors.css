@@ -1,6 +1,5 @@
 @layer theme {
   :root {
-    /* ── Grey ── */
     --v2-grey-50: #ffffffff;
     --v2-grey-100: #fafafaff;
     --v2-grey-200: #f2f2f2ff;
@@ -15,7 +14,6 @@
     --v2-grey-1100: #161616ff;
     --v2-grey-1200: #080808ff;
 
-    /* ── Alpha Dark ── */
     --v2-alpha-dark-100: #000000ff;
     --v2-alpha-dark-90: #000000e5;
     --v2-alpha-dark-80: #000000cc;
@@ -36,7 +34,6 @@
     --v2-alpha-dark-2: #00000005;
     --v2-alpha-dark-0: #00000000;
 
-    /* ── Alpha Light ── */
     --v2-alpha-light-100: #ffffffff;
     --v2-alpha-light-90: #ffffffe5;
     --v2-alpha-light-80: #ffffffcc;
@@ -57,7 +54,6 @@
     --v2-alpha-light-2: #ffffff05;
     --v2-alpha-light-0: #ffffff00;
 
-    /* ── Red ── */
     --v2-red-100: #fcecebff;
     --v2-red-200: #f6d5d3ff;
     --v2-red-300: #f2bbb7ff;
@@ -71,7 +67,6 @@
     --v2-red-1100: #5f1a1cff;
     --v2-red-1200: #461516ff;
 
-    /* ── Orange ── */
     --v2-orange-100: #fdf2edff;
     --v2-orange-200: #ffe7dcff;
     --v2-orange-300: #ffd8c6ff;
@@ -85,7 +80,6 @@
     --v2-orange-1100: #723d22ff;
     --v2-orange-1200: #5a2c14ff;
 
-    /* ── Yellow ── */
     --v2-yellow-100: #fefaecff;
     --v2-yellow-200: #fcefd0ff;
     --v2-yellow-300: #f7e5b5ff;
@@ -99,7 +93,6 @@
     --v2-yellow-1100: #68552bff;
     --v2-yellow-1200: #4b4025ff;
 
-    /* ── Green ── */
     --v2-green-100: #e7f9eaff;
     --v2-green-200: #d0f0d5ff;
     --v2-green-300: #b8e9c1ff;
@@ -113,7 +106,6 @@
     --v2-green-1100: #164c26ff;
     --v2-green-1200: #14361dff;
 
-    /* ── Cyan ── */
     --v2-cyan-100: #e2f7fbff;
     --v2-cyan-200: #c4edf4ff;
     --v2-cyan-300: #a3e4efff;
@@ -127,7 +119,6 @@
     --v2-cyan-1100: #004756ff;
     --v2-cyan-1200: #00353fff;
 
-    /* ── Blue ── */
     --v2-blue-100: #ecf1feff;
     --v2-blue-200: #d7e2fcff;
     --v2-blue-300: #c3d4fdff;
@@ -141,7 +132,6 @@
     --v2-blue-1100: #1c2e70ff;
     --v2-blue-1200: #1b2852ff;
 
-    /* ── Purple ── */
     --v2-purple-100: #ebecfeff;
     --v2-purple-200: #d5d5fcff;
     --v2-purple-300: #b9b8f5ff;
@@ -155,7 +145,6 @@
     --v2-purple-1100: #2b1b6aff;
     --v2-purple-1200: #221358ff;
 
-    /* ── Pink ── */
     --v2-pink-100: #fdecf3ff;
     --v2-pink-200: #f7d5e4ff;
     --v2-pink-300: #fabcd8ff;

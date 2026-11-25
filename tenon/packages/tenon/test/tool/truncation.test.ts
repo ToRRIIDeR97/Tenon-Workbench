@@ -124,8 +124,6 @@ describe("Truncate", () => {
         }),
       )
 
-      // Huge byte budget isolates line truncation. 100 lines against max_lines: 10
-      // proves the configured line limit is what `output()` enforces.
       const lineIt = configuredIt({ tool_output: { max_lines: 10, max_bytes: 1024 * 1024 } })
       lineIt.live("output() truncates to configured max_lines", () =>
         Effect.gen(function* () {
@@ -136,7 +134,6 @@ describe("Truncate", () => {
         }),
       )
 
-      // Huge line budget isolates byte truncation.
       const byteIt = configuredIt({ tool_output: { max_lines: 1_000_000, max_bytes: 100 } })
       byteIt.live("output() truncates to configured max_bytes", () =>
         Effect.gen(function* () {

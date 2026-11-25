@@ -12,7 +12,6 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
     if (props.status.type !== "retry") return
     return props.status
   })
-  // Keeps the last retry so the card keeps its text while it collapses.
   const retry = createMemo<Extract<SessionStatus, { type: "retry" }> | undefined>((last) => live() ?? last)
   const [seconds, setSeconds] = createSignal(0)
   createEffect(
@@ -28,7 +27,6 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
       onCleanup(() => clearInterval(timer))
     }),
   )
-  // A provider error without a message (OpenCode's free-usage limit) still reaches here as a retry.
   const text = () => retry()?.message ?? ""
   const message = createMemo(() => {
     const current = text()

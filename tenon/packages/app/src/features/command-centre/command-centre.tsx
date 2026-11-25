@@ -29,11 +29,9 @@ export type CommandThread = {
   title: string
   directory: string
   updated: number
-  /** The server's session, for the thread actions the sidebar controller runs. */
   session: ReturnType<typeof normalizeSessionInfo>
 }
 export type CommandMessage = { id: string; role: "user" | "assistant"; text: string; done: boolean }
-/** What a new thread runs on, from the composer's model pill; without it the Settings default applies. */
 export type CommandChoice = {
   harnessID: Harness.InstanceID
   harnessModel?: Harness.ModelSelection
@@ -43,18 +41,15 @@ export type CommandChoice = {
 const DAY = 24 * 60 * 60 * 1000
 const HOUR = 60 * 60 * 1000
 
-/** `<vault root>/.command-centre`, in the root's own separator style. */
 export function commandDirectoryFor(root: string) {
   const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/"
   return `${root.replace(/[\\/]+$/, "")}${separator}.command-centre`
 }
 
-/** Whether a thread's folder is the Command Centre's (`<vault root>/.command-centre`). */
 export function isCommandThread(directory: string | undefined) {
   return !!directory && /(^|[\\/])\.command-centre[\\/]*$/.test(directory)
 }
 
-/** Directory equality across separators, trailing slashes and (Windows) letter case. */
 export function sameDirectory(left: string | undefined, right: string | undefined) {
   if (!left || !right) return false
   const fold = (value: string) => {
@@ -64,36 +59,22 @@ export function sameDirectory(left: string | undefined, right: string | undefine
   return fold(left) === fold(right)
 }
 
-/** A `provider/model` model id as the server's ModelChoice. */
 export function modelChoice(modelID: string | undefined): ModelChoice | undefined {
   const index = modelID?.indexOf("/") ?? -1
   if (!modelID || index <= 0 || index === modelID.length - 1) return undefined
   return { providerID: modelID.slice(0, index), modelID: modelID.slice(index + 1) }
 }
 
-/**
- * The writes of a thread's current turn: those since its latest user message (all of them when no
- * message is known yet), oldest first.
- */
 export function turnWrites(writes: ReadonlyArray<AgentWrite>, turnStart: number | undefined) {
   return writes.filter((write) => turnStart === undefined || write.at >= turnStart)
 }
 
-/**
- * A thread's label: its title once the server has named it, else its first message (one line, cut at 80
- * characters), else nothing so the caller shows its own placeholder. New threads are titled "New session -
- * <ISO time>" until the title model answers.
- */
 export function threadLabel(title: string, firstMessage: string | undefined) {
   if (title && !/^New session - \d{4}-\d{2}-\d{2}T/.test(title)) return title
   const line = firstMessage?.trim().replace(/\s+/g, " ") ?? ""
   return line.length > 80 ? `${line.slice(0, 79)}…` : line
 }
 
-/**
- * Whether a thread's agent is still working: the server says it is busy, its last reply isn't complete, or
- * the last message is the user's and no reply has started yet.
- */
 export function threadWorking(
   status: string | undefined,
   messages: ReadonlyArray<Pick<CommandMessage, "role" | "done">>,
@@ -103,14 +84,12 @@ export function threadWorking(
   return last !== undefined && (!last.done || (last.role === "user" && status === undefined))
 }
 
-/** The synced messages and parts a thread's transcript is read from. */
 export type CommandTranscript = {
   message: Record<string, ReadonlyArray<Message> | undefined>
   part: Record<string, ReadonlyArray<Part> | undefined>
   part_text_accum_delta: Record<string, string>
 }
 
-/** A thread's whole transcript, oldest first. */
 export function commandMessages(data: CommandTranscript, sessionID: string | undefined): CommandMessage[] {
   if (!sessionID) return []
   return (data.message[sessionID] ?? []).flatMap((message) => {
@@ -119,58 +98,43 @@ export function commandMessages(data: CommandTranscript, sessionID: string | und
   })
 }
 
-/** The thread's last user message on one line: what was asked, shown above the reply. */
 export function lastAskText(data: CommandTranscript, sessionID: string | undefined) {
   const ask = sessionID ? data.message[sessionID]?.findLast((message) => message.role === "user") : undefined
   return ask ? messageText(data, ask.id).trim().replace(/\s+/g, " ") : ""
 }
 
-/**
- * The thread's last assistant reply as the agent wrote it (Markdown, line breaks kept), reading only that
- * message's parts. The card and the desktop widget render it; flattening it would run lists into one line.
- */
 export function lastReplyText(data: CommandTranscript, sessionID: string | undefined) {
   const reply = sessionID ? data.message[sessionID]?.findLast((message) => message.role === "assistant") : undefined
   return reply ? messageText(data, reply.id).trim() : ""
 }
 
-/** `threadWorking` from the thread's last message alone, which needs no text. */
 export function commandWorking(status: string | undefined, data: CommandTranscript, sessionID: string) {
   const last = data.message[sessionID]?.findLast((message) => messageState(message) !== undefined)
   const state = last && messageState(last)
   return threadWorking(status, state ? [state] : [])
 }
 
-/** `threadLabel`, reading the first user message only when the thread has no title of its own. */
 export function commandLabel(title: string, data: CommandTranscript, sessionID: string) {
-  // Without a first message, threadLabel returns a real title as is and "" for none or the placeholder.
   if (threadLabel(title, undefined)) return title
   const first = data.message[sessionID]?.find((message) => message.role === "user")
   return threadLabel(title, first && messageText(data, first.id))
 }
 
-/** A user or assistant message's role and whether it is complete; other messages are not shown. */
 function messageState(message: Message) {
   if (message.role !== "user" && message.role !== "assistant") return undefined
   return { role: message.role, done: message.role === "user" || message.time.completed !== undefined }
 }
 
-/** A message's text parts, streamed text included, one per line. */
 export function messageText(data: CommandTranscript, messageID: string) {
   return (data.part[messageID] ?? [])
     .flatMap((part) => (part.type === "text" ? [readPartText(data.part_text_accum_delta, part)] : []))
     .join("\n")
 }
 
-/** Whether the daily compaction is due: never ran, or last ran a day or more ago. */
 export function compactionDue(compactedAt: number | undefined, now: number) {
   return compactedAt === undefined || now - compactedAt >= DAY
 }
 
-/**
- * The Command Centre's threads, latest reply and composer, shared by the page and the K3 strip.
- * Its threads run in `<vault root>/.command-centre`, which no Project points at.
- */
 export const { use: useCommandCentre, provider: CommandCentreProvider } = createSimpleContext({
   name: "CommandCentre",
   gate: false,
@@ -187,7 +151,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       fetch: platform.fetch,
       target: { directory },
     })
-    // The vault root is machine-wide; the workspace only routes the request (as a header, so the URL is plain).
     const [vault] = createResource(workspace, (directory) =>
       readVault({ ...client(directory), target: { directory, header: true } }).catch(() => undefined),
     )
@@ -196,7 +159,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return root ? commandDirectoryFor(root) : undefined
     })
     const [threads, { refetch }] = createResource<CommandThread[], string>(directory, async (folder, info) => {
-      // Threads from before a vault move stay in the earlier root's folder. An older server has no such route.
       const target = workspace()
       const known = target
         ? await commandFolders({ ...client(target), target: { directory: target, header: true } }).then(
@@ -208,36 +170,27 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       const results = await Promise.all(
         folders.map((item, index) => {
           const listed = serverSDK().api.session.list({ directory: item, parentID: null, limit: 100 })
-          // An earlier root may be gone or offline; that must not hide the current root's threads.
           return index === 0 ? listed.catch(() => undefined) : listed.catch(() => ({ data: [] }))
         }),
       )
-      // A failed refresh keeps the last list; reading a failed resource would throw into the page.
       if (!results[0]) return info.value ?? []
-      // Filter here too: an older server answers this list without the directory filter.
-      return (
-        results
-          .flatMap((result) => result?.data ?? [])
-          // The server's list keeps archived sessions. It also keeps the tasks a thread delegated (the session API
-          // has no parent filter); `list` and `tasks` split them.
-          .filter(
-            (session) =>
-              folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
-          )
-          .map(
-            (session): CommandThread => ({
-              id: session.id,
-              title: session.title,
-              directory: session.location?.directory ?? folder,
-              updated: session.time.updated,
-              session: normalizeSessionInfo(session),
-            }),
-          )
-          .sort((left, right) => right.updated - left.updated)
-      )
+      return results
+        .flatMap((result) => result?.data ?? [])
+        .filter(
+          (session) =>
+            folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
+        )
+        .map(
+          (session): CommandThread => ({
+            id: session.id,
+            title: session.title,
+            directory: session.location?.directory ?? folder,
+            updated: session.time.updated,
+            session: normalizeSessionInfo(session),
+          }),
+        )
+        .sort((left, right) => right.updated - left.updated)
     })
-    // Threads also change outside this client's sends: archives, deletes and routine runs. Debounced, because
-    // a running turn updates its session often.
     const refresh = debounce(() => void refetch(), 500)
     onCleanup(() => refresh.clear())
     createEffect(() => {
@@ -249,8 +202,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       })
       onCleanup(unsubscribe)
     })
-    // The synced session info carries the title the server sets after the first reply and the latest activity.
-    // Delegated tasks can't be prompted, so the latest thread must never be one.
     const list = createMemo(() =>
       (settled(threads) ?? [])
         .filter((thread) => !thread.session.parentID)
@@ -267,12 +218,10 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     const latest = () => list()[0]
 
     const messages = (sessionID: string | undefined) => commandMessages(serverSync().session.data, sessionID)
-    // The K3 strip shows this on every page: a streamed delta re-reads only the latest reply's parts, once.
     const lastReply = createMemo(() => lastReplyText(serverSync().session.data, latest()?.id))
     const lastAsk = createMemo(() => lastAskText(serverSync().session.data, latest()?.id))
     const sync = (sessionID: string) => void serverSync().session.sync(sessionID)
     const agentWrites = useAgentWrites()
-    // When the thread's latest turn began (its last user message), so writes can be grouped per turn.
     const turnStart = (sessionID: string) =>
       (serverSync().session.data.message[sessionID] ?? []).findLast((message) => message.role === "user")?.time.created
     const writes = (sessionID: string | undefined) =>
@@ -284,9 +233,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       ),
     )
 
-    // Compaction runs at most once a day, with the memory age from Settings › Command Centre. It is checked
-    // on each workspace load and hourly while the app is open. The time is saved only after a run succeeds,
-    // so a failed run is tried again on the next check.
     let compacting = false
     const compact = (target: string | undefined) => {
       if (!target || compacting) return
@@ -308,12 +254,10 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     const timer = setInterval(() => compact(workspace()), HOUR)
     onCleanup(() => clearInterval(timer))
 
-    /** A new, empty Command Centre thread on the Settings default harness (or `choice`'s); its id. */
     const createThread = async (folder: string, target: string, choice?: CommandChoice) => {
       const current = settings.commandCentre.current()
       const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
       const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
-      // The server creates the vault's .command-centre folder; an older server without the route is fine.
       await commandDirectory(client(target)).catch(() => undefined)
       const info = await serverSDK().api.session.create({
         harnessInstanceID: harnessID,
@@ -324,10 +268,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return info.id
     }
 
-    /**
-     * Send to `sessionID`, else the latest Command Centre thread, else a new one; `null` always starts a new
-     * thread. Resolves with the thread id.
-     */
     const send = async (text: string, sessionID?: string | null, choice?: CommandChoice) => {
       const folder = directory()
       const target = workspace()
@@ -335,10 +275,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       setState({ sending: true, error: "" })
       try {
         const current = settings.commandCentre.current()
-        // The default target stays in the current folder: an earlier root's folder may be gone by now.
         const newest = list().find((thread) => sameDirectory(thread.directory, folder))
         const existing = sessionID === null ? undefined : (sessionID ?? newest?.id)
-        // A reply keeps its thread's harness whatever the pill shows; a new thread takes the pill's (#329).
         const thread = existing ? list().find((item) => item.id === existing) : undefined
         const { harness, model } = promptRoute({
           choice,
@@ -372,10 +310,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
 
     return {
       directory,
-      /** The latest thread's last write in its current turn that can be undone, for the K3 strip. */
       lastWrite: () =>
         writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
-      /** Any thread's last undoable write, last reply, last question and approval state, for the card's thread menu. */
       lastWriteOf: (sessionID: string | undefined) =>
         writes(sessionID).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
       replyOf: (sessionID: string | undefined) => lastReplyText(serverSync().session.data, sessionID),
@@ -383,18 +319,14 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       waitingOn: (sessionID: string | undefined) => needsYou(serverSync().session.data, sessionID ?? "") > 0,
       undo: (id: string) => agentWrites?.undo(id),
       threads: list,
-      /** Tasks Command Centre threads delegated without a Project, which run in the Command Centre folder. */
       tasks: createMemo(() => (settled(threads) ?? []).filter((thread) => !!thread.session.parentID)),
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
-      /** Whether the latest thread waits on an approval or a question, which its own page answers. */
       waiting: () => needsYou(serverSync().session.data, latest()?.id ?? "") > 0,
-      /** Whether the thread's agent is working on a reply. */
       working: (sessionID: string | undefined) =>
         !!sessionID &&
         commandWorking(serverSync().session.data.session_status[sessionID]?.type, serverSync().session.data, sessionID),
-      /** The thread's label, or "" when it has neither a title nor a known first message. */
       label: (thread: CommandThread) => commandLabel(thread.title, serverSync().session.data, thread.id),
       sync,
       lastReply,
@@ -403,7 +335,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       error: () => state.error,
       clearError: () => setState("error", ""),
       send,
-      /** Starts an empty thread to open in the thread view; resolves with its id, or undefined without a vault. */
       create: async () => {
         const folder = directory()
         const target = workspace()

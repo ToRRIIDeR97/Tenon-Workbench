@@ -1,22 +1,3 @@
-/**
- * End-to-end exerciser for the Effect HttpApi routes.
- *
- * The goal is not to be a normal unit test file. This is a route-coverage harness:
- * every public route should have a small scenario that proves the route decodes
- * requests, uses the right instance context, mutates storage when expected, and
- * returns the expected response shape.
- *
- * The script intentionally isolates `TENON_DB` before importing modules that touch
- * storage. Scenarios may create/delete sessions and reset the database after each run,
- * so this must never point at a developer's real session database.
- *
- * DSL shape:
- * - `http.protected.get/post/...` starts a scenario for one OpenAPI route key.
- * - `.seeded(...)` creates typed per-scenario state using Effect helpers on `ctx`.
- * - `.at(...)` builds the request from that typed state.
- * - `.json(...)` / `.jsonEffect(...)` assert response shape and optional side effects.
- * - `.mutating()` tells the runner to reset isolated state after destructive routes.
- */
 import { createHash } from "crypto"
 import { Effect } from "effect"
 import { OpenApi } from "effect/http-api"

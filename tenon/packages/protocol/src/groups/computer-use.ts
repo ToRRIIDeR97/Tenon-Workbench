@@ -9,7 +9,6 @@ export const ComputerUseState = Schema.Struct({
   permissions: Schema.Literals(["granted", "missing", "unknown"]),
   grants: Schema.optional(Schema.Struct({ accessibility: Schema.Boolean, screen: Schema.Boolean })),
   platform: Schema.String,
-  /** Threads in this Project that the last Stop ended, shown on the card for a few minutes. */
   stopped: Schema.optional(Schema.Number),
 }).annotate({ identifier: "ComputerUse.State" })
 

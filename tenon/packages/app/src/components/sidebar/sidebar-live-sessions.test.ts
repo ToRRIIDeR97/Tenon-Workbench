@@ -12,9 +12,6 @@ import {
 import type { State } from "@/context/global-sync/types"
 import { groupSidebarThreads, mergeSidebarSessions } from "@/features/second-brain/sidebar-threads"
 
-// Mirrors the live path: server-sync applies each session event to the shared home index
-// and to the event directory's child store; the sidebar merges both and groups them.
-
 const BRAIN = "/brain"
 const PROJECT_A = "/work/a"
 const PROJECT_B = "/work/b"
@@ -115,7 +112,6 @@ describe("live session events reach the sidebar lists", () => {
     const { emit, groups, stores } = setup()
     const thread = session("a1", PROJECT_A)
     emit(PROJECT_A, created(thread))
-    // The Brain list can hold a copy of the same thread; it never receives the thread's events.
     stores.get(BRAIN)![1]("session", [thread])
 
     emit(PROJECT_A, updated(session("a1", PROJECT_A, { updated: 2, archived: 2 })))

@@ -49,11 +49,6 @@ function format(input: unknown) {
 
 const MAX_LOG_BYTES = 10 * 1024 * 1024
 
-/**
- * Keeps one backup of an oversized log and removes the `opencode.log` left by builds from before the rename. If another
- * server process has the file, Windows may refuse the rename, which retries at the next start. Otherwise that process
- * keeps writing to the backup until it restarts. Both are fine for logs, and neither should stop a start.
- */
 export function rotate(file: string, maxBytes = MAX_LOG_BYTES) {
   try {
     if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > maxBytes) renameSync(file, `${file}.1`)
@@ -65,7 +60,6 @@ export function rotate(file: string, maxBytes = MAX_LOG_BYTES) {
 
 export function fileLogger(file = path.join(Global.Path.log, "tenon.log"), id: string = runID) {
   rotate(file)
-  // Do not set batchWindow to 0; it causes high idle CPU usage.
   return Logger.toFile(formatter(id), file, { flag: "a" })
 }
 

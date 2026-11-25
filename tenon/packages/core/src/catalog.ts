@@ -54,7 +54,6 @@ export interface Interface extends State.Transformable<Draft> {
     readonly get: (providerID: ProviderV2.ID, modelID: ModelV2.ID) => Effect.Effect<ModelV2.Info | undefined>
     readonly all: () => Effect.Effect<ModelV2.Info[]>
     readonly available: () => Effect.Effect<ModelV2.Info[]>
-    /** Returns one model when it is enabled and its provider is available, without listing the catalog. */
     readonly getAvailable: (providerID: ProviderV2.ID, modelID: ModelV2.ID) => Effect.Effect<ModelV2.Info | undefined>
     readonly default: () => Effect.Effect<ModelV2.Info | undefined>
     readonly small: (providerID: ProviderV2.ID) => Effect.Effect<ModelV2.Info | undefined>
@@ -216,7 +215,6 @@ const layer = Layer.effect(
 
         available: Effect.fn("CatalogV2.model.available")(function* () {
           const providers = new Set((yield* result.provider.available()).map((provider) => provider.id))
-          // Filter before projecting: projecting every catalog model costs hundreds of ms per call.
           return projectModels((providerID, model) => providers.has(providerID) && model.enabled)
         }),
 
@@ -236,7 +234,6 @@ const layer = Layer.effect(
             if (model) return model
           }
 
-          // Without a configured default, never fall back to a model its provider has retired.
           return Option.getOrUndefined(
             pipe(
               yield* result.model.available(),
@@ -252,7 +249,6 @@ const layer = Layer.effect(
           if (!record) return
           const provider = record.provider
 
-          // TODO: Remove these provider-specific assumptions once model syncing reliably reports available deployments.
           if (providerID === ProviderV2.ID.azure || providerID === ProviderV2.ID.make("azure-cognitive-services")) {
             return
           }

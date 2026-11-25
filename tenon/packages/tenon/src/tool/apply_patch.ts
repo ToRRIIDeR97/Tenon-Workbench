@@ -35,7 +35,6 @@ export const ApplyPatchTool = Tool.define(
         return yield* Effect.fail(new Error("patchText is required"))
       }
 
-      // Parse the patch to get hunks
       let hunks: Patch.Hunk[]
       try {
         const parseResult = Patch.parsePatch(params.patchText)
@@ -54,7 +53,6 @@ export const ApplyPatchTool = Tool.define(
 
       const instance = yield* InstanceState.context
 
-      // Validate file paths and check permissions
       const fileChanges: Array<{
         filePath: string
         oldContent: string
@@ -104,7 +102,6 @@ export const ApplyPatchTool = Tool.define(
           }
 
           case "update": {
-            // Check if file exists for update
             const stats = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
             if (!stats || stats.type === "Directory") {
               return yield* Effect.fail(
@@ -117,7 +114,6 @@ export const ApplyPatchTool = Tool.define(
             let newContent = oldContent
             let bom = source.bom
 
-            // Apply the update chunks to get new content
             try {
               const fileUpdate = Patch.deriveNewContentsFromChunks(
                 filePath,
@@ -190,7 +186,6 @@ export const ApplyPatchTool = Tool.define(
         }
       }
 
-      // Build per-file metadata for UI rendering (used for both permission and result)
       const files = fileChanges.map((change) => ({
         filePath: change.filePath,
         relativePath: path.relative(instance.worktree, change.movePath ?? change.filePath).replaceAll("\\", "/"),
@@ -201,7 +196,6 @@ export const ApplyPatchTool = Tool.define(
         movePath: change.movePath,
       }))
 
-      // Check permissions if needed
       const relativePaths = fileChanges.map((c) => path.relative(instance.worktree, c.filePath).replaceAll("\\", "/"))
       yield* ctx.ask({
         permission: "edit",
@@ -214,15 +208,12 @@ export const ApplyPatchTool = Tool.define(
         },
       })
 
-      // Apply the changes
       const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
 
       for (const change of fileChanges) {
         const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
         switch (change.type) {
           case "add":
-            // Create parent directories (recursive: true is safe on existing/root dirs)
-
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
             updates.push({ file: change.filePath, event: "add" })
             break
@@ -234,8 +225,6 @@ export const ApplyPatchTool = Tool.define(
 
           case "move":
             if (change.movePath) {
-              // Create parent directories (recursive: true is safe on existing/root dirs)
-
               yield* afs.writeWithDirs(change.movePath!, Bom.join(change.newContent, change.bom))
               yield* afs.remove(change.filePath)
               updates.push({ file: change.filePath, event: "unlink" })
@@ -257,12 +246,10 @@ export const ApplyPatchTool = Tool.define(
         }
       }
 
-      // Publish file change events
       for (const update of updates) {
         yield* events.publish(Watcher.Event.Updated, update)
       }
 
-      // Notify LSP of file changes and collect diagnostics
       for (const change of fileChanges) {
         if (change.type === "delete") continue
         const target = change.movePath ?? change.filePath
@@ -270,7 +257,6 @@ export const ApplyPatchTool = Tool.define(
       }
       const diagnostics = yield* lsp.diagnostics()
 
-      // Generate output summary
       const summaryLines = fileChanges.map((change) => {
         if (change.type === "add") {
           return `A ${path.relative(instance.worktree, change.filePath).replaceAll("\\", "/")}`

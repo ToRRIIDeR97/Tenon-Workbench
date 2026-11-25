@@ -22,6 +22,18 @@
 - Do not extract packages or services without demonstrated reuse or isolation need.
 - Keep Electron IPC handlers thin and delegate behavior to domain modules.
 
+## Harnesses
+
+- An external harness is Tenon talking to the vendor's official CLI over ACP
+  (`opencode acp`, `claude-agent-acp`, `gemini --experimental-acp`). Where a
+  vendor ships no ACP mode, run its official binary over its own protocol
+  (`codex app-server`) until it does.
+- Never re-implement a vendor's client: no borrowed OAuth client IDs, spoofed
+  client headers, or calls to subscription endpoints the vendor keeps for its
+  own app. A subscription login inside Tenon (the Default agent's ChatGPT
+  Pro/Plus sign-in) is allowed only when the vendor permits third-party tools
+  to use that subscription.
+
 ## Security
 
 - Renderer calls use workspace IDs and validated relative paths.
@@ -31,6 +43,13 @@
 
 ## Quality
 
+- No comments in source code (TypeScript, JavaScript, CSS, Rust, Python).
+  Say it with names, types and tests; put lasting reasoning in `docs/` and
+  TODOs in [deferred work](docs/deferred-work.md). Keep
+  only comments a tool reads: `@ts-expect-error`/`@ts-ignore`/`@ts-nocheck`,
+  `oxlint-disable`/`eslint-disable`, `prettier-ignore`, `@refresh`,
+  triple-slash `/// <reference>` and `/*! */` license headers. Generated files
+  and test fixtures are exempt.
 - Preserve canonical files; database and caches must be rebuildable.
 - Add the smallest runnable check for non-trivial logic.
 - Run the relevant format, lint, test, and build commands before handoff.

@@ -103,7 +103,6 @@ export function useFilteredList<T>(props: FilteredListProps<T>) {
         list.onKeyDown(navEvent)
       }
     } else {
-      // Skip list navigation for text editing shortcuts (e.g., Option+Arrow, Option+Backspace on macOS)
       if (event.altKey || event.metaKey) return
       list.onKeyDown(event)
     }

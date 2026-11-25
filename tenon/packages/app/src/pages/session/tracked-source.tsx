@@ -3,10 +3,8 @@ import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { useLanguage } from "@/context/language"
 import type { TrackedRow } from "@/pages/session/tracked-edits"
 
-/** A file's unreviewed agent edits: the text before the first of them, and the changes kept since. */
 export type TrackedReview = { base: string; kept: ReadonlySet<string> }
 
-// Per thread and file, in memory: an app reload forgets which edits were reviewed.
 const reviews = new Map<string, TrackedReview>()
 export const trackedReview = {
   get: (key: string) => reviews.get(key),
@@ -17,11 +15,6 @@ const pill =
   "h-7 rounded-full px-3 type-control text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] disabled:opacity-50 motion-reduce:transition-none"
 const outlined = `${pill} shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]`
 
-/**
- * The Source view of a file with the agent's unreviewed edits: removed lines struck through on the
- * danger tint, added lines on the success tint with a bar, and, once the tool finished, Keep / Undo
- * under each change and "N edits by Tenon" with Undo all / Keep all above.
- */
 export function TrackedSource(props: {
   rows: readonly TrackedRow[]
   count: number
@@ -39,7 +32,6 @@ export function TrackedSource(props: {
   const language = useLanguage()
   let root: HTMLDivElement | undefined
   onMount(() => props.onReady?.())
-  // The change's tint fades before it becomes plain text.
   const keep = (hunk: number) => {
     const rows = Array.from(root?.querySelectorAll<HTMLElement>(`[data-hunk="${hunk}"]`) ?? [])
     if (prefersReducedMotion() || rows.length === 0) return props.onKeep(hunk)

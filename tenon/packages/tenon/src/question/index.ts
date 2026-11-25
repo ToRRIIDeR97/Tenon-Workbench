@@ -43,8 +43,6 @@ interface State {
   pending: Map<QuestionID, PendingEntry>
 }
 
-// Service
-
 export interface Interface {
   readonly ask: (input: {
     sessionID: SessionID

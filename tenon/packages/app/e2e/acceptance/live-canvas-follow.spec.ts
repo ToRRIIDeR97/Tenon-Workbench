@@ -3,8 +3,6 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { brain, openApp } from "./open-app"
 
-// P2 · A Canvas follows (implementations/live-agent-canvas/implementation.md, AC-9 … AC-11)
-
 const directory = brain
 const sessionID = "ses_live_canvas"
 const userID = "msg_live_canvas_user"
@@ -54,7 +52,6 @@ const message = (role: "user" | "assistant", id: string, parts: Record<string, u
 })
 
 const textPart = (text: string) => ({ id: partID, type: "text", text })
-// The thread loads through the legacy message list, so the reply grows with legacy part updates.
 const partEvent = (index: number) => ({
   directory,
   payload: {
@@ -63,7 +60,6 @@ const partEvent = (index: number) => ({
   },
 })
 
-// The reply ends (stopped, out of tokens) without the fence ever closing.
 const completedEvent = () => {
   const info = message("assistant", assistantID, []).info
   return {
@@ -102,7 +98,6 @@ async function start(page: Page, history = intro) {
             ],
           }
         : { items: [] },
-    // A heartbeat on otherwise empty connections keeps the app's reconnect backoff at its base.
     events: () => (feed.length ? feed.splice(0, 1) : [heartbeat]),
     eventRetry: 40,
   })
@@ -116,7 +111,6 @@ test("AC-9 … AC-11 a streaming canvas design opens large, draws live in one fr
   const view = page.locator('[data-canvas-design="live"]')
   await expect(view).toHaveCount(0)
 
-  // The fence opens, then grows: the panel opens on Canvas with the design large before it closes.
   feed.push(partEvent(0), partEvent(1))
   await expect(view).toBeVisible()
   const status = view.locator('[data-slot="canvas-design-status"]')
@@ -126,16 +120,13 @@ test("AC-9 … AC-11 a streaming canvas design opens large, draws live in one fr
   await expect(frame).toHaveAttribute("sandbox", "allow-scripts")
   const page1 = page.frameLocator('[data-canvas-design="live"] iframe')
   await expect(page1.locator("h1")).toHaveText("Pricing")
-  // A mark on the element itself: a rebuilt frame would come without it.
   await frame.evaluate((el) => el.setAttribute("data-e2e-first-frame", ""))
 
   feed.push(partEvent(2))
   await expect(page1.locator("p.plan")).toHaveText(["Starter", "Team", "Ent"])
   await shot(page, "1-drawing-preview")
   await expect(frame).toHaveAttribute("data-e2e-first-frame", "")
-  // The frame's top while drawing; the header must not push it down when drawing ends.
   const top = (await frame.boundingBox())?.y
-  // Streamed scripts never run while the design draws.
   await expect(page1.locator("body")).not.toHaveAttribute("data-ran", "yes")
 
   await view.getByRole("button", { name: "Code" }).click()
@@ -146,7 +137,6 @@ test("AC-9 … AC-11 a streaming canvas design opens large, draws live in one fr
   await shot(page, "2-drawing-code")
   await view.getByRole("button", { name: "Preview" }).click()
 
-  // The fence closes: same frame, the finished page with its script, the chip settles and Use shows.
   feed.push(partEvent(3))
   await expect(status).toHaveText("Drawn just now")
   await expect(view.getByRole("button", { name: "Use this one" })).toBeVisible()
@@ -156,7 +146,6 @@ test("AC-9 … AC-11 a streaming canvas design opens large, draws live in one fr
   expect((await frame.boundingBox())?.y).toBe(top)
   await shot(page, "3-done")
 
-  // Back to the list: the finished fence doesn't reopen the large view.
   await view.getByRole("button", { name: "All designs" }).click()
   await expect(view).toHaveCount(0)
   await expect(page.getByRole("button", { name: "View Pricing" })).toBeVisible()
@@ -169,7 +158,6 @@ test("AC-9 going back to the list while a design draws keeps the list", async ({
   await expect(view).toBeVisible()
   await view.getByRole("button", { name: "All designs" }).click()
   await expect(view).toHaveCount(0)
-  // On the board the design keeps drawing in its artboard; its label says so.
   const card = page.getByRole("button", { name: "View Pricing" })
   const label = page.locator('[data-slot="board-label"]')
   await expect(card.locator("iframe")).toHaveCount(1)
@@ -204,7 +192,6 @@ test("AC-11 a reply that ends inside an open canvas fence settles with what it d
   await expect(frame).toHaveAttribute("data-e2e-first-frame", "")
   await expect(preview.locator("p.plan")).toHaveText(["Starter", "Team", "Ent"])
 
-  // In the list it is a finished design: a preview and Use, not "Drawing…".
   await view.getByRole("button", { name: "All designs" }).click()
   const card = page.getByRole("button", { name: "View Pricing" })
   await expect(card.locator("iframe")).toHaveCount(1)

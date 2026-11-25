@@ -42,11 +42,9 @@ describe("KnowledgeVault", () => {
     expect(KnowledgeVault.rootInside("C:\\dev\\acme-notes", ["C:\\dev\\acme"], path.win32)).toBe(false)
     expect(KnowledgeVault.rootInside("/Users/ana/Documents/Tenon", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
     expect(KnowledgeVault.rootInside("/Users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(true)
-    // A sibling whose name starts with two dots is not the folder's parent.
     expect(KnowledgeVault.rootInside("/Users/ana/dev/acme/..notes", ["/Users/ana/dev/acme"], path.posix)).toBe(true)
     expect(KnowledgeVault.rootInside("C:\\dev\\acme\\..notes", ["C:\\dev\\acme"], path.win32)).toBe(true)
     expect(KnowledgeVault.rootInside("/Users/ana/dev", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
-    // posix paths keep their case.
     expect(KnowledgeVault.rootInside("/users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
   })
 
@@ -74,17 +72,14 @@ describe("KnowledgeVault", () => {
     expect(KnowledgeVault.uniqueFolder(nfc, [nfd.toUpperCase()])).toBe(`${nfc} (2)`)
     expect(KnowledgeVault.uniqueFolder(nfd, [])).toBe(nfc)
     const projects = new Map([["project_1", nfd]])
-    // A new page in a Project folder keeps the folder's spelling on disk, so NTFS gets no sibling folder.
     expect(KnowledgeVault.newPagePath(`${nfc}/${nfd}.md`, projects)).toBe(`${nfd}/${nfc}.md`)
     expect(KnowledgeVault.newPagePath(`${nfd}.md`, projects)).toBe(`${nfc}.md`)
-    // Any other folder keeps the spelling given, so the page lands in the folder a listing named.
     expect(KnowledgeVault.newPagePath(`${nfd}/${nfd}.md`, new Map())).toBe(`${nfd}/${nfc}.md`)
   })
 
   test("a new page cannot have a stem whose .history folder would end in a dot or space", () => {
     for (const refused of ["Plan .md", "Plan..md", "a/Plan .md"]) {
       expect(KnowledgeVault.newPagePath(refused, new Map())).toBeUndefined()
-      // Pages already on disk stay valid, so they keep listing.
       expect(KnowledgeVault.isPagePath(refused)).toBe(true)
     }
   })

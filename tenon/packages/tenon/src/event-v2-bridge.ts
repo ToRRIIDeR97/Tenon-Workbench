@@ -1,5 +1,3 @@
-// Tenon publish boundary for core events. Attach routed instance location
-// so direct EventV2 consumers can isolate directory/workspace streams.
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { InstanceRef, WorkspaceRef } from "@/effect/instance-ref"
 import { GlobalBus } from "@/bus/global"

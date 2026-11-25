@@ -18,7 +18,6 @@ const printEnv = (env?: Record<string, string>) =>
     env ? { env, extendEnv: true } : {},
   )
 
-// Sets the server credentials in this process's environment for the duration of one test.
 const withServerCredentials = Effect.acquireRelease(
   Effect.sync(() => {
     const original = { ...process.env }

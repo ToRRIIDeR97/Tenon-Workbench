@@ -290,7 +290,6 @@ export const fixture = {
     targetMessageIDs: targetMessages
       .filter((message) => message.info.role === "user")
       .map((message) => message.info.id),
-    // Every seeded turn has finished without a failed step, so its tool and reasoning rows start folded.
     targetPartIDs: targetMessages.flatMap((message) =>
       orderedParts(message)
         .filter((part) => renderable(part) && part.type !== "tool" && part.type !== "reasoning")

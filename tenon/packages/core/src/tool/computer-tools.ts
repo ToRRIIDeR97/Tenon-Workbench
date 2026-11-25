@@ -11,10 +11,8 @@ import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
 
-/** The largest screenshot kept in a tool result (about 1.5 MB of image). */
 const MAX_IMAGE_BASE64 = 2_000_000
 
-/** Permission action asked before the built-in agent clicks or types on the desktop (#333). */
 export const PERMISSION = "computer_use"
 
 const Input = Schema.Record(Schema.String, Schema.Unknown)
@@ -23,19 +21,11 @@ const Output = Schema.Struct({
   images: Schema.Array(Schema.Struct({ mime: Schema.String, data: Schema.String })),
 })
 
-/**
- * The built-in agent gets computer use with the same Project switch as every harness (#333, 1A): the Cua Driver's
- * tools through Tenon's proxy, registered when the folder's services start with computer use on. Clicks and typing
- * ask through a permission card (its "always" keeps the thread from asking again); the proxy refuses once the
- * Project is switched off, and Stop shuts the driver down.
- */
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service
     const permission = yield* PermissionV2.Service
     const location = yield* Location.Service
-    // Only a Project with computer use on lists (and so starts) the driver; switching the Project changes the folder's
-    // services (the computer use route invalidates them), so this runs again without a restart.
     if (!HarnessComputerUse.findDriver()) return
     const list = Effect.promise(() =>
       HarnessComputerProxy.shared.tools({ directory: location.directory }).catch(() => []),
@@ -51,7 +41,6 @@ export const layer = Layer.effectDiscard(
                 input: Input,
                 inputJsonSchema: tool.inputSchema as JsonSchema.JsonSchema,
                 output: Output,
-                // Screenshots reach the model as images, so the built-in agent sees what it clicks.
                 toModelOutput: ({ output }) => [
                   { type: "text", text: output.output },
                   ...output.images.map((image) => ({
@@ -91,13 +80,11 @@ export const layer = Layer.effectDiscard(
                     const output = result.content
                       .flatMap((item) => (typeof item.text === "string" ? [item.text] : []))
                       .join("\n")
-                    // A screenshot is kept with the thread's history, so an oversized one is described instead.
                     const images = result.content.flatMap((item) =>
                       item.type === "image" && typeof item.data === "string" && item.data.length <= MAX_IMAGE_BASE64
                         ? [{ mime: typeof item.mimeType === "string" ? item.mimeType : "image/png", data: item.data }]
                         : [],
                     )
-                    // The agent is told when a screenshot was left out, so it doesn't act as if it saw the screen.
                     const omitted = result.content
                       .filter(
                         (item) =>
@@ -123,8 +110,6 @@ export const layer = Layer.effectDiscard(
         .pipe(Effect.ignore)
     const first = yield* list
     if (first.length > 0) return yield* register(first)
-    // The driver can be slow to start or fail once: try again in the background a few times, so a Project that has
-    // computer use on doesn't stay without its tools until the folder's services restart.
     yield* list.pipe(
       Effect.flatMap((listed) => (listed.length > 0 ? register(listed) : Effect.fail("no tools" as const))),
       Effect.retry({ schedule: Schedule.spaced("5 seconds"), times: 3 }),

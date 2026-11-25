@@ -18,13 +18,8 @@ import { levelReading, voiceGain, waveBars } from "./dictation-wave"
 import { elapsedLabel, ghostLayer, type GhostLayer } from "./dictation-ghost"
 import "./dictation.css"
 
-/** Bars in the capsule's voice meter. */
 const METER_BARS = 7
 
-/**
- * The composer's box (#328, variant E): the capsule floats over its top edge and the words go in at its caret. The
- * compact composer has no room and keeps the floating caption.
- */
 function composerBox(button: HTMLElement | undefined) {
   return (
     button?.closest<HTMLElement>('[data-slot="prompt-input-box"]') ??
@@ -33,52 +28,38 @@ function composerBox(button: HTMLElement | undefined) {
   )
 }
 
-// Toasts have a fixed height, so a long transcript would push Copy out of reach. Copy takes all of it.
 const TRANSCRIPT_PREVIEW = 300
 
-/**
- * The composer's mic: click to record through the desktop dictation engine, click again to stop
- * and insert the transcript at the caret. Rendered only when the platform exposes dictation.
- */
 export function PromptDictationButton(props: { dictation: DictationPlatform; restoreFocus: () => void }) {
   const language = useLanguage()
   const settings = useSettings()
   const params = useParams()
-  // The composer stays mounted across threads in the same folder, so a recording remembers its own.
   let thread: string | undefined
   let button: HTMLElement | undefined
   const [state, setState] = createStore({
     phase: "idle" as "idle" | "starting" | "recording" | "transcribing",
     level: 0,
-    // The words heard so far, while recording; the final transcript replaces them in the composer.
     partial: "",
-    // The spoken language this recording runs with, named for the caption; undefined while the model detects it.
     language: undefined as string | undefined,
-    // Where the live caption sits: above the mic, right-aligned to it (viewport pixels).
     anchor: undefined as { right: number; bottom: number } | undefined,
-    // Where the capsule sits: the bottom centre, just above the composer box (viewport pixels); undefined in the compact one.
     capsule: undefined as { left: number; top: number } | undefined,
   })
   const place = () => {
     const rect = button?.getBoundingClientRect()
     if (rect) setState("anchor", { right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 8 })
-    // Just above the composer, clear of its folder tray and its first line of text.
     const box = composerBox(button)
     const tray = box?.parentElement?.querySelector<HTMLElement>(':scope > [data-slot="prompt-input-header"]')
     const edge = (tray ?? box)?.getBoundingClientRect()
     setState("capsule", edge ? { left: edge.left + edge.width / 2, top: edge.top - 8 } : undefined)
   }
-  // The caption follows the mic if the window is resized or scrolled while recording.
   const follow = () => state.phase !== "idle" && place()
   makeEventListener(window, "resize", follow)
   makeEventListener(window, "scroll", follow, { capture: true, passive: true })
   const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
-  // The wave's bars follow the microphone's frequency bands; an older engine without them falls back to the level.
   let bands: number[] | undefined
   const offBands = props.dictation.onBands?.((values) => {
     if (state.phase === "recording") bands = values
   })
-  // The words in progress, written at the composer's caret while recording.
   let ghost: GhostLayer | undefined
   const dropGhost = () => {
     ghost?.remove()
@@ -86,16 +67,12 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   }
   onCleanup(dropGhost)
   let started = 0
-  // While the final words firm up, a click on the mic waits: a new recording would write over them.
   let settling = false
-  // The capsule's meter and timer, redrawn every frame while recording.
   const runMeter = (meter: HTMLElement) => {
-    // Read on each frame: the ref runs before the bars and the capsule around it are in place.
     const timer = () => meter.parentElement?.querySelector<HTMLElement>('[data-slot="dictation-capsule-timer"]')
     let bars: number[] = []
     let peak = 0
     let frame = 0
-    // Loudest in the middle, so the meter reads as one voice rather than a spectrum.
     const order = [5, 3, 1, 0, 2, 4, 6]
     const draw = () => {
       const gained = voiceGain(bands ?? [levelReading(state.level)], peak)
@@ -114,7 +91,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   const offPartial = props.dictation.onPartial?.((text) => {
     if (state.phase !== "recording") return
     place()
-    // The engine re-reads only its last 28 s; merging keeps the earlier words on screen (#328).
     setState("partial", (shown) => mergeCaption(shown, text))
     ghost?.write(state.partial)
   })
@@ -123,8 +99,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     showToast({ description: language.t("dictation.limitReached") })
     void finish()
   })
-  // A start still in flight at unmount is cancelled once it resolves, so the mic doesn't keep recording.
-  // A recording in progress is transcribed anyway and offered, so the words aren't lost.
   let disposed = false
   onCleanup(() => {
     disposed = true
@@ -146,7 +120,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       "already_recording",
       "transcribing",
     ]
-    // A denied microphone names its platform's help text and offers the privacy settings.
     const key =
       error.help?.key ?? (known.includes(error.code) ? `dictation.error.${error.code}` : "dictation.error.generic")
     showToast({
@@ -164,8 +137,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     })
   }
 
-  // The final pass reads the whole recording, so it can differ from the caption: say how much, and offer the words
-  // that were shown instead (#328).
   const review = (shown: string, inserted: string, caret: Range | undefined) => {
     const changed = captionChanges(shown, inserted)
     if (changed === 0) return
@@ -176,10 +147,8 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
           label: language.t("dictation.revised.useShown"),
           onClick: () => {
             props.restoreFocus()
-            // restoreFocus places the caret on the next frame; put it back where the insert left it, then swap.
             requestAnimationFrame(() => {
               const selection = window.getSelection()
-              // A textarea keeps its own caret; only the thread's contenteditable editor needs the range back.
               if (
                 caret &&
                 caret.startContainer.nodeType === Node.TEXT_NODE &&
@@ -214,7 +183,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     if (result.error) return report(result.error)
     if (!result.text) return
     if (ghost) {
-      // The final transcript firms up where the words were, then goes in as ordinary text.
       ghost.settle(result.text)
       const settle = prefersReducedMotion() ? 0 : motionDuration("long")
       settling = true
@@ -224,7 +192,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     }
     if (here())
       return insertAtCaret(result.text, props.restoreFocus, (inserted, caret) => review(shown, inserted, caret))
-    // The composer is gone or shows another thread, and typing there could reach a note or the wrong draft.
     const text = result.text
     showToast({
       persistent: true,
@@ -242,15 +209,12 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
 
   const toggle = async (clicks: number) => {
     if (state.phase === "starting" || settling) return
-    // Gives up on a transcription that is taking too long; finish() ends quietly. The second click of
-    // a double-click on stop is not a cancel: it would throw the recording away.
     if (state.phase === "transcribing") {
       if (clicks < 2) void props.dictation.cancel()
       return
     }
     if (state.phase === "idle") {
       thread = params.id
-      // A known spoken language: Whisper guessing it per recording sometimes answered in another language.
       const spoken = dictationLanguage(settings.dictation.language(), language.intl())
       setState({ phase: "starting", partial: "", language: dictationLanguageName(spoken, language.intl()) })
       place()
@@ -272,7 +236,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     await finish()
   }
 
-  // Escape throws a recording away (nothing is typed), for when the mic picked up the wrong thing.
   makeEventListener(
     window,
     "keydown",
@@ -312,9 +275,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
           icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
         />
       </TooltipV2>
-      {/* Over the composer's top edge, so the toolbar never changes: the time, a meter that moves with the voice, the
-          language it transcribes in and Stop; then "Finishing…" while the final pass runs. The words themselves go in
-          at the caret (dictation-ghost.ts). */}
       <Show when={state.capsule}>
         {(at) => (
           <Portal>
@@ -405,7 +365,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
                 class="mt-1.5 size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
                 aria-hidden="true"
               />
-              {/* The tail of the transcript: three lines, older words scrolling off the top. */}
               <span class="line-clamp-3 min-w-0 italic text-v2-text-text-muted [overflow-wrap:anywhere]" dir="auto">
                 <Show when={state.partial} fallback={language.t("dictation.live.listening")}>
                   {captionTail(state.partial)}
@@ -420,7 +379,6 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   )
 }
 
-/** The language this recording is transcribed in, so a wrong one shows before the text does (#328). */
 function LanguageChip(props: { name: string | undefined }) {
   const language = useLanguage()
   const text = () => props.name ?? language.t("dictation.live.detect")
@@ -435,7 +393,6 @@ function LanguageChip(props: { name: string | undefined }) {
   )
 }
 
-// About three lines at the caption's width: the newest words stay in view as the transcript grows.
 const CAPTION_CHARS = 180
 
 function captionTail(text: string) {
@@ -452,7 +409,6 @@ function StopIcon() {
   )
 }
 
-/** A microphone glyph; `level` (0–1) fills it while recording. */
 export function MicIcon(props: { level?: number }) {
   return (
     <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
@@ -473,14 +429,12 @@ export function MicIcon(props: { level?: number }) {
   )
 }
 
-/** Focuses the composer at its saved caret and types the transcript there, spaced from the text before it. */
 function insertAtCaret(
   text: string,
   restoreFocus: () => void,
   inserted?: (spaced: string, caret: Range | undefined) => void,
 ) {
   restoreFocus()
-  // restoreFocus places the caret on the next frame; insert after it.
   requestAnimationFrame(() => {
     const selection = window.getSelection()
     const node = selection?.anchorNode

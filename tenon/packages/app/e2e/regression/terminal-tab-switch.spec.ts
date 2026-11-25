@@ -12,14 +12,10 @@ const titleA = "Alpha session"
 const titleB = "Beta session"
 const ptyID = "pty_tab_switch"
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
-// Marks the terminal DOM node so a remount (fresh node) is detectable.
 const PROBE = "original"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-// Terminals are workspace-scoped: switching between session tabs in the same
-// workspace must keep the terminal mounted and its PTY connection open instead
-// of tearing it down and reconnecting.
 for (const mixed of [true, false]) {
   test(`keeps the terminal alive across tabs on ${mixed ? "managed" : "current"} servers`, async ({
     page,
@@ -210,13 +206,11 @@ test("Codex exposes one effort selector and an independent service tier", async 
     }),
   )
   await page.goto(`/${base64Encode(directory)}/session`)
-  // The model pill holds the harness list: its Harness row opens it.
   const pill = page.locator('[data-action="prompt-model-pill"]')
   await expect(pill).toBeEnabled()
   await pill.click()
   await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()
   await page.getByRole("menuitemradio", { name: "Codex", exact: true }).click()
-  // Back on the pill's summary, reasoning and speed are one row each.
   const panel = page.locator('[data-component="prompt-model-pill-panel"]')
   const effort = panel.locator('[data-step="effort"]')
   await expect(effort).toHaveCount(1)
@@ -230,8 +224,6 @@ test("Codex exposes one effort selector and an independent service tier", async 
 
 test("Last turn review displays native session snapshots", async ({ page }, testInfo) => {
   await setup(page)
-  // With no git changes the review mode menu sits in the file tree's header, which the side panel
-  // collapses at its default width; a wider panel keeps the tree, and so the menu, in view.
   await page.addInitScript(() =>
     localStorage.setItem("tenon.global.dat:layout", JSON.stringify({ sidePanel: { width: 720 } })),
   )

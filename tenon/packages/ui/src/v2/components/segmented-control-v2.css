@@ -51,7 +51,6 @@
   color: var(--v2-text-text-disabled);
 }
 
-/* Hover and press lay an overlay over the item, the selected one included (over the sliding fill). */
 [data-slot="segmented-control-v2-item"]:where(:not(:disabled):hover) {
   background-color: var(--v2-overlay-simple-overlay-hover);
   color: var(--v2-text-text-base);
@@ -67,7 +66,6 @@
   z-index: 2;
 }
 
-/* Selected: a bg-base thumb with a subtle shadow on the grey track. */
 [data-slot="segmented-control-v2-item"]:where([data-pressed]) {
   color: var(--v2-text-text-base);
   font-weight: 600;
@@ -86,7 +84,6 @@
   background-image: linear-gradient(var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover));
 }
 
-/* The selected fill, placed by segmented-control-v2.tsx, slides between items: medium + standard. */
 [data-slot="segmented-control-v2-indicator"] {
   display: none;
 }
@@ -125,7 +122,6 @@
   white-space: nowrap;
 }
 
-/* Material 3 shape and motion: pill segments. */
 [data-slot="segmented-control-v2"],
 [data-slot="segmented-control-v2-item"] {
   border-radius: var(--v2-radius-full);
@@ -145,7 +141,6 @@
   }
 }
 
-/* Size to content so pill segments fit any label count; full-width stays opt-in. */
 [data-slot="segmented-control-v2"]:not(.segmented-control-v2--full-width) {
   width: auto;
 }

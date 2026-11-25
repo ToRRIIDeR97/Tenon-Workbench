@@ -27,9 +27,7 @@ import {
 } from "../schema"
 
 export interface RouteBody<Body> {
-  /** Schema for the validated provider-native body sent as the JSON request. */
   readonly schema: Schema.Codec<Body, unknown>
-  /** Build the provider-native body from a common `LLMRequest`. */
   readonly from: (request: LLMRequest) => Effect.Effect<Body, LLMError>
 }
 
@@ -52,9 +50,6 @@ export interface Route<Body, Prepared = unknown> {
   ) => Stream.Stream<LLMEvent, LLMError>
 }
 
-// Route registries intentionally erase body generics after construction.
-// Normal call sites use `OpenAIChat.route`; callers only need body types
-// when preparing a request with a protocol-specific type assertion.
 // oxlint-disable-next-line typescript-eslint/no-explicit-any
 export type AnyRoute = Route<any, any>
 
@@ -139,16 +134,6 @@ export const httpOptions = (input: HttpOptionsInput | undefined) => {
 }
 
 export interface Interface {
-  /**
-   * Compile a request through protocol body construction, validation, and HTTP
-   * preparation without sending it. Returns the prepared request including the
-   * provider-native body.
-   *
-   * Pass a `Body` type argument to statically expose the route's body
-   * shape (e.g. `prepare<OpenAIChatBody>(...)`) — the runtime body is
-   * identical, so this is a type-level assertion the caller makes about which
-   * route the request will resolve to.
-   */
   readonly prepare: <Body = unknown>(request: LLMRequest) => Effect.Effect<PreparedRequestOf<Body>, LLMError>
   readonly stream: StreamMethod
   readonly generate: GenerateMethod
@@ -180,40 +165,24 @@ const resolveRequestOptions = (request: LLMRequest) => {
 }
 
 export interface MakeInput<Body, Frame, Event, State> {
-  /** Route id used in diagnostics and prepared request metadata. */
   readonly id: string
-  /** Provider identity for route-owned model construction. */
   readonly provider?: string | ProviderID
-  /** Semantic API contract — owns body construction, body schema, and parsing. */
   readonly protocol: Protocol<Body, Frame, Event, State>
-  /** Where the request is sent. */
   readonly endpoint: Endpoint<Body>
-  /** Per-request transport auth. Provider facades override this via `route.with(...)`. */
   readonly auth?: AuthDef
-  /** Stream framing — bytes -> frames before `protocol.stream.event` decoding. */
   readonly framing: Framing<Frame>
-  /** Static / per-request headers added before `auth` runs. */
   readonly headers?: (input: { readonly request: LLMRequest }) => Record<string, string>
-  /** Route/request defaults used when compiling requests for this route. */
   readonly defaults?: RouteDefaultsInput
 }
 
 export interface MakeTransportInput<Body, Prepared, Frame, Event, State> {
-  /** Route id used in diagnostics and prepared request metadata. */
   readonly id: string
-  /** Provider identity for route-owned model construction. */
   readonly provider?: string | ProviderID
-  /** Semantic API contract — owns body construction, body schema, and parsing. */
   readonly protocol: Protocol<Body, Frame, Event, State>
-  /** Where the request is sent. */
   readonly endpoint: Endpoint<Body>
-  /** Per-request transport auth. Provider facades override this via `route.with(...)`. */
   readonly auth?: AuthDef
-  /** Static / per-request headers added before `auth` runs. */
   readonly headers?: (input: { readonly request: LLMRequest }) => Record<string, string>
-  /** Runnable transport route. */
   readonly transport: Transport<Body, Prepared, Frame>
-  /** Route/request defaults used when compiling requests for this route. */
   readonly defaults?: RouteDefaultsInput
 }
 
@@ -303,21 +272,6 @@ function makeFromTransport<Body, Prepared, Frame, Event, State>(
 export function make<Body, Prepared, Frame, Event, State>(
   input: MakeTransportInput<Body, Prepared, Frame, Event, State>,
 ): Route<Body, Prepared>
-/**
- * Build a `Route` by composing the four orthogonal pieces of a deployment:
- *
- * - `Protocol` — what is the API I'm speaking?
- * - `Endpoint` — where do I send the request?
- * - `Auth` — how do I authenticate it?
- * - `Framing` — how do I cut the response stream into protocol frames?
- *
- * Plus optional `headers` for cross-cutting deployment concerns (provider
- * version pins, per-deployment quirks).
- *
- * This is the canonical route constructor. If a new route does not fit
- * this four-axis model, add a purpose-built constructor rather than widening
- * the public surface preemptively.
- */
 export function make<Body, Frame, Event, State>(
   input: MakeInput<Body, Frame, Event, State>,
 ): Route<Body, HttpTransport.HttpPrepared<Frame>>
@@ -338,9 +292,6 @@ export function make<Body, Prepared, Frame, Event, State>(
   })
 }
 
-// `compile` is the important boundary: it turns a common `LLMRequest` into a
-// validated provider body plus transport-private prepared data, but does not
-// execute transport.
 const compile = Effect.fn("LLM.compile")(function* (request: LLMRequest) {
   const resolved = applyCachePolicy(resolveRequestOptions(request))
   const route = resolved.model.route

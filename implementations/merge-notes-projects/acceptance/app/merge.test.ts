@@ -17,8 +17,6 @@ describe("AC-1 one rail item", () => {
   })
 })
 
-// AC-2 (the tree) and AC-3 (the tabs) were superseded by Implementations/projects-one-page/ (workshop variant B):
-// the page has no tree, and a Project is one page with sections. Its own checks cover them.
 describe("AC-2 one page", () => {
   test("AC-2 the old Notes page is gone and /projects is the merged page", () => {
     expect(existsSync(path.join(src, "pages/notes.tsx"))).toBe(false)
@@ -36,7 +34,6 @@ describe("AC-5 redirects and links", () => {
   })
 
   test("AC-5 no in-app link points at /notes any more", () => {
-    // The redirect route and the wiki-link click handler name /notes on purpose.
     const allowed = (line: string) =>
       line.includes('<Route path="/notes"') ||
       line.includes('url.pathname !== "/notes"') ||

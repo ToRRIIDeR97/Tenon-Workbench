@@ -48,7 +48,6 @@
     flex: none;
   }
 
-  /* Material 3 checkbox: an 18px box with a 1.5px control edge that fills with the accent when checked. */
   [data-slot="checkbox-v2-control"] {
     box-sizing: border-box;
     position: absolute;

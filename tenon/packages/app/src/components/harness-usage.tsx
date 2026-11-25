@@ -4,11 +4,6 @@ import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { formatResetIn } from "@/components/prompt-input/context-strip-model"
 
-/**
- * One harness's usage report: a bar per limit window with its share used and reset time, or the reason there
- * are no bars. The context sheet and Settings → Harnesses both show it. `revealed` grows the bars in; the sheet
- * passes its open state so they ease in as it unfolds.
- */
 export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: number; revealed?: boolean }) {
   const language = useLanguage()
   const percent = (value: number) =>
@@ -70,7 +65,6 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
         <span>{language.t("secondBrain.contextStrip.usage.noLimits")}</span>
       </Match>
       <Match when={props.report.status === "signed-out"}>
-        {/* The server's reason says what to do, e.g. replace an expired API key; signing in doesn't fix that. */}
         <span>{props.report.reason ?? language.t("secondBrain.contextStrip.usage.signedOut")}</span>
       </Match>
       <Match when={props.report.status === "error"}>
@@ -84,10 +78,6 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
 
 const CACHE_KEY = "tenon.global.dat:harness-usage"
 
-/**
- * The last usage reports the server sent, so the context sheet and Settings draw their bars at once from the
- * previous answer and update them when a fresh one arrives. It lives only in this browser and may be empty.
- */
 export function cachedUsage(): { reports: ReadonlyArray<Harness.UsageReport>; now: number } | undefined {
   try {
     const value = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null")
@@ -104,7 +94,6 @@ export function rememberUsage(reports: ReadonlyArray<Harness.UsageReport>, now: 
   return { reports, now }
 }
 
-/** The fullest limit window of a report, for a one-number summary; undefined when it reports no windows. */
 export function fullestWindow(report: Harness.UsageReport | undefined) {
   if (report?.status !== "available") return undefined
   return report.windows.reduce<Harness.UsageWindow | undefined>(

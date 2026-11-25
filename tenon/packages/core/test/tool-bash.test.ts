@@ -418,8 +418,8 @@ describe("BashTool", () => {
   )
 })
 
-test("keeps locked deferred parity TODOs visible", async () => {
-  const source = await fs.readFile(new URL("../src/tool/bash.ts", import.meta.url), "utf8")
+test("keeps locked deferred parity TODOs visible in docs/deferred-work.md", async () => {
+  const source = await fs.readFile(new URL("../../../../docs/deferred-work.md", import.meta.url), "utf8")
   for (const todo of [
     "Port tree-sitter bash / PowerShell parser-based approval reduction.",
     "Port BashArity reusable command-prefix approvals.",

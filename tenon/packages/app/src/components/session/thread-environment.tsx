@@ -32,7 +32,6 @@ import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Persist, persisted } from "@/utils/persist"
 
-/** The window's width, and the gap it keeps from the thread's text column. */
 const WINDOW_WIDTH = 340
 const COLUMN_GAP = 12
 
@@ -41,18 +40,8 @@ type ThreadHarness = {
   instances: () => ReadonlyArray<Harness.Instance> | undefined
 }
 
-/**
- * The thread's environment: a toggle in the thread's header, beside the "…" menu, opens it as a floating window
- * below the header at the thread's top right. It is open by default and stays open while you read and work in the
- * thread (an outside click doesn't close it); the toggle, its close button or Esc inside it close it, and only that
- * choice is remembered (`thread.environment.v2`). It opens and closes with the menu motion (scale and fade from the
- * top right).
- * Shows where the thread runs (harness and model, folder, branch, approval mode), its context use and what fills it,
- * its MCP servers, its file changes and what is running.
- */
 export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
-  // A new key: the old one stored closed as its default, which would keep the window hidden for everyone.
   const [prefs, setPrefs] = persisted(Persist.global("thread.environment.v2"), createStore({ open: true }))
   const [anchor, setAnchor] = createStore({
     top: 0,
@@ -63,11 +52,6 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
     placed: false,
   })
   let button: HTMLButtonElement | undefined
-  // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
-  // dragged, so it is re-placed whenever the header's or the thread column's size changes (and on a window resize).
-  // It floats over the thread, which never moves for it, flush with the header's right edge. When it would cover the
-  // thread's text column it minimizes to its toggle, and it comes back once the column is clear of it; the toggle
-  // still opens it meanwhile.
   const place = () => {
     if (!button) return
     const rect = button.getBoundingClientRect()
@@ -76,7 +60,6 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
     const right = Math.max(16, window.innerWidth - rect.right)
     const squeezed = !!column && rect.right - width - COLUMN_GAP < column.right
     setAnchor({ placed: true, top: rect.bottom + 6, right, width })
-    // Crossing the threshold either way drops a manual open made while squeezed.
     if (squeezed !== anchor.squeezed) setAnchor({ squeezed, forced: false })
   }
   const shown = () => prefs.open && anchor.placed && (!anchor.squeezed || anchor.forced)
@@ -123,8 +106,6 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
         />
       </button>
       <Portal>
-        {/* The anchor is positioned and the animated wrapper inside it is not: an animated transform makes its box
-            the containing block of any fixed child. */}
         <div
           class="fixed z-40 hidden md:block"
           style={{ top: `${anchor.top}px`, right: `${anchor.right}px`, width: `${anchor.width}px` }}
@@ -154,16 +135,10 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   )
 }
 
-/**
- * The window's body, laid out as the workshop's variant A: one card of sections split by hairlines, each with a
- * sentence-case title, a label column for where the thread runs, a thin context bar with its legend, and
- * single-line rows for connectors, changes and what is running.
- */
 function EnvironmentSections(props: { harness?: ThreadHarness; onClose: () => void }) {
   const context = createComposerContext()
   const subagents = useThreadSubagents(() => true)
   return (
-    // The scrolling body is a tab stop, so the keyboard can scroll it.
     <div
       data-component="thread-environment"
       tabIndex={0}
@@ -188,7 +163,6 @@ function isExternal(harness?: ThreadHarness) {
   return !!current && current.driver !== Harness.OpenCodeDriver
 }
 
-/** Where the thread runs: its harness and model, folder, branch and the approval mode that answers its requests. */
 function WhereSection(props: { harness?: ThreadHarness; model?: string; onClose: () => void }) {
   const language = useLanguage()
   const sync = useSync()
@@ -226,7 +200,6 @@ function WhereSection(props: { harness?: ThreadHarness; model?: string; onClose:
             name={language.t("secondBrain.environment.folder")}
             path={directory()}
           >
-            {/* Cut from the start, so the folder's own name stays visible. */}
             <span class="block min-w-0 truncate text-left font-mono text-[11.5px] [direction:rtl]">
               <bdi>{shortFolder(directory(), serverSync().data.path?.home)}</bdi>
             </span>
@@ -245,7 +218,6 @@ function WhereSection(props: { harness?: ThreadHarness; model?: string; onClose:
   )
 }
 
-// One step of the accent or grey per kind, so the parts differ in lightness as well as hue.
 const SHADE: Record<ContextPartKey, string> = {
   messages: "bg-v2-icon-icon-accent",
   tools: "bg-v2-icon-icon-accent/55",
@@ -254,11 +226,6 @@ const SHADE: Record<ContextPartKey, string> = {
   free: "bg-transparent",
 }
 
-/**
- * How full the context window is and what fills it. Every harness reports the total; what is in it is estimated
- * from the thread's own text (about four characters a token). For Codex, Claude Code and the other agents, what
- * the thread's text doesn't explain is the agent's own instructions and tool definitions, which Tenon can't see.
- */
 function ContextSection(props: { context: ReturnType<typeof createComposerContext>; harness?: ThreadHarness }) {
   const language = useLanguage()
   const sync = useSync()
@@ -361,12 +328,6 @@ function ContextSection(props: { context: ReturnType<typeof createComposerContex
   )
 }
 
-/**
- * The MCP servers the thread's agent can use: the user's from Settings, on or off, and for Codex and the ACP agents
- * Tenon's own server. Whether an external agent connected each one isn't reported, so only on and off are shown.
- * Collapsed by default to "N on", so the window stays short; the choice is remembered. Open, the list ends with a
- * link to the MCP settings.
- */
 function ConnectorsSection(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const serverSync = useServerSync()
@@ -435,7 +396,6 @@ function ConnectorsSection(props: { harness?: ThreadHarness }) {
   )
 }
 
-/** The thread's file changes in one line; with changes, the line opens the review panel. */
 function ChangesSection() {
   const language = useLanguage()
   const sync = useSync()
@@ -481,12 +441,6 @@ function ChangesSection() {
   )
 }
 
-/**
- * What the thread has running now: the subagents still at work, each with its own context (a small bar and its share
- * of its window), then the terminals. The title counts running and finished ones; finished ones are listed in the
- * side panel's Agents tab, which "All subagents" and each row open (closing this window). With no subagents it is
- * the plain counts.
- */
 function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0]; onClose: () => void }) {
   const language = useLanguage()
   const terminal = useTerminal()
@@ -509,21 +463,18 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
   const running = () => runningSubagents(props.groups)
   const done = () => rows().filter((row) => row.status === "completed").length
   const live = createMemo(() => liveSubagents(rows()))
-  // Opens the Agents tab (on one subagent, or its list) and gets this window out of the way.
   const open = (row: { sessionID: string; id?: string }) => {
     data.openSubagent?.({ sessionID: row.sessionID, partID: row.id })
     props.onClose()
   }
   const compact = (value: number) =>
     new Intl.NumberFormat(language.intl(), { notation: "compact", maximumFractionDigits: 1 }).format(value)
-  // Opens the terminal panel on one terminal (or the active one) and gets this window out of the way.
   const openTerminal = (id?: string) => {
     if (id) terminal.open(id)
     view().terminal.open()
     terminal.requestFocus(id ?? terminal.active())
     props.onClose()
   }
-  // A function, not one shared element: the two branches below each render their own copy.
   const terminals = () => (
     <div class="flex flex-col gap-0.5">
       <button
@@ -646,7 +597,6 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
               </button>
             )}
           </For>
-          {/* Finished subagents live in the Agents tab; this opens its list. */}
           <Show when={data.openSubagent && rows()[0]}>
             {(first) => (
               <button
@@ -666,7 +616,6 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
   )
 }
 
-/** A section of the card: a sentence-case title over its content. */
 function Section(props: { title: string; meta?: string; last?: boolean; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2.5 px-[18px] pt-3.5" classList={{ "pb-3.5": !props.last, "pb-4": props.last }}>
@@ -681,7 +630,6 @@ function Section(props: { title: string; meta?: string; last?: boolean; children
   )
 }
 
-/** A section title that opens something: the title, a summary on the right and a chevron. */
 function SectionLink(props: { title: string; label: string; onClick: () => void; children: JSX.Element }) {
   return (
     <button

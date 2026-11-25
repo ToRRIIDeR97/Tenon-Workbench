@@ -44,9 +44,6 @@ export function observeElementOffsetReconnectAware<TScrollElement extends Elemen
     }
     frame = targetWindow.requestAnimationFrame(check)
   }
-  // While attached, only the ancestor chain up to `root` is watched (no `subtree`), so streaming mutations
-  // inside the timeline, terminal or review panel don't wake this observer. Once the element is detached it
-  // can come back under any parent, so the whole of `root` is watched until it does.
   const watchAncestors = () => {
     observer.disconnect()
     let ancestor: Node | null = element.parentNode
@@ -76,7 +73,6 @@ export function observeElementOffsetReconnectAware<TScrollElement extends Elemen
       if (removed && element.isConnected && mutationNodesContainElement(record.addedNodes, element)) reattached()
     }
     if (!removed) return
-    // Re-inserted under a parent nobody watched yet: no record reports the addition, but it's connected again.
     if (element.isConnected) reattached()
     else watchRoot()
   })

@@ -5,9 +5,7 @@ import { mockTenonServer } from "../utils/mock-server"
 
 const brain = fixture.directory
 const repo = "C:/OpenCode/Repo"
-// A non-project folder inside the workspace: its threads show in the General group.
 const scratch = `${brain}/development/scratch`
-// A folder in no open workspace: its threads never show in this workspace's sidebar.
 const outside = "C:/Temp/outside"
 
 const project = {
@@ -83,7 +81,6 @@ test("the sidebar is the only navigation", async ({ page }) => {
   for (const [item, path] of [
     ["projects", /\/projects$/],
     ["calendar", /\/calendar$/],
-    // AC-7.1: Command Centre took Activity's place on the rail.
     ["command", /\/command$/],
     ["overview", /\/$/],
   ] as const) {
@@ -94,7 +91,6 @@ test("the sidebar is the only navigation", async ({ page }) => {
 
 test("the cross-project overview opens from the workspace menu and the Projects page", async ({ page }) => {
   await openApp(page, { projects: [], sessions: [] })
-  // The Projects page lists the vault's pages; an empty vault is enough here.
   await page.route("**/second-brain/vault/**", (route) => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith("/migrate")) return route.fulfill({ json: { moved: 0 } })
@@ -129,7 +125,6 @@ test("groups threads by Project and the workspace, hides other workspaces, and s
   const projectGroup = sidebar(page).locator('[data-sidebar-project="prj_repo"]')
   await projectGroup.getByRole("button", { name: "Repo project" }).click()
   await expect(projectGroup.getByText("Repo thread", { exact: true })).toBeVisible()
-  // Child threads stay folded under their parent until that lineage is open.
   await expect(projectGroup.getByText("Repo child thread", { exact: true })).toHaveCount(0)
   await expect(projectGroup.getByText("Brain thread", { exact: true })).toHaveCount(0)
 
@@ -137,10 +132,8 @@ test("groups threads by Project and the workspace, hides other workspaces, and s
   await brainGroup.getByRole("button", { name: "General", exact: true }).click()
   await expect(brainGroup.getByText("Brain thread", { exact: true })).toBeVisible()
   await expect(brainGroup.getByText("Scratch thread", { exact: true })).toBeVisible()
-  // Workspaces never mix: a thread from another folder stays out of this sidebar.
   await expect(sidebar(page).getByText("Outside thread", { exact: true })).toHaveCount(0)
 
-  // The header's + shows on hover.
   await projectGroup.locator("button[aria-expanded]").first().hover()
   await projectGroup.getByRole("button", { name: "New thread", exact: true }).click()
   await expect(page).toHaveURL(/\/new-thread\?project=prj_repo&draftId=[^&]+$/)
@@ -156,7 +149,6 @@ test("archiving a thread can be undone with mod+z", async ({ page }) => {
     const body = route.request().postDataJSON() as { time?: { archived?: number | null } }
     updates.push(body)
     const archived = body.time?.archived ?? undefined
-    // Keep the mock's session list in step with the server's archive state.
     Object.assign(repoThread.time, { archived })
     return route.fulfill({
       status: 200,
@@ -176,7 +168,6 @@ test("archiving a thread can be undone with mod+z", async ({ page }) => {
   await expect(row).toHaveCount(0)
   await expect(page.getByText("Thread archived", { exact: true })).toBeVisible()
 
-  // mod+z belongs to text fields while one has focus; elsewhere it undoes the archive.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   const mod = (await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))) ? "Meta" : "Control"
   await page.keyboard.press(`${mod}+z`)

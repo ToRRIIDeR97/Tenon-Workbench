@@ -20,9 +20,6 @@ import { PLUGIN_AGENT } from "../fixture/agent-plugin.constants"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 
-// `it.instance` skips InstanceBootstrap so LSP / MCP don't spin up — those
-// services hang during scope teardown on Windows and aren't needed
-// to verify plugin → config hook → Agent.list.
 const pluginUrl = pathToFileURL(path.join(import.meta.dir, "..", "fixture", "agent-plugin.ts")).href
 
 const provider = ProviderTest.fake()

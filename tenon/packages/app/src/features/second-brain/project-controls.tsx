@@ -8,11 +8,6 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import type { TimelineItem } from "./client"
 
-/**
- * The Projects page's own controls, in place of native `<select>` and `<input type="date">`: a date chip with a
- * picker, a status pill with a menu, and the Task/Milestone switch. Dates are local `YYYY-MM-DD` days.
- */
-
 export const statuses = ["todo", "doing", "done"] as const
 export const kinds = ["task", "milestone"] as const
 
@@ -25,20 +20,17 @@ const statusDot: Record<TimelineItem["status"], string> = {
 const chipClass =
   "flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-v2-background-bg-layer-02 px-2.5 text-[12px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-03 data-[expanded]:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
 
-/** A local calendar day as `YYYY-MM-DD`, `offset` days from `from`. */
 export function localDay(from = new Date(), offset = 0) {
   const date = new Date(from.getFullYear(), from.getMonth(), from.getDate() + offset)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
-/** "Fri 13 Nov" in the app's locale, or "" for a value that isn't a day. */
 export function dayLabel(value: string | undefined, locale: string) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return ""
   const [year, month, day] = value.split("-").map(Number)
   return new Date(year, month - 1, day).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })
 }
 
-/** The days of `month` (`YYYY-MM`) in weeks from Monday; days outside the month are undefined. */
 export function monthDays(month: string) {
   const [year, index] = month.split("-").map(Number)
   const count = new Date(year, index, 0).getDate()
@@ -49,7 +41,6 @@ export function monthDays(month: string) {
   ]
 }
 
-/** A date chip that opens a picker: quick picks, then a month grid. */
 export function DateChip(props: {
   value?: string
   label: string
@@ -73,7 +64,6 @@ export function DateChip(props: {
     setState("month", `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`)
   }
   const weekdays = createMemo(() =>
-    // 2026-11-01 is a Sunday, the Calendar's first day of the week.
     Array.from({ length: 7 }, (_, index) =>
       new Date(2026, 10, 1 + index).toLocaleDateString(language.intl(), { weekday: "narrow" }),
     ),
@@ -171,7 +161,6 @@ export function DateChip(props: {
   )
 }
 
-/** A status pill with a coloured dot; it opens a menu of To do, Doing and Done. */
 export function StatusMenu(props: {
   value: TimelineItem["status"]
   label: string
@@ -211,7 +200,6 @@ export function StatusMenu(props: {
   )
 }
 
-/** Task or milestone: two choices, so a switch rather than a dropdown. */
 export function KindSwitch(props: { value: TimelineItem["kind"]; onChange: (kind: TimelineItem["kind"]) => void }) {
   const language = useLanguage()
   return (

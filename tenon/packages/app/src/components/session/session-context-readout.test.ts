@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { contextReadout } from "./session-context-metrics"
 
-// #310: the ring, the context menu and the Context tab read one readout, so they can't disagree.
 const base = {
   total: 50_000,
   limit: 200_000 as number | undefined,

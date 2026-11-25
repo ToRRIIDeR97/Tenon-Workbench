@@ -62,7 +62,6 @@ const layer = Layer.effect(
     const config = yield* Config.Service
     const loadPhoton = yield* Effect.cached(
       Effect.sync(() => {
-        // Patched photon-node reads this during module init so Bun compiled binaries use the embedded wasm path.
         ;(globalThis as typeof globalThis & { __TENON_PHOTON_WASM_PATH?: string }).__TENON_PHOTON_WASM_PATH =
           path.isAbsolute(photonWasm) ? photonWasm : fileURLToPath(new URL(photonWasm, import.meta.url))
       }).pipe(

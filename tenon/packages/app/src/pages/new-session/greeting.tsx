@@ -2,32 +2,20 @@ import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid
 import { useLanguage } from "@/context/language"
 import "./greeting.css"
 
-// Local, single-user app for now; replace with the signed-in profile name when there is one.
 const userName = "Nat"
 const PROMPTS = 5
-/** How long the headline takes to type in, whatever its length. */
 export const TYPE_MS = 750
 
-/** The prompt a visit shows (1 to PROMPTS), from a number in [0, 1) such as `Math.random()`. */
 export function greetingPrompt(random: number) {
   return Math.min(PROMPTS, Math.floor(random * PROMPTS) + 1)
 }
 
-/** How many characters of a `length`-long line show `elapsed` ms into the type-in. */
 export function typedCount(elapsed: number, length: number) {
   return Math.min(length, Math.max(0, Math.ceil((elapsed / TYPE_MS) * length)))
 }
 
-/** How long each verb stays before the next one rolls in. */
 export const SWAP_MS = 3200
 
-/**
- * "Welcome back" over one headline picked for the visit. It types in once when the page opens; the full line is laid
- * out invisibly underneath, so the typing never moves the composer below it.
- *
- * With `swap`, the headline is "What should we <verb> today?": after typing in, its verb keeps rolling to the next
- * one, pausing while `swap.paused()` is true (e.g. while the user is writing).
- */
 export function Greeting(props: { swap?: { paused: () => boolean } }) {
   const language = useLanguage()
   const prompt = greetingPrompt(Math.random())
@@ -81,11 +69,6 @@ export function Greeting(props: { swap?: { paused: () => boolean } }) {
   )
 }
 
-/**
- * The typed line with its verb in a window that rolls up to the next verb every SWAP_MS. The stack ends with a copy
- * of the first verb, so the loop always rolls forward: on reaching the copy it snaps back to the first without a
- * transition. The window's width follows the current verb.
- */
 function VerbSwap(props: { before: string; after: string; verbs: string[]; paused: () => boolean }) {
   const stack = () => [...props.verbs, props.verbs[0]]
   const [index, setIndex] = createSignal(0)

@@ -17,17 +17,9 @@ import { listHarnessesRemembered, rememberedHarnesses } from "@/utils/server"
 
 export type ComposerHarness = ReturnType<typeof createComposerHarness>
 
-/**
- * The harness, model and reasoning for a composer that starts new threads outside a thread page (Home, the
- * Command Centre). It lists the folder's harnesses, starts on `initial` until the user picks here, falls back to an
- * available harness and keeps the model valid for the selected one. Thread composers use
- * `createPromptHarnessController` instead.
- */
 export function createComposerHarness(input: {
-  /** Keeps each page's harness list apart in the query cache, e.g. "home" or "command". */
   scope: string
   directory: () => string
-  /** The starting choice. Settings load asynchronously on desktop, so it applies until the user picks. */
   initial: () => { harnessID: string; model?: Harness.ModelSelection } | undefined
 }) {
   const settings = useSettings()
@@ -37,7 +29,6 @@ export function createComposerHarness(input: {
   const [state, setState] = createStore({
     harnessInstanceID: Harness.OpenCode as Harness.InstanceID,
     harnessModel: undefined as Harness.ModelSelection | undefined,
-    // The built-in agent's model and reasoning, from the folder's model selection.
     builtInModel: undefined as PromptModel | undefined,
     picked: false,
   })
@@ -52,14 +43,11 @@ export function createComposerHarness(input: {
     enabled: !!input.directory(),
     queryFn: () =>
       listHarnessesRemembered({ server: serverSDK().server.http, fetch: platform.fetch }, input.directory()),
-    // After the cached query is collected, the last good list keeps the picker usable while it reloads.
     placeholderData: () => rememberedHarnesses(serverSDK().server.http.url, input.directory()),
     staleTime: 30_000,
     refetchOnMount: true,
-    // A check that fails (the server still starting) is retried until it answers: soon, then every 15 s.
     retry: true,
     retryDelay: (failures) => harnessRetryDelay(failures),
-    // The selected agent can answer before its models are listed; ask again until they arrive, as threads do.
     refetchInterval: (current) => {
       const selected = current.state.data?.find((item) => item.id === state.harnessInstanceID)
       const waiting =
@@ -67,22 +55,17 @@ export function createComposerHarness(input: {
       return waiting && current.state.dataUpdateCount <= MODEL_RETRIES ? MODEL_RETRY_MS : false
     },
   }))
-  // Models hidden in Settings never reach the picker or the default-model choice, as in the thread composer.
-  // Reading `data` while the first check is pending would suspend the page, so the remembered list stands in;
-  // an agent that has not listed its models yet keeps the ones it listed last time.
   const remembered = () => rememberedHarnesses(serverSDK().server.http.url, input.directory())
   const instances = () =>
     withRememberedModels(query.isPending ? remembered() : query.data, remembered())?.map((item) =>
       withVisibleModels(item, settings.harnesses.hiddenModels(item.id), settings.harnesses.hiddenProviders(item.id)),
     )
-  // Fall back to an available harness, and keep the model valid for the selected one.
   createEffect(() => {
     if (query.isPending) return
     const available = instances()
     if (!available) return
     const current = available.find((instance) => instance.id === state.harnessInstanceID)
     if (current?.status !== "available") {
-      // Only a confirmed check moves off the harness; a remembered list may be out of date.
       if (query.isPlaceholderData) return
       const fallback = available.find((instance) => instance.status === "available")
       if (fallback) setState({ harnessInstanceID: fallback.id, harnessModel: defaultModel(fallback) })
@@ -94,9 +77,7 @@ export function createComposerHarness(input: {
 
   const controller: PromptInputHarnessController = {
     instances,
-    // Only a first load with nothing remembered blocks the picker; a stale list stays usable while it refreshes.
     loading: () => query.isPending && !remembered(),
-    // Opening the picker refetches once stale; the app's queries don't refetch on window focus.
     revalidate: () => void (query.isStale && query.refetch()),
     current: () => state.harnessInstanceID,
     select: (instanceID) => {
@@ -109,8 +90,6 @@ export function createComposerHarness(input: {
     },
   }
 
-  // The built-in agent needs no check, so only another harness waits for the list. The thread page
-  // sends once its own list has loaded, and keeps the prompt if the harness turns out unavailable.
   const builtIn = () =>
     (instances()?.find((item) => item.id === state.harnessInstanceID)?.driver ??
       (state.harnessInstanceID === Harness.OpenCode ? Harness.OpenCodeDriver : undefined)) === Harness.OpenCodeDriver
@@ -119,23 +98,18 @@ export function createComposerHarness(input: {
     controller,
     directory: input.directory,
     builtIn,
-    /** A harness other than the built-in agent whose list is still loading: sending waits. */
     waiting: () => query.isPending && state.harnessInstanceID !== Harness.OpenCode,
     harnessID: () => state.harnessInstanceID,
     harnessModel: () => state.harnessModel,
-    /** The built-in agent's model and reasoning; undefined for another harness. */
     builtInModel: () => (builtIn() ? state.builtInModel : undefined),
     setBuiltInModel: (model: PromptModel | undefined) => setState("builtInModel", model),
   }
 }
 
-/** The model pill for a `createComposerHarness` composer, for its `controls` slot. */
 export function ComposerModelPill(props: { harness: ComposerHarness }) {
   const settings = useSettings()
-  // A pick here is the next new thread's starting harness and model, as in a thread's composer.
   const controller = rememberingHarness(props.harness.controller, settings.harnesses.setLastUsed)
   return (
-    // Nothing here suspends: before the first check answers, the pill shows the remembered list.
     <Show
       when={props.harness.directory()}
       keyed

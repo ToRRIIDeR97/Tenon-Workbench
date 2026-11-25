@@ -168,7 +168,6 @@ describeWatcher("Watcher", () => {
     ),
   )
 
-  // A folder outside git is watched too (only the home folder and a filesystem root are left out).
   it.live("watches a plain folder outside git", () =>
     withTmp((directory) =>
       Effect.gen(function* () {

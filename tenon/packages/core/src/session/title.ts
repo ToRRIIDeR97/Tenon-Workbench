@@ -9,12 +9,10 @@ import { SessionTable } from "./sql"
 const DEFAULT_TITLE = /^(New session|Child session) - \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const MAX_LENGTH = 100
 
-/** True for the placeholder title the store gives a new Session. */
 export function isDefault(title: string) {
   return DEFAULT_TITLE.test(title)
 }
 
-/** First non-empty line of a model reply without reasoning blocks, capped at 100 characters. */
 export function clean(text: string) {
   const line = text
     .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
@@ -25,12 +23,10 @@ export function clean(text: string) {
   return line.length > MAX_LENGTH ? line.substring(0, MAX_LENGTH - 3) + "..." : line
 }
 
-/** Only a top-level, still-default Session is titled, and only after its first user message. */
 export function eligible(input: { parentID?: string; title: string; userMessages: number }) {
   return !input.parentID && isDefault(input.title) && input.userMessages === 1
 }
 
-/** The prompt sent to the title agent: the first user message's text plus attached file names. */
 export function prompt(message: SessionMessage.User) {
   const files = (message.files ?? []).map((file) => file.name ?? file.uri)
   return [
@@ -40,7 +36,6 @@ export function prompt(message: SessionMessage.User) {
   ].join("")
 }
 
-/** The stored Session as a V1 snapshot carrying a new title, for `SessionV1.Event.Updated`. */
 export function renamed(row: typeof SessionTable.$inferSelect, title: string): SessionV1.SessionInfo {
   const summary =
     row.summary_additions !== null || row.summary_deletions !== null || row.summary_files !== null

@@ -77,8 +77,6 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
 
   await page.waitForTimeout(700)
-  // Event delivery time varies with the mock stream's reconnect backoff, so sample until the dock is
-  // fully shown rather than for a fixed time.
   const opening = sampleDock(page, 10_000, "shown")
   todos[sourceID] = activeTodos
   events.push(todoEvent(sourceID, activeTodos))
@@ -98,7 +96,6 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   await expect(dock.locator('[data-state="in_progress"]')).toHaveCount(1)
 
   const completedTodos = activeTodos.map((todo) => ({ ...todo, status: "completed" }))
-  // Sample until the dock is gone: it holds the completed list briefly, then fades.
   const closing = sampleDock(page, 10_000, "gone")
   todos[sourceID] = completedTodos
   events.push(todoEvent(sourceID, completedTodos))
@@ -167,7 +164,6 @@ async function switchSession(page: Page, sessionID: string, title: string) {
   await expectSessionTitle(page, title)
 }
 
-// Samples the dock every frame for `duration` ms, or until it is fully shown or gone when `until` is set.
 function sampleDock(page: Page, duration: number, until?: "shown" | "gone") {
   return page.evaluate(
     async ({ duration, until }) => {

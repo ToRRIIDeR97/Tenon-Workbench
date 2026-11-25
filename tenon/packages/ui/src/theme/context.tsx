@@ -112,7 +112,6 @@ function drop(key: string) {
   } catch {}
 }
 
-/** Themes imported from VS Code, kept in this window's storage beside the theme choice. */
 function readCustomThemes(): Record<string, DesktopTheme> {
   try {
     const value = JSON.parse(read(STORAGE_KEYS.CUSTOM_THEMES) ?? "[]") as DesktopTheme[]
@@ -169,7 +168,6 @@ function applyThemeCss(theme: DesktopTheme, themeId: string, mode: "light" | "da
   document.documentElement.dataset.colorScheme = mode
   document.documentElement.style.backgroundColor = isDark ? "#080808" : "#f3f3f4"
 
-  // Update theme-color meta tag to match light/dark mode
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.setAttribute("content", isDark ? "#080808" : "#f3f3f4")
 }
@@ -340,13 +338,11 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       setTheme,
       setColorScheme,
       registerTheme: (theme: DesktopTheme) => setStore("themes", theme.id, theme),
-      /** Adds an imported theme, keeps it across restarts, and switches to it. */
       importTheme: (theme: DesktopTheme) => {
         setStore("themes", theme.id, theme)
         write(STORAGE_KEYS.CUSTOM_THEMES, JSON.stringify(Object.values({ ...readCustomThemes(), [theme.id]: theme })))
         setTheme(theme.id)
       },
-      /** Imported themes, which can be removed; built-in ones can't. */
       customThemeIds: () => Object.keys(store.themes).filter((id) => id in readCustomThemes()),
       removeTheme: (id: string) => {
         const custom = readCustomThemes()

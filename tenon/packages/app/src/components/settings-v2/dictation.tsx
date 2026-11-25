@@ -16,8 +16,6 @@ export function SettingsDictationV2() {
   const language = useLanguage()
   const platform = usePlatform()
   const settings = useSettings()
-  // The default first, naming what it resolves to (English for an English app, else detection), then the app's
-  // language, detection, and each language by its own name in the app's.
   const languageOptions = createMemo(() => {
     const names = new Intl.DisplayNames([language.intl()], { type: "language" })
     const app = dictationLanguage("app", language.intl())

@@ -52,7 +52,6 @@ describe("agent writes", () => {
     expect(write).toMatchObject({ kind: "thread", open: { session: "ses_new" } })
     const key = "local" as Parameters<typeof sessionHref>[0]
     expect(openHref(write!, key)).toBe(sessionHref(key, "ses_new"))
-    // Without a server to open it on there is nowhere to go.
     expect(openHref(write!)).toBeUndefined()
   })
 
@@ -106,7 +105,6 @@ describe("writeTurn", () => {
   ]
   test("a write's turn is its assistant message's parent, else the turn running when it arrived", () => {
     expect(writeTurn({ messageID: "a1", at: 999 }, (id) => (id === "a1" ? "u1" : undefined), users)).toBe("u1")
-    // External harnesses name no message.
     expect(writeTurn({ at: 150 }, () => undefined, users)).toBe("u1")
     expect(writeTurn({ at: 250 }, () => undefined, users)).toBe("u2")
     expect(writeTurn({ at: 50 }, () => undefined, users)).toBeUndefined()

@@ -24,7 +24,6 @@ describe("board camera", () => {
   })
 
   test("columns follow the viewport's shape", () => {
-    // The side panel at its default width: tall and narrow, so three boards stack.
     expect(boardColumns(3, { width: 400, height: 730 })).toBe(1)
     expect(boardColumns(3, { width: 1600, height: 500 })).toBe(3)
     expect(boardColumns(4, { width: 1200, height: 800 })).toBe(2)
@@ -43,7 +42,6 @@ describe("board camera", () => {
     const ease = cssEasing("cubic-bezier(0.05, 0.7, 0.1, 1)")
     expect(ease(0)).toBe(0)
     expect(ease(1)).toBe(1)
-    // Emphasized decelerate is well ahead of linear early on.
     expect(ease(0.25)).toBeGreaterThan(0.6)
     expect(cssEasing("cubic-bezier(0.42, 0, 0.58, 1)")(0.5)).toBeCloseTo(0.5, 3)
     expect(cssEasing("ease")(0.3)).toBe(0.3)

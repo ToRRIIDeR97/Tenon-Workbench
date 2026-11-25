@@ -24,7 +24,6 @@ import { ProtocolError } from "@tenon/core/harness/codex-app-server"
 import { Token } from "@tenon/core/util/token"
 
 describe("Codex subagents", () => {
-  // Trimmed from a live Codex 0.164 turn that spawned one subagent (`subAgentActivity`, then its own thread).
   const main = "thread-main"
   const child = "thread-child"
   const notifications = [
@@ -82,7 +81,6 @@ describe("Codex subagents", () => {
 
   test("a subagent becomes a row with its own thread's reply and token use, and only the turn's thread ends it", () => {
     const state = codexState()
-    // One at a time, as the stream does: a subagent's thread is let through once its start has been read.
     const events = notifications.flatMap((n) =>
       codexTurnNotification(n, main, "t1", state) ? parseCodexNotification(n, state) : [],
     )
@@ -329,7 +327,6 @@ describe("Codex harness", () => {
     }
     const full = renderHarnessPrompt(request, "full", { workspace })
     expect(full.indexOf("</tenon-context>")).toBeLessThan(full.indexOf("<handoff-history>"))
-    // No `tenon` MCP server (an ACP agent without HTTP MCP support): ask in the reply.
     expect(full).not.toContain("ask_user")
     expect(full).toContain(ChatDisplay.askGuidance.reply)
     expect(renderHarnessPrompt(request, "none", { workspace })).toBe("Map the codebase")

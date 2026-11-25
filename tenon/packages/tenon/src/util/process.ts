@@ -62,7 +62,6 @@ export function spawn(cmd: string[], opts: Options = {}): Child {
   if (cmd.length === 0) throw new Error("Command is required")
   opts.abort?.throwIfAborted()
 
-  // Children never receive the server credentials, even when they inherit the parent environment.
   const env = opts.env === null ? {} : ChildEnv.from({ ...process.env, ...opts.env })
   const file = opts.shell ? cmd[0] : spawnTarget(cmd[0], env)
   if (!file) throw notFound(cmd[0])
@@ -154,8 +153,6 @@ export async function run(cmd: string[], opts: RunOptions = {}): Promise<Result>
   throw new RunFailedError(cmd, out.code, out.stdout, out.stderr)
 }
 
-// Duplicated in `packages/sdk/js/src/process.ts` because the SDK cannot import
-// `tenon` without creating a cycle. Keep both copies in sync.
 export async function stop(proc: ChildProcess) {
   if (proc.exitCode !== null || proc.signalCode !== null) return
 

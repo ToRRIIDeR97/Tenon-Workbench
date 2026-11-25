@@ -5,23 +5,15 @@ export type HeavyItemKind = "message" | "reply" | "file" | "tool" | "subagent"
 export type HeavyItem = {
   key: string
   kind: HeavyItemKind
-  /** What it is: the first line of a message or reply, a file's name, a tool's title or name. */
   name: string
   tokens: number
-  /** 1-based turn, counted by the user's messages. */
   turn: number
-  /** The turn's user message, which the timeline reveals. */
   turnID: string
 }
 
 const estimateTokens = (chars: number) => Math.ceil(chars / 4)
 const firstLine = (text: string) => text.trim().split("\n")[0]?.trim() ?? ""
 
-/**
- * The biggest single things in a thread's context, largest first: messages, replies, attached files, tool calls
- * with their output, and subagent reports. Sizes use the breakdown's estimate (about four characters a token,
- * `session-context-breakdown.ts`), so they rank the items rather than add up to the reported total.
- */
 export function heaviestContextItems(args: {
   messages: Message[]
   parts: Record<string, Part[] | undefined>

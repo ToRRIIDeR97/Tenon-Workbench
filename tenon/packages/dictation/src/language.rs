@@ -1,9 +1,3 @@
-//! The spoken language a run is told to expect. Whisper guesses the language per clip when it is not told,
-//! and a wrong guess comes back in another language (it reads as a translation), so a known language is passed
-//! whenever the model supports it.
-
-/// The language code to pass for a run: the requested one when the model lists it, otherwise none (the model
-/// detects it). `auto`, an empty code and a language-agnostic model (no list) all mean none.
 pub fn run_language(requested: Option<&str>, supported: &[String]) -> Option<String> {
     let code = requested?.trim();
     if code.is_empty() || code == "auto" {
@@ -15,9 +9,6 @@ pub fn run_language(requested: Option<&str>, supported: &[String]) -> Option<Str
         .then(|| code.to_ascii_lowercase())
 }
 
-/// The options for every run: always transcribe (never translate, and no target language), in the requested
-/// language when the model supports it. `transcribe_cpp` hands `language` to the native run as is
-/// (`session.rs`, `params.language`).
 pub fn run_options(requested: Option<&str>, supported: &[String]) -> transcribe_cpp::RunOptions {
     transcribe_cpp::RunOptions {
         task: transcribe_cpp::Task::Transcribe,
@@ -27,12 +18,10 @@ pub fn run_options(requested: Option<&str>, supported: &[String]) -> transcribe_
     }
 }
 
-// Acceptance tests for implementations/harness-ux-batch-2 (AC-6, engine side).
 #[cfg(test)]
 mod tests {
     use super::{run_language, run_options};
 
-    // Panel round 3: the options a Whisper model that knows English gets for an English recording.
     #[test]
     fn an_english_recording_transcribes_in_english_and_never_translates() {
         let options = run_options(Some("en"), &langs(&["en", "es", "zh"]));

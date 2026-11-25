@@ -76,16 +76,6 @@ export function stream(input: StreamInput): StreamResult {
   const current = statusWithFetch(input, fetch)
   if (current.type === "unsupported") return current
 
-  // Integration point with @tenon/llm: native-request lowers session data
-  // into an LLMRequest, then LLMClient handles route selection and transport.
-  //
-  // ProviderTransform.providerOptions builds AI-SDK-shaped options for the
-  // selected SDK key (e.g. "openai") and the native LLM SDK reads the same
-  // keys via OpenAIOptions.* (store, reasoningEffort, reasoningSummary,
-  // include, textVerbosity, promptCacheKey). Both sides intentionally use
-  // OpenAI's official wire field names, so this is identity, not translation
-  // — if a field ever needs to differ between the two surfaces, the
-  // translation belongs here, not split across both packages.
   const tools = nativeTools(input.tools, input)
   const request = LLMNative.request({
     model: input.model,
@@ -112,7 +102,6 @@ export function stream(input: StreamInput): StreamResult {
             }),
           )
           .pipe(
-            // SessionRetry owns provider retries on this path; inner executor retries would multiply them.
             Stream.provideService(RequestExecutor.MaxRetries, 0),
             Stream.flatMap((event) =>
               event.type !== "tool-call" || event.providerExecuted
@@ -172,8 +161,6 @@ export function nativeTools(tools: Record<string, Tool>, input: Pick<StreamInput
   return Object.fromEntries(
     Object.entries(tools).map(([name, item]) => [
       name,
-      // Tool execution remains Tenon-owned. The native runtime only adapts
-      // the @tenon/llm tool call back into the AI SDK Tool.execute shape.
       NativeTool.make({
         description: item.description ?? "",
         jsonSchema: nativeSchema(item.inputSchema),

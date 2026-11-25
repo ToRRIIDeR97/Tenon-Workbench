@@ -23,12 +23,9 @@ export class ResponseStreamError extends Error {
 function isOpenAiErrorRetryable(e: APICallError) {
   const status = e.statusCode
   if (!status) return e.isRetryable
-  // openai sometimes returns 404 for models that are actually available
   return status === 404 || e.isRetryable
 }
 
-// Providers not reliably handled in this function:
-// - z.ai: can accept overflow silently (needs token-count/context-window checks)
 function message(providerID: ProviderV2.ID, e: APICallError) {
   return iife(() => {
     const msg = e.message
@@ -47,15 +44,12 @@ function message(providerID: ProviderV2.ID, e: APICallError) {
 
     try {
       const body = JSON.parse(e.responseBody)
-      // try to extract common error message fields
       const errMsg = body.message || body.error || body.error?.message
       if (errMsg && typeof errMsg === "string") {
         return `${msg}: ${errMsg}`
       }
     } catch {}
 
-    // If responseBody is HTML (e.g. from a gateway or proxy error page),
-    // provide a human-readable message instead of dumping raw markup
     if (/^\s*<!doctype|^\s*<html/i.test(e.responseBody)) {
       if (e.statusCode === 401) {
         return "Unauthorized: request was blocked by a gateway or proxy. Your authentication token may be missing or expired — try running `tenon auth login <your provider URL>` to re-authenticate."

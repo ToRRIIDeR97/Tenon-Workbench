@@ -6,16 +6,10 @@ const MIN_WEEKS = 4
 
 export type TimelineRow = {
   item: TimelineItem
-  /** Percent of the visible range; absent when the item has no valid date. */
   left?: number
   width?: number
 }
 
-/**
- * Lay items out on a grid of whole weeks (starting Monday, UTC calendar days so the time zone never shifts a
- * date). A task spans start..end inclusive; a milestone sits at its date. Dates are `YYYY-MM-DD`. The grid spans
- * at least four weeks, so a short plan still has dated ticks to read its bars and milestone labels against.
- */
 export function timelineLayout(items: ReadonlyArray<TimelineItem>) {
   const spans = items.map((item) => {
     const start = calendarDay(item.start) ?? calendarDay(item.end)
@@ -42,11 +36,6 @@ export function timelineLayout(items: ReadonlyArray<TimelineItem>) {
   }
 }
 
-/**
- * Progress counts tasks only; milestones mark dates. `percent` is the Project's one progress value (done of total,
- * rounded), absent while it has no tasks. `next` is the earliest milestone still open: one whose tasks are all done
- * counts as complete even if its own status was never changed.
- */
 export function timelineCounts(items: ReadonlyArray<TimelineItem>) {
   const tasks = items.filter((item) => item.kind === "task")
   const done = tasks.filter((item) => item.status === "done").length
@@ -61,9 +50,6 @@ export function timelineCounts(items: ReadonlyArray<TimelineItem>) {
   }
 }
 
-/**
- * A milestone's shown status: done once every task under it is done (and it has at least one), otherwise its own.
- */
 export function milestoneStatus(group: MilestoneGroup): TimelineItem["status"] | undefined {
   if (!group.milestone) return undefined
   return group.complete ? "done" : group.milestone.status
@@ -74,15 +60,9 @@ export type MilestoneGroup = {
   tasks: TimelineItem[]
   done: number
   total: number
-  /** The milestone is marked done, or every task under it is. */
   complete: boolean
 }
 
-/**
- * The timeline grouped by list order, since items carry no milestone link: a milestone heads the tasks listed after
- * it up to the next milestone, and tasks before the first milestone form a group without one. `open` hides done
- * tasks, and complete milestones with nothing open under them. `done` and `total` count every task in the group.
- */
 export function milestoneGroups(items: ReadonlyArray<TimelineItem>, open = false) {
   const groups: MilestoneGroup[] = [{ tasks: [], done: 0, total: 0, complete: false }]
   items.forEach((item) => {
@@ -101,10 +81,6 @@ export function milestoneGroups(items: ReadonlyArray<TimelineItem>, open = false
   )
 }
 
-/**
- * A month (`YYYY-MM`) as whole weeks from Monday, each day with the items on it: a task on every day from its
- * start to its end, a milestone on its date. UTC calendar days, like `timelineLayout`.
- */
 export function monthGrid(month: string, items: ReadonlyArray<TimelineItem>) {
   const first = calendarDay(`${month}-01`) ?? calendarDay(new Date().toISOString())!
   const start = first - ((new Date(first).getUTCDay() + 6) % 7) * day
@@ -129,17 +105,12 @@ export function monthGrid(month: string, items: ReadonlyArray<TimelineItem>) {
   )
 }
 
-/** `YYYY-MM` moved by `offset` months. */
 export function shiftMonth(month: string, offset: number) {
   const date = new Date(`${month}-01T00:00:00Z`)
   date.setUTCMonth(date.getUTCMonth() + offset)
   return date.toISOString().slice(0, 7)
 }
 
-/**
- * A free file name for a new page among the existing paths, e.g. `Untitled 2.md`. Strips characters paths refuse;
- * a title with nothing left falls back to `page`, a plain slug that needs no translation.
- */
 export function newPagePath(title: string, folder: string, pages: ReadonlyArray<Pick<VaultPageInfo, "path">>) {
   const base = title.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "").trim() || "page"
   const taken = new Set(pages.map((page) => page.path.toLowerCase()))
@@ -151,30 +122,22 @@ export function newPagePath(title: string, folder: string, pages: ReadonlyArray<
   return name(index ?? Date.now())
 }
 
-/**
- * The text a page keeps after a save. The server ends the file with a newline, and that alone must not replace the
- * text in the editor: a new value would read as a loaded page, dropping the caret and switching to Preview. Text
- * typed while the request ran stays unsaved.
- */
 export function bodyAfterSave(current: string, sent: string, saved: string) {
   const baseBody = saved.trimEnd() === sent.trimEnd() ? sent : saved
   return { body: current === sent ? baseBody : current, baseBody }
 }
 
-/** The change that gives an item its date: a task's due day (its end), a milestone's day (its start). */
 export function dueDatePatch(item: TimelineItem, date: string | undefined): Partial<TimelineItem> {
   if (item.kind === "milestone") return { start: date }
   if (!date) return { start: undefined, end: undefined }
   return item.start && item.start.slice(0, 10) > date ? { start: undefined, end: date } : { end: date }
 }
 
-/** Puts a removed item back near where it was, in the latest list; one that came back meanwhile stays as it is. */
 export function restoreItem(items: ReadonlyArray<TimelineItem>, item: TimelineItem, index: number) {
   if (items.some((entry) => entry.id === item.id)) return items
   return [...items.slice(0, index), item, ...items.slice(index)]
 }
 
-/** Projects whose name or outcome holds `query`, ignoring case. */
 export function matchProjects<T extends { name: string; outcome: string }>(projects: ReadonlyArray<T>, query: string) {
   const text = query.trim().toLowerCase()
   if (!text) return []

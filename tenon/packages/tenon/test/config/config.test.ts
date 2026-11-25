@@ -129,7 +129,6 @@ const clearEffect = (wait = false) =>
       Effect.andThen(wait ? Effect.promise(() => InstanceRuntime.disposeAllInstances()) : Effect.void),
     )
 const clear = (wait = false) => Effect.runPromise(clearEffect(wait))
-// Get managed config directory from environment (set in preload.ts)
 const managedConfigDir = process.env.TENON_TEST_MANAGED_CONFIG_DIR!
 const originalTestToken = process.env.TEST_TOKEN
 const originalConsoleToken = process.env.TENON_CONSOLE_TOKEN
@@ -383,7 +382,6 @@ it.effect("updates global config and omits empty shell key in json", () =>
   ),
 )
 
-// #334: Settings › MCP servers can remove a server; a config patch can't delete a key.
 it.effect("AC-9 removes one MCP server from a json global config and keeps the rest", () =>
   withGlobalConfig(
     {
@@ -456,7 +454,6 @@ it.effect("AC-9 renames an MCP server and clears its folder in place, keeping se
 
         const written = yield* FSUtil.use.readFileString(file)
         expect(written).toContain("// my servers")
-        // The renamed entry keeps its own comment, right above it.
         expect(written).toMatch(/\/\/ the app database\n\s*"pg":/)
         const parsed = ConfigParse.jsonc(written, file) as { mcp: Record<string, Record<string, unknown>> }
         expect(Object.keys(parsed.mcp).sort()).toEqual(["gh", "pg"])
@@ -520,7 +517,6 @@ test("tenon config names win over the pre-rename opencode names", async () => {
         const cfg = await load(ctx)
         expect(cfg.username).toBe("tenon")
         expect(cfg.model).toBe("tenon/model")
-        // Keys only in the legacy files still load.
         expect(cfg.shell).toBe("zsh")
         expect(cfg.snapshot).toBe(false)
       },
@@ -532,7 +528,6 @@ test("tenon config names win over the pre-rename opencode names", async () => {
 })
 
 test("loads project config from Git Bash and MSYS2 paths on Windows", async () => {
-  // Git Bash and MSYS2 both use /<drive>/... paths on Windows.
   await check((dir) => {
     const drive = dir[0].toLowerCase()
     const rest = dir.slice(2).replaceAll("\\", "/")
@@ -645,7 +640,6 @@ it.instance("preserves env variables when adding $schema to config", () =>
     "secret_value",
     Effect.gen(function* () {
       const test = yield* TestInstance
-      // Config without $schema - should trigger auto-add
       yield* FSUtil.use.writeWithDirs(
         path.join(test.directory, "opencode.json"),
         JSON.stringify({ username: "{env:PRESERVE_VAR}" }),
@@ -653,7 +647,6 @@ it.instance("preserves env variables when adding $schema to config", () =>
       const config = yield* Config.use.get()
       expect(config.username).toBe("secret_value")
 
-      // Read the file to verify the env variable was preserved
       const content = yield* FSUtil.use.readFileString(path.join(test.directory, "opencode.json"))
       expect(content).toContain("{env:PRESERVE_VAR}")
       expect(content).not.toContain("secret_value")
@@ -1105,10 +1098,6 @@ it.effect("installs dependencies in writable TENON_CONFIG_DIR", () =>
   }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
 )
 
-// Note: deduplication and serialization of npm installs is now handled by the
-// core Npm.Service (via EffectFlock). Those behaviors are tested in the core
-// package's npm tests, not here.
-
 it.instance("resolves scoped npm plugins in config", () =>
   Effect.gen(function* () {
     const test = yield* TestInstance
@@ -1271,8 +1260,6 @@ it.effect("keeps plugin origins aligned with merged plugin list", () =>
   ),
 )
 
-// Legacy tools migration tests
-
 it.instance("migrates legacy tools config to permissions - allow", () =>
   Effect.gen(function* () {
     const test = yield* TestInstance
@@ -1317,9 +1304,6 @@ it.instance("migrates legacy write tool to edit permission", () =>
     expect(config.agent?.["test"]?.permission).toEqual({ edit: "allow" })
   }),
 )
-
-// Managed settings tests
-// Note: preload.ts sets TENON_TEST_MANAGED_CONFIG which Global.Path.managedConfig uses
 
 it.instance(
   "managed settings override user settings",
@@ -1434,8 +1418,6 @@ it.instance("merges legacy tools with existing permission config", () =>
 )
 
 it.instance("permission config preserves user key order", () =>
-  // Permission precedence follows the order users write in config, so parsing
-  // must not canonicalise known keys ahead of wildcard or custom keys.
   Effect.gen(function* () {
     const test = yield* TestInstance
     yield* writeConfigEffect(test.directory, {
@@ -1488,12 +1470,9 @@ test("config parser preserves permission order while ignoring unknown top-level 
   expect(config).not.toHaveProperty("plugins")
 })
 
-// MCP config merging tests
-
 it.instance("project config can override MCP server enabled status", () =>
   Effect.gen(function* () {
     const test = yield* TestInstance
-    // Simulates a base config (like from remote .well-known) with disabled MCP.
     yield* writeConfigEffect(test.directory, {
       $schema: "https://opencode.ai/config.json",
       mcp: {
@@ -1509,7 +1488,6 @@ it.instance("project config can override MCP server enabled status", () =>
         },
       },
     })
-    // Project config enables just jira.
     yield* writeConfigEffect(
       test.directory,
       {
@@ -1996,7 +1974,6 @@ describe("TENON_DISABLE_PROJECT_CONFIG", () => {
         Effect.gen(function* () {
           const test = yield* TestInstance
           yield* FSUtil.use.writeWithDirs(path.join(test.directory, "CUSTOM.md"), "# Custom Instructions")
-          // The relative instruction should be skipped without error
           const config = yield* Config.use.get()
           expect(config).toBeDefined()
         }),
@@ -2021,9 +1998,6 @@ describe("TENON_DISABLE_PROJECT_CONFIG", () => {
   )
 })
 
-// Regression for #28206: malformed TENON_PERMISSION JSON used to crash
-// the app on startup with an unhandled SyntaxError. Loading the config with
-// an invalid JSON value in this env var should not throw.
 describe("TENON_PERMISSION env var", () => {
   it.instance("does not crash when TENON_PERMISSION contains invalid JSON", () =>
     withProcessEnv(
@@ -2031,7 +2005,6 @@ describe("TENON_PERMISSION env var", () => {
       "{invalid",
       Effect.gen(function* () {
         const config = yield* Config.use.get()
-        // Regression: load() used to throw before returning anything.
         expect(config).toBeDefined()
       }),
     ),
@@ -2076,8 +2049,6 @@ describe("TENON_CONFIG_CONTENT token substitution", () => {
   )
 })
 
-// parseManagedPlist unit tests — pure function, no OS interaction
-
 test("parseManagedPlist strips MDM metadata keys", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
@@ -2100,7 +2071,6 @@ test("parseManagedPlist strips MDM metadata keys", async () => {
   )
   expect(config.share).toBe("disabled")
   expect(config.model).toBe("mdm/model")
-  // MDM keys must not leak into the parsed config
   expect((config as any).PayloadUUID).toBeUndefined()
   expect((config as any).PayloadType).toBeUndefined()
   expect((config as any)._manualProfile).toBeUndefined()

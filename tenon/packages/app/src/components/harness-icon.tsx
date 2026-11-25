@@ -7,7 +7,6 @@ import commandCode from "../assets/harness-logos/command-code.png"
 
 const BRAND_SRC = { antigravity, "command-code": commandCode }
 
-/** A harness's logo at icon size (16px unless `class` sets a size): the Tenon mark, its maker's logo, its own mark, or its letter. */
 export function HarnessIcon(props: { instance?: { id: string; name: string }; class?: string }) {
   const logo = () => (props.instance ? harnessLogo(props.instance) : undefined)
   const provider = () => {

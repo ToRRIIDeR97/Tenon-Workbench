@@ -38,21 +38,10 @@ const BASE_DELAY_MS = 500
 const MAX_DELAY_MS = 10_000
 const REDACTED = "<redacted>"
 
-/**
- * Inner retries for retryable status responses. A caller that owns its own retry policy (the session
- * runners) sets this to 0 so the two layers do not multiply attempts.
- */
 export const MaxRetries = Context.Reference<number>("@tenon/LLM/RequestExecutor/MaxRetries", {
   defaultValue: () => MAX_RETRIES,
 })
 
-// One source of truth for what counts as a sensitive name across headers,
-// URL query keys, and field names embedded inside request/response bodies.
-//
-// `SENSITIVE_NAME` is used as both a substring matcher (for free-form header
-// names like `Authorization` / `X-API-Key`) and as the body-field alternation
-// list. `SHORT_QUERY_NAME` covers anchored short keys like `?key=…` / `?sig=…`
-// that are too generic to redact substring-style without false positives.
 const SENSITIVE_NAME_SOURCE =
   "authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|token|secret|credential|signature|x-amz-signature"
 const SENSITIVE_NAME = new RegExp(SENSITIVE_NAME_SOURCE, "i")
@@ -193,9 +182,6 @@ const secretValues = (request: HttpClientRequest.HttpClientRequest) => {
   return values
 }
 
-// Two passes: structural (redact `"name": "value"` and `name=value` patterns
-// for any field name that looks sensitive) plus literal (replace any actual
-// secret values we sent in the request, in case the response echoes one back).
 const redactBody = (body: string, request: HttpClientRequest.HttpClientRequest) =>
   Array.from(secretValues(request)).reduce(
     (text, secret) => text.split(secret).join(REDACTED),
@@ -364,7 +350,6 @@ const retryStatusFailures = <A, R>(
   attempt = 0,
 ): Effect.Effect<A, LLMError, R> =>
   Effect.catchTag(effect, "LLM.Error", (error): Effect.Effect<A, LLMError, R> => {
-    // Never retry sooner than the provider asked; a longer Retry-After fails fast and carries retryAfterMs.
     if (!error.retryable || retries <= 0 || (error.retryAfterMs ?? 0) > MAX_DELAY_MS) return Effect.fail(error)
     return retryDelay(error, attempt).pipe(
       Effect.flatMap((delay) => Effect.sleep(delay)),

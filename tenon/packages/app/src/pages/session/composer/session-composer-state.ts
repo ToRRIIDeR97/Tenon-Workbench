@@ -76,11 +76,6 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     return store.responding === perm.id
   })
 
-  /**
-   * `message` goes with a reject: the built-in agent reads it as the reason. Codex and ACP agents only see the
-   * refusal (their approval protocols carry no reason), so with `forward` the reason follows as a queued message
-   * the agent reads when its turn ends.
-   */
   const decide = (response: "once" | "always" | "reject", message?: string, forward?: boolean) => {
     const perm = permissionRequest()
     if (!perm) return
@@ -124,7 +119,6 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     const value = options?.closeMs
     if (typeof value === "function") return Math.max(0, value())
     if (typeof value === "number") return Math.max(0, value)
-    // Long enough for the dock's 0.3s close spring to finish.
     return motionDuration("long")
   }
 
@@ -136,7 +130,6 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     }, closeMs())
   }
 
-  // Keep stale turn todos from reopening if the model never clears them.
   const clear = () => {
     const id = params.id
     if (!id) return

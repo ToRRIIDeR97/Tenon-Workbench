@@ -1,17 +1,10 @@
 import type { LogEntry, TimelineItem } from "./client"
 import { milestoneGroups } from "./notes-timeline"
 
-/**
- * The Project page's derived views: the milestone road under the title, the numbers row and the Story that merges
- * threads with the Project log. Pure, so the page and its tests read the same answers.
- */
-
 export type RoadStop = {
   id: string
   title: string
-  /** The milestone's date (its start, else its end), as stored. */
   date?: string
-  /** Done when marked done or every task under it is; the first other stop is current; the rest are ahead. */
   state: "done" | "current" | "ahead"
   done: number
   total: number
@@ -19,18 +12,11 @@ export type RoadStop = {
 
 export type MilestoneRoad = {
   stops: RoadStop[]
-  /** Where each stop sits along the road, 0–1. The road starts before the first stop, so stop i of n sits at (i+1)/n. */
   positions: number[]
-  /** How far along the road the fill reaches, 0–1. */
   fill: number
   current?: RoadStop
 }
 
-/**
- * The milestones in list order, as stops along a road that starts before the first of them. The fill runs through
- * every finished milestone and on toward the current one by the share of its tasks that are done, so progress on
- * the first milestone shows too.
- */
 export function milestoneRoad(items: ReadonlyArray<TimelineItem>): MilestoneRoad {
   const groups = milestoneGroups(items).filter((group) => group.milestone)
   const firstOpen = groups.findIndex((group) => !group.complete)
@@ -55,7 +41,6 @@ export function milestoneRoad(items: ReadonlyArray<TimelineItem>): MilestoneRoad
 
 export type ProjectNumbers = { open: number; done: number; running: number; pages: number }
 
-/** The numbers row: open and done tasks (milestones aside), threads at work, and pages. */
 export function projectNumbers(
   items: ReadonlyArray<TimelineItem>,
   threads: ReadonlyArray<{ running: boolean }>,
@@ -78,7 +63,6 @@ export type StoryEntry =
       id: string
       title: string
       at: number
-      /** The thread's own last update; `at` is now for a running thread. */
       updated: number
       running: boolean
     }
@@ -86,28 +70,18 @@ export type StoryEntry =
       kind: "log"
       key: string
       at: number
-      /** Stamped with a day but no time. */
       dateOnly: boolean
       author: string
       text: string
     }
 
 export type StoryDay = {
-  /** The local calendar day, `YYYY-MM-DD`. */
   day: string
-  /** Stable across updates: `day:` and the day. */
   key: string
-  /** 0 for today, 1 for yesterday, and so on. */
   daysAgo: number
   entries: StoryEntry[]
 }
 
-/**
- * Threads and log entries on one timeline, grouped by local day, newest day first. Running threads lead today
- * whatever their last update, the most recently active first; otherwise entries are newest first. Anything stamped after `now` (another machine's
- * clock) counts as today. Log entries whose time does not parse, and stopped threads without a valid time, are left
- * out. Entries carry stable keys so a renderer can keep them across updates.
- */
 export function projectStory(
   threads: ReadonlyArray<{ id: string; title: string; updated: number; running: boolean }>,
   log: ReadonlyArray<LogEntry>,
@@ -116,7 +90,6 @@ export function projectStory(
   const seen = new Map<string, number>()
   const entries: StoryEntry[] = [
     ...threads.flatMap((thread): StoryEntry[] => {
-      // A stopped thread needs a real time to be placed; zero or less is as missing as NaN.
       if (!thread.running && !(Number.isFinite(thread.updated) && thread.updated > 0)) return []
       return [
         {
@@ -133,7 +106,6 @@ export function projectStory(
     ...log.flatMap((entry): StoryEntry[] => {
       const at = logTime(entry.at)
       if (!Number.isFinite(at)) return []
-      // Keyed by what the entry says, not where it sits, so a new entry at either end leaves the others' keys alone.
       const base = `log:${entry.at}:${entry.author}:${textHash(entry.text)}`
       const repeat = (seen.get(base) ?? 0) + 1
       seen.set(base, repeat)
@@ -150,7 +122,6 @@ export function projectStory(
     }),
   ]
   const running = (entry: StoryEntry) => entry.kind === "thread" && entry.running
-  // Running threads by their own last update (one without a valid time sorts after the others).
   const order = (entry: StoryEntry) =>
     entry.kind === "thread" && entry.running ? (Number.isFinite(entry.updated) ? entry.updated : 0) : entry.at
   entries.sort((left, right) => Number(running(right)) - Number(running(left)) || order(right) - order(left))
@@ -170,7 +141,6 @@ export function projectStory(
   return [...days.values()].sort((left, right) => left.daysAgo - right.daysAgo)
 }
 
-// A date-only stamp names a local day; `Date.parse` would read it as UTC midnight, the day before west of UTC.
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 function logTime(value: string) {
   const date = DATE_ONLY.exec(value)
@@ -178,7 +148,6 @@ function logTime(value: string) {
   return Date.parse(value)
 }
 
-// A short, stable fingerprint of an entry's text (djb2), enough to tell entries with the same time and author apart.
 function textHash(text: string) {
   return Array.from(text)
     .reduce((hash, char) => (Math.imul(hash, 33) ^ char.codePointAt(0)!) >>> 0, 5381)

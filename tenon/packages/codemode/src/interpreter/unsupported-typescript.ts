@@ -4,7 +4,6 @@ import { ContextualKeyword } from "sucrase/dist/parser/tokenizer/keywords"
 import { TokenType } from "sucrase/dist/parser/tokenizer/types"
 
 export interface UnsupportedTypeScript {
-  /** Offset of the offending keyword in the parsed source. */
   readonly start: number
   readonly reason: string
 }
@@ -17,8 +16,6 @@ const EXPORT_EQUALS = "`export =` is not supported in code mode; use `return` to
 const isName = (token: SucraseToken | undefined, keyword?: number): boolean =>
   token?.type === TokenType.name && (keyword === undefined || token.contextualKeyword === keyword)
 
-// Index of the `}` closing the block of `declare namespace|module|global ...`, or `index` when the
-// declaration has no block (`declare module "x"`).
 const skipDeclareBlock = (tokens: ReadonlyArray<SucraseToken>, index: number): number => {
   let open = index + 1
   while (open < tokens.length && tokens[open].type !== TokenType.braceL) {
@@ -35,11 +32,6 @@ const skipDeclareBlock = (tokens: ReadonlyArray<SucraseToken>, index: number): n
   return tokens.length
 }
 
-/**
- * Finds TypeScript syntax that Sucrase accepts but does not turn into code the interpreter can run:
- * namespaces holding values (Sucrase removes them as if they were types), `import x = ...` and
- * `export =` (emitted as CommonJS). Ambient `declare namespace|module|global` blocks are types and pass.
- */
 export const findUnsupportedTypeScript = (source: string): UnsupportedTypeScript | undefined => {
   if (!/\b(?:namespace|module|import|export)\b/.test(source)) return undefined
   const { tokens } = parse(source, false, true, false)
@@ -64,7 +56,6 @@ export const findUnsupportedTypeScript = (source: string): UnsupportedTypeScript
       return { start: token.start, reason: NAMESPACE }
     }
     if (token.type === TokenType._import && !token.isType) {
-      // `import x = ...` or `import type x = ...`
       const binding = isName(next, ContextualKeyword._type) && isName(tokens[index + 2]) ? index + 2 : index + 1
       if (isName(tokens[binding]) && tokens[binding + 1]?.type === TokenType.eq) {
         return { start: token.start, reason: IMPORT_EQUALS }

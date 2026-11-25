@@ -44,7 +44,6 @@ export type {
 const WORKSPACE_KEY = "__workspace__"
 const MAX_PROMPT_SESSIONS = 20
 
-/** Memory key that keeps a prompt alive across route remounts, or undefined for workspace prompts. */
 export function promptStateKey(scope: PromptScope, server: ServerConnection.Key) {
   if ("draftID" in scope) return draftStateKey(scope.draftID)
   if (!scope.id) return

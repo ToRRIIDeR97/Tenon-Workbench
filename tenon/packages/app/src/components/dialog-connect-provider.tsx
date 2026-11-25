@@ -68,7 +68,6 @@ export const DialogConnectProvider: Component<{
     controller.select(provider)
   }
 
-  // The picker, a provider's connection and the custom form fade through, as do a connection's steps.
   function Content() {
     return (
       <ViewSwitch key={controller.selected() ?? ""} class="flex min-h-0 flex-1 flex-col">
@@ -382,7 +381,6 @@ function ProviderConnection(props: {
   }
 
   const method = createMemo(() => (store.methodIndex !== undefined ? methods().at(store.methodIndex!) : undefined))
-  // Mirrors the step Switch below, so each step fades in as its own view.
   const step = () => {
     if (loading()) return "loading"
     if (store.methodIndex === undefined) return "method"
@@ -616,7 +614,6 @@ function ProviderConnection(props: {
 
   props.setBack(goBack)
 
-  // Pill toggles that wrap, so long method labels never overflow the dialog.
   function MethodChoice() {
     return (
       <div

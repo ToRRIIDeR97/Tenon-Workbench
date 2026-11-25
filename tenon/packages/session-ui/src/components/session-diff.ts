@@ -75,9 +75,7 @@ function completePatchContents(patch: string) {
   try {
     const parsed = parsePatch(patch)[0]
     if (!parsed || (!parsed.index && !parsed.oldFileName && !parsed.newFileName)) return
-    // Snapshot and VCS producers request full context. Tool patches use jsdiff's shorter default context.
     if (!patch.startsWith("diff --git ") && !/^--- [^\n]*\t\r?\n\+\+\+ [^\n]*\t(?:\r?\n|$)/m.test(patch)) return
-    // Full patches collapse into one leading hunk. Separated hunks omit ranges and must stay partial.
     if (parsed.hunks.length !== 1) return
 
     const hunk = parsed.hunks[0]

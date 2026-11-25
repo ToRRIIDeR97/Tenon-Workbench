@@ -5,11 +5,8 @@ import { createStore } from "solid-js/store"
 import { useSpring } from "./motion-spring"
 
 export function TextStrikethrough(props: {
-  /** Whether the strikethrough is active (line drawn across). */
   active: boolean
-  /** The text to display. Rendered twice internally (base + decoration overlay). */
   text: string
-  /** Spring visual duration in seconds. Default 0.35. */
   visualDuration?: number
   class?: string
   style?: JSX.CSSProperties
@@ -36,13 +33,11 @@ export function TextStrikethrough(props: {
   onMount(measure)
   createResizeObserver(() => containerRef, measure)
 
-  // Revealed pixels from left = progress * textWidth
   const revealedPx = () => {
     const tw = textWidth()
     return tw > 0 ? progress() * tw : 0
   }
 
-  // Overlay clip: hide everything to the right of revealed area
   const overlayClip = () => {
     const cw = containerWidth()
     const tw = textWidth()
@@ -51,7 +46,6 @@ export function TextStrikethrough(props: {
     return `inset(0 ${remaining}px 0 0)`
   }
 
-  // Base clip: hide everything to the left of revealed area (complementary)
   const baseClip = () => {
     const px = revealedPx()
     if (px <= 0.5) return "none"

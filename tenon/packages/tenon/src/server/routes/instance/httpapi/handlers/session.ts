@@ -130,8 +130,6 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       if (!page.cursor) return page.items
 
       const request = yield* HttpServerRequest.HttpServerRequest
-      // toURL() honors the Host + x-forwarded-proto headers, so the Link
-      // header echoes the real origin instead of a hard-coded localhost.
       const url = Option.getOrElse(HttpServerRequest.toURL(request), () => new URL(request.url, "http://localhost"))
       url.searchParams.delete("auth_token")
       url.searchParams.set("limit", ctx.query.limit.toString())
@@ -258,11 +256,6 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return true
     })
 
-    // share/unshare errors aren't all client-induced — storage and network
-    // failures from SessionShare are real possibilities. Map to a typed 500
-    // (matches the legacy route behavior which routed any failure through
-    // ErrorMiddleware → NamedError.Unknown 500) instead of blanket-mapping
-    // every failure to a 400 BadRequest.
     const share = Effect.fn("SessionHttpApi.share")(function* (ctx: { params: { sessionID: SessionID } }) {
       yield* requireSession(ctx.params.sessionID)
       yield* shareSvc.share(ctx.params.sessionID).pipe(Effect.mapError(() => new HttpApiError.InternalServerError({})))

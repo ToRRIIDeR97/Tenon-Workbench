@@ -14,7 +14,6 @@ const custom = (id: string, name = id): Workflow => ({
 const builtIn = DEFAULT_WORKFLOWS[0]
 
 describe("the persisted store", () => {
-  // A web platform over the test DOM's localStorage, which a second store reads back as a restart would.
   const platform = { platform: "web" } as unknown as Platform
 
   test("workflows and runs persist and come back with the defaults merged in", () => {

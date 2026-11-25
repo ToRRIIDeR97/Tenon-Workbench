@@ -20,7 +20,6 @@ const task = {
   wait_seconds: wait,
 }
 
-// The in-process loop gets the same tools that external harnesses reach over MCP.
 const inputs = {
   list_agents: Schema.Struct({}),
   delegate_task: Schema.Struct(task),
@@ -68,11 +67,9 @@ const layer = Layer.effectDiscard(
               toModelOutput: ({ output }) => [{ type: "text", text: output.output }],
               execute: (input, context) =>
                 Effect.gen(function* () {
-                  // Listing is free; starting or stopping another agent's work is asked like any other tool.
                   if (tool.name !== "list_agents" && tool.name !== "task_result")
                     yield* permission.assert({
                       action: "delegate",
-                      // A task placed in a Project names it, so the approval says where the work will run.
                       resources: [
                         ("agent" in input ? input.agent : undefined) ?? "*",
                         ...("project_id" in input && input.project_id ? [`project:${input.project_id}`] : []),

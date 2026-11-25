@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { SecondBrainRequestError } from "@/features/second-brain/client"
 import { instructionsErrorKey } from "./instructions-error"
 
-// AC-8: the dialog names why AGENTS.md could not be read or saved.
 describe("instructionsErrorKey", () => {
   test("maps the server's reasons to their own messages", () => {
     expect(instructionsErrorKey(new SecondBrainRequestError(400, "outside_workspace"))).toBe(

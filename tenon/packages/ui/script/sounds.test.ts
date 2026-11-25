@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { render, sounds, wav } from "./sounds"
 
-// The notification sounds stay short, start without a click, end in silence and share one peak level.
 describe("Tenon sounds", () => {
   test.each(sounds.map((sound) => [sound.name, sound] as const))("%s", (_name, sound) => {
     const samples = render(sound)

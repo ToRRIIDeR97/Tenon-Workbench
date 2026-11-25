@@ -9,9 +9,6 @@ const slug = Schema.String.check(
   Schema.isPattern(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
 )
 
-// Keep the wire contract open so a newer build or local fork can persist a
-// harness instance before this build knows how to execute it. Availability is
-// decided by the runtime registry, not by schema decoding.
 export const InstanceID = slug
   .pipe(Schema.brand("@tenon/Harness.InstanceID"))
   .annotate({ identifier: "Harness.InstanceID" })
@@ -55,14 +52,11 @@ export const Instance = Schema.Struct({
   version: Schema.String.pipe(optional),
   authenticated: Schema.Boolean.pipe(optional),
   error: Schema.String.pipe(optional),
-  /** It didn't answer its start check in time (often an adapter fetching its update) but stays usable (#321). */
   slowStart: Schema.Boolean.pipe(optional),
   models: Schema.Array(Model),
 }).annotate({ identifier: "Harness.Instance" })
 export interface Instance extends Schema.Schema.Type<typeof Instance> {}
 
-// A harness as Settings shows it. Only `registry` entries (harnesses.json) can be
-// changed there; built-ins and config-file entries are read-only.
 export const SettingsEntry = Schema.Struct({
   id: InstanceID,
   driver: DriverKind,
@@ -107,14 +101,12 @@ export const VerifyInput = Schema.Struct({
 }).annotate({ identifier: "Harness.VerifyInput" })
 export interface VerifyInput extends Schema.Schema.Type<typeof VerifyInput> {}
 
-// Result of a functional check: handshake, session, and one real reply.
 export const Verification = Schema.Struct({
   command: Schema.String,
   args: Schema.Array(Schema.String),
   agentName: Schema.String.pipe(optional),
   version: Schema.String.pipe(optional),
   models: Schema.Array(Model),
-  /** What the agent reported in its handshake: MCP over HTTP (delegation, app tools), images, resuming. */
   capabilities: Schema.Struct({
     mcpHttp: Schema.Boolean,
     image: Schema.Boolean,
@@ -125,8 +117,6 @@ export const Verification = Schema.Struct({
 }).annotate({ identifier: "Harness.Verification" })
 export interface Verification extends Schema.Schema.Type<typeof Verification> {}
 
-// Day-one setup state of a built-in external harness: whether its CLI is installed, and how it signs in.
-// `auth` is read from the harness's own login files, so `unknown` means the app can't tell.
 export const SetupStatus = Schema.Struct({
   id: InstanceID,
   name: Schema.String,
@@ -152,9 +142,6 @@ export const ApiKeyInput = Schema.Struct({
 }).annotate({ identifier: "Harness.ApiKeyInput" })
 export interface ApiKeyInput extends Schema.Schema.Type<typeof ApiKeyInput> {}
 
-// Installed and latest version of a harness CLI. `method` names the installer the app found (a
-// package manager on macOS or Windows, or the CLI's own updater); without one the user updates it.
-// `manual` means the update needs the user (an administrator prompt), so `command` is shown instead.
 export const UpdateStatus = Schema.Struct({
   id: InstanceID,
   name: Schema.String,
@@ -170,8 +157,6 @@ export const UpdateStatus = Schema.Struct({
 }).annotate({ identifier: "Harness.UpdateStatus" })
 export interface UpdateStatus extends Schema.Schema.Type<typeof UpdateStatus> {}
 
-// Subscription usage a harness reports, one window per limit (for example 5-hour and weekly).
-// `resetsAt` and `checkedAt` are epoch milliseconds.
 export const UsageWindow = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
@@ -195,9 +180,6 @@ export const RefreshInput = Schema.Struct({
 }).annotate({ identifier: "Harness.RefreshInput" })
 export interface RefreshInput extends Schema.Schema.Type<typeof RefreshInput> {}
 
-// `opencode` is the stored ID of the in-process loop (shown as "Default agent"), kept so existing sessions keep
-// routing there. Upstream OpenCode runs as an external ACP harness under `opencode-acp`, and Claude Code under
-// `claude-code` through Anthropic's ACP adapter.
 export const OpenCode = InstanceID.make("opencode")
 export const OpenCodeAcp = InstanceID.make("opencode-acp")
 export const ClaudeCode = InstanceID.make("claude-code")

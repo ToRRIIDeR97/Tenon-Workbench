@@ -24,7 +24,6 @@ const items: TimelineItem[] = [
 describe("timelineLayout", () => {
   test("spans whole weeks from the Monday before the first date", () => {
     const layout = timelineLayout(items)
-    // Two weeks of dates, padded to the four-week minimum.
     expect(layout.weeks).toEqual(["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23"])
     expect(layout.rows.map((row) => [row.item.id, row.left, row.width])).toEqual([
       ["auth", 0, 25],
@@ -55,9 +54,7 @@ test("timelineCounts skips a milestone whose tasks are all done", () => {
   expect(timelineCounts(list)).toMatchObject({ done: 1, total: 2, percent: 50, next: list[2] })
   const groups = milestoneGroups(list)
   expect(groups.map(milestoneStatus)).toEqual(["done", "todo"])
-  // Open hides the complete milestone once nothing under it is left open.
   expect(milestoneGroups(list, true).map((group) => group.milestone?.id)).toEqual(["m2"])
-  // A milestone without tasks keeps its own status.
   expect(milestoneStatus(milestoneGroups([list[0]])[0])).toBe("todo")
 })
 
@@ -87,16 +84,13 @@ test("monthGrid lays a month out from Monday with tasks on every day they span",
 
 test("bodyAfterSave leaves the editor alone when the server only added a final newline", () => {
   expect(bodyAfterSave("typed", "typed", "typed\n")).toEqual({ body: "typed", baseBody: "typed" })
-  // Typed during the save: stays, and stays unsaved.
   expect(bodyAfterSave("typed more", "typed", "typed\n")).toEqual({ body: "typed more", baseBody: "typed" })
-  // A real change on the server is adopted.
   expect(bodyAfterSave("typed", "typed", "merged\n")).toEqual({ body: "merged\n", baseBody: "merged\n" })
 })
 
 test("dueDatePatch moves a task's end and a milestone's start", () => {
   const task = items[0]
   expect(dueDatePatch(task, "2026-11-09")).toEqual({ end: "2026-11-09" })
-  // Never leaves a due day before the start.
   expect(dueDatePatch(task, "2026-10-01")).toEqual({ start: undefined, end: "2026-10-01" })
   expect(dueDatePatch(task, undefined)).toEqual({ start: undefined, end: undefined })
   expect(dueDatePatch(items[2], "2026-12-01")).toEqual({ start: "2026-12-01" })
@@ -136,7 +130,6 @@ test("milestoneGroups puts each task under the milestone listed before it", () =
     ["m1", ["b"], 1, 1],
     ["m2", ["c", "d"], 1, 2],
   ])
-  // Open hides done tasks and a done milestone with nothing open left; the counts still cover every task.
   expect(shape(milestoneGroups(list, true))).toEqual([
     [undefined, ["a"], 0, 1],
     ["m2", ["d"], 1, 2],

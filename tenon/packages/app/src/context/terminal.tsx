@@ -25,10 +25,8 @@ export type LocalPTY = {
 
 type TerminalUpdate = Partial<LocalPTY> & { id: string; buffer?: string }
 
-/** A terminal as the server reports it; `sessionID` is set on the ones an agent started for a thread. */
 type AgentTerminal = { id: string; title: string; status?: string; sessionID?: string }
 
-/** The tab to add for `info` in the thread `sessionID`: only a running agent terminal of that thread not yet shown. */
 export function agentTerminalTab(
   info: AgentTerminal,
   sessionID: string | undefined,
@@ -36,15 +34,12 @@ export function agentTerminalTab(
 ): LocalPTY | undefined {
   if (!sessionID || info.sessionID !== sessionID || info.status === "exited") return
   if (all.some((pty) => pty.id === info.id)) return
-  // No number: the tab shows the agent's title rather than "Terminal N".
   return { id: info.id, title: info.title, titleNumber: 0 }
 }
 
 const WORKSPACE_KEY = "__workspace__"
 const MAX_TERMINAL_SESSIONS = 20
 
-// Scrollback stays out of the persisted store so terminal output never reaches disk. This copy only
-// restores a tab switch or panel toggle; after a reload the server replays its own buffer.
 const scrollback = new Map<string, string>()
 
 export function terminalScrollback(id: string) {
@@ -114,7 +109,6 @@ export function getWorkspaceTerminalCacheKey(dir: string, scope: ServerScopeValu
   return ScopedKey.from(scope, dir, WORKSPACE_KEY)
 }
 
-/** Each thread keeps its own terminal tabs; a page with no thread yet falls back to the folder's. */
 export function getThreadTerminalCacheKey(
   dir: string,
   sessionID: string | undefined,
@@ -187,7 +181,6 @@ export function clearWorkspaceTerminals(
 function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: ServerScopeValue, sessionID?: string) {
   const language = useLanguage()
   const location = { directory: sdk.directory }
-  // The client throws a declared error body as a plain object, so the server's sentence is read off it.
   const reportStartFailure = (error: unknown) =>
     showToast({
       variant: "error",
@@ -195,7 +188,6 @@ function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: Serv
       description:
         (!(error instanceof Error) && record(error) && text(error.message)) || formatServerError(error, language.t),
     })
-  // Tabs shared by a folder's threads before they had their own aren't carried over: each thread starts empty.
   const [store, setStore, _, ready] = persisted(
     {
       ...threadTerminalPersistTarget(scope, dir, sessionID),
@@ -210,7 +202,6 @@ function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: Serv
   )
   const [ui, setUi] = createStore({
     focus: undefined as { request: number; id?: string; pending: boolean } | undefined,
-    // The last terminal an agent started for this thread while it was open, so the page can show the panel.
     agentStarted: undefined as { id: string; at: number } | undefined,
   })
   const focus = { request: 0 }
@@ -287,14 +278,11 @@ function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: Serv
     removeExited(event.properties.id)
   })
   onCleanup(unsub)
-  // A terminal removed elsewhere (another window, or an agent's terminal_stop) leaves no tab behind.
   const unsubDeleted = sdk.event.on("pty.deleted", (event: { properties: { id: string } }) => {
     removeExited(event.properties.id)
   })
   onCleanup(unsubDeleted)
 
-  // Terminals an agent started for this thread (`terminal_start`) join its tabs: as they start while it is open,
-  // and when it loads for any started meanwhile. The user's own tabs never carry a thread, so only these match.
   const adopt = (info: AgentTerminal) => {
     const tab = agentTerminalTab(info, sessionID, store.all)
     if (!tab) return false
@@ -302,7 +290,6 @@ function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: Serv
     return true
   }
   const unsubCreated = sdk.event.on("pty.created", (event: { properties: { info: AgentTerminal } }) => {
-    // Before the saved tabs load, the listing below picks it up instead.
     if (!ready()) return
     const info = event.properties.info
     if (!adopt(info)) return
@@ -575,7 +562,6 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
     }
 
     const loadThread = (dir: string, sessionID: string | undefined, serverScope: ServerScopeValue) => {
-      // Each thread has its own tabs, kept while switching between threads.
       const key = getThreadTerminalCacheKey(dir, sessionID, serverScope)
       const existing = cache.get(key)
       if (existing) {
@@ -596,7 +582,6 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
 
     const workspace = createMemo(() => loadThread(directory(), params.id, scope()))
 
-    // Leaving a thread drops the scroll positions its tabs kept for a quick return.
     createEffect(
       on(
         () => ({ dir: directory(), id: params.id, scope: scope() }),
@@ -611,7 +596,6 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
 
     return {
       ready: () => workspace().ready(),
-      /** Which thread's tabs these are; changes when the page moves to another thread. */
       key: () => workspace().key,
       agentStarted: () => workspace().agentStarted(),
       all: () => workspace().all(),

@@ -10,7 +10,6 @@ describe("Frontmatter", () => {
     const lines = ["a: &a [x, x, x, x, x, x, x, x, x, x]"]
     for (let i = 0; i < 30; i++) lines.push(`k${i}: [*a, *a]`)
     expect(() => Frontmatter.parse(`---\n${lines.join("\n")}\n---\nbody`)).toThrow("too_many_aliases")
-    // A few aliases, and asterisks in ordinary text, are fine.
     expect(Frontmatter.parse("---\nbase: &b 1\ncopy: *b\nnote: '5 * 3'\n---\n*emphasis*").data).toEqual({
       base: 1,
       copy: 1,

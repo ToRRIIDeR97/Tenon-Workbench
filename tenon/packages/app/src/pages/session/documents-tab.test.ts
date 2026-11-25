@@ -25,7 +25,6 @@ describe("threadDocuments", () => {
       ["data/sales.csv", false, false],
       ["reports/q3.pdf", false, false],
     ])
-    // A later link keeps the earlier write.
     expect(documents.find((item) => item.path === "docs/plan.md")?.at).toBe(2)
   })
 

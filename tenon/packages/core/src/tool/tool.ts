@@ -45,7 +45,6 @@ type Config<
 > = {
   readonly description: string
   readonly input: Input
-  /** The JSON Schema shown to the model instead of one derived from `input` (tools defined outside core). */
   readonly inputJsonSchema?: JsonSchema.JsonSchema
   readonly output: Output
   readonly structured?: Structured
@@ -138,16 +137,11 @@ export function make<
 const isPermissionError = (error: unknown): error is PermissionV2.Error =>
   Predicate.isTagged(error, "PermissionV2.CorrectedError") || Predicate.isTagged(error, "PermissionV2.BlockedError")
 
-/**
- * Maps a tool's own errors to a model-facing failure while passing permission outcomes through, so
- * `settle` can tell the model about the user's feedback or the deny rule instead of a generic failure.
- */
 export const mapError =
   <E>(failure: (error: E) => ToolFailure) =>
   <A, R>(self: Effect.Effect<A, E, R>) =>
     Effect.mapError(self, (error) => (isPermissionError(error) ? error : failure(error)))
 
-/** Model-facing failure for a permission outcome, matching the V1 wording. */
 export function permissionFailure(error: ToolFailure | PermissionV2.Error) {
   if (Predicate.isTagged(error, "PermissionV2.CorrectedError"))
     return new ToolFailure({
@@ -185,7 +179,6 @@ function runtimeOf(tool: AnyTool) {
 }
 
 function toJsonSchema(schema: Schema.Top): JsonSchema.JsonSchema {
-  // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
   const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
   const result =
     Object.keys(document.definitions).length === 0

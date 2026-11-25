@@ -147,14 +147,11 @@ describe("PermissionV2", () => {
       const agents = yield* AgentV2.Service
       const service = yield* PermissionV2.Service
 
-      // `test` is the only primary agent, so it is the default for an agent this Location doesn't know.
       expect(yield* service.ask(assertion({ agent: AgentV2.ID.make("removed") }))).toMatchObject({ effect: "allow" })
       yield* service.assert(assertion({ agent: AgentV2.ID.make("removed") }))
-      // The default's deny rules still apply.
       yield* setRules([{ action: "read", resource: "*", effect: "deny" }])
       const blocked = yield* service.assert(assertion({ agent: AgentV2.ID.make("removed") })).pipe(Effect.flip)
       expect(blocked).toBeInstanceOf(PermissionV2.BlockedError)
-      // With no agent to fall back to, nothing is allowed.
       yield* agents.transform((editor) =>
         editor.update(AgentV2.ID.make("test"), (agent) => {
           agent.hidden = true
@@ -201,7 +198,6 @@ describe("PermissionV2", () => {
     }),
   )
 
-  // AC-23 (implementations/harness-integration-hardening): a harness turn that ends interrupts its open approval.
   it.effect("withdraws an interrupted request with a reject reply", () =>
     Effect.gen(function* () {
       yield* setup()

@@ -60,7 +60,6 @@ describe("insideCodeFolder", () => {
     const mac = new Set(["/Users/ana/.git", "/Users/ana/dev/acme/.git"])
     const macExists = (file: string) => mac.has(file)
     expect(insideCodeFolder("/Users/ana/dev/acme/vault", "/Users/ana", macExists, path.posix)).toBe(true)
-    // A dotfiles repository in the home folder does not refuse every folder.
     expect(insideCodeFolder("/Users/ana/Documents/Tenon", "/Users/ana", macExists, path.posix)).toBe(false)
     expect(insideCodeFolder("/Volumes/Sync/Tenon", "/Users/ana", macExists, path.posix)).toBe(false)
   })

@@ -60,13 +60,9 @@ export type PromptInputV2ComposerProps = {
   controller: PromptInputV2ComposerController
   harness?: PromptInputHarnessController
   borderUnderlay?: boolean
-  /** Extra controls before the stash menu. */
   trailing?: JSX.Element
-  /** A strip attached to the composer's top edge, such as the thread's context strip. */
   header?: JSX.Element
-  /** A row inside the box above the text, such as the new thread's folder and worktree. */
   boxHeader?: JSX.Element
-  /** A section of the same tray above the box header, such as the thread's checklist. */
   boxHeaderTop?: JSX.Element
 }
 
@@ -82,7 +78,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const language = useLanguage()
   const platform = usePlatform()
   const noteDetails = createNoteDetails()
-  // Audio the model can't hear is transcribed by the local dictation engine (desktop only).
   setAttachmentTranscriber(
     platform.dictation?.transcribe ? (samples) => platform.dictation!.transcribe!(samples) : undefined,
     (event) =>
@@ -96,16 +91,13 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       }),
   )
   const settings = useSettings()
-  // A pick here is the next new thread's starting harness and model (Settings › Harnesses, "last one I used").
   const harness = () => props.harness && rememberingHarness(props.harness, settings.harnesses.setLastUsed)
-  // The built-in loop is known by id, so its model and variant controls don't wait on the harness list.
   const builtInLoop = () => {
     if (!props.harness) return true
     const id = props.harness.current()
     const instance = props.harness.instances()?.find((item) => item.id === id)
     return instance ? instance.driver === Harness.OpenCodeDriver : id === Harness.OpenCode
   }
-  // The built-in loop picks its model from providers, in the same dialog as the model command.
   const chooseBuiltInModel = () => {
     if (!props.controller.model.paid)
       return void dialog.show(() => <DialogSelectModelUnpaidV2 model={props.controller.model.selection} />)
@@ -115,7 +107,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   }
 
   return (
-    // The composer is at most 560px wide, centred in its column; the thread column keeps its own width.
     <div class="mx-auto flex w-full max-w-[560px] flex-col">
       {props.header}
       <PromptInputV2
@@ -124,8 +115,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         headerTop={props.boxHeaderTop}
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         attachmentNote={(attachment) => {
-          // How it will reach the selected model: the built-in agent's model reports its inputs; a harness's model
-          // is taken to read images and PDF (#330).
           noteDetails.load(attachment)
           const inputs =
             (builtInLoop() ? modelInputs(props.controller.model.selection.current()) : undefined) ?? DEFAULT_INPUTS
@@ -159,7 +148,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
           ) : undefined
         }
         agentControlVisible={builtInLoop()}
-        // With a harness, the one model pill holds the model and reasoning; the separate pickers are the fallback.
         modelControlVisible={builtInLoop() && !props.harness}
         borderUnderlay={props.borderUnderlay}
         class={props.class}
@@ -234,7 +222,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     }, [])
   })
   const info = createMemo(() => (props.controls.session.id ? sync().session.get(props.controls.session.id) : undefined))
-  // Tenon's switched-on skills, then the active harness's own. Only Tenon skills carry their instructions.
   const [skillData, setSkillData] = createSignal<[Skill.Catalog, Skill.Info[]]>()
   createEffect(
     on(
@@ -432,7 +419,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       resource,
     })),
   )
-  // Other threads in this folder, newest first; picking one attaches it as a reference.
   const threads = createMemo(() =>
     sync()
       .data.session.filter((session) => session.id !== props.controls.session.id && !session.parentID)
@@ -498,7 +484,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       })),
   ])
   const commands = createMemo<PromptInputV2Suggestion[]>(() => [
-    // A skill becomes a chip, so any number of them can join one message.
     ...skills().map((skill) => ({
       id: `skill.${skill.name}`,
       kind: "skill" as const,
@@ -517,7 +502,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         url: skillReferenceURI(skill.name),
       },
     })),
-    // The v1 server also lists skills as commands; the chip replaces those.
     ...slashCommands()
       .filter((item) => item.type === "builtin" || !skills().some((skill) => skill.name === item.trigger))
       .map((item) => ({
@@ -530,9 +514,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         keybind: command.keybindParts(item.id),
       })),
   ])
-  // Agents and providers load per directory, so they read as empty while a session switch or a first
-  // load is in flight. Keep the last resolved list in place (disabled) instead of unmounting the
-  // control, which made the toolbar jump.
   const variants = createMemo<string[]>(
     (previous) =>
       props.controls.model.loading && previous.length > 1
@@ -546,7 +527,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     if (!state.visible || state.options.length === 0) return undefined
     return { options: state.options, current: state.current || (previous?.current ?? ""), loading: false }
   })
-  // One stable object: the toolbar mounts it with a keyed Show, so a fresh object would remount the select.
   const agentControl = {
     options: () => (agents()?.options ?? []).map((name) => ({ id: name, label: name })),
     current: () => agents()?.current ?? "",
@@ -583,7 +563,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
     openAttachment: (attachment) =>
       dialog.show(() =>
-        // A video for a model that reads only images opens on the frame grids it will be sent as (#330).
         attachment.mime.startsWith("video/") &&
         mediaPlan(attachment.mime, modelInputs(props.controls.model.selection.current()) ?? DEFAULT_INPUTS) ===
           "frames" ? (
@@ -647,7 +626,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       stash: () => stash.save(),
     },
   })
-  // The reply card over the timeline sends a reply to a passage through this composer's send path.
   onCleanup(
     registerReplySender({
       send: (reply) => void submission.handleSubmit(new Event("submit"), { reply }),
@@ -656,7 +634,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     }),
   )
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
-  // Stash keeps prompt text, mentions, and images; comment context stays attached to the composer.
   const stashStore = createPersistedPromptStash()
   const stash = {
     ...stashStore,
@@ -670,7 +647,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     restore(id: string) {
       const entry = stashStore.take(id)
       if (!entry) return
-      // Swap rather than overwrite: an unsent composer prompt goes back into the stash.
       stashStore.push(prompt.current())
       controller.dispatch({ type: "mode.normal" })
       controller.resetHistory()
@@ -729,7 +705,6 @@ function AttachmentPreview(props: { src: string; name: string }) {
   )
 }
 
-/** The frame grids a video becomes, built the same way as when it is sent. */
 function FrameGridPreview(props: { url: string; name: string }) {
   const language = useLanguage()
   const [grids] = createResource(
@@ -795,7 +770,6 @@ function PromptStashMenu(props: { stash: PromptInputV2ComposerController["stash"
           />
           <MenuV2.Portal>
             <MenuV2.Content style={{ "min-width": "220px", "max-width": "320px" }}>
-              {/* Kobalte throws for a group label outside a group, which took down the whole window. */}
               <MenuV2.Group>
                 <MenuV2.GroupLabel>{language.t("secondBrain.composer.stash.title")}</MenuV2.GroupLabel>
                 <For each={props.stash.entries()}>
@@ -836,16 +810,12 @@ function PromptInputV2ModelControl(props: {
   onClose: () => void
   onUnpaidClick: () => void
 }) {
-  // While providers load (first open, or a session switch to another directory) the control stays in
-  // its slot, disabled, with the last model it showed.
   const shown = createMemo<{ modelName: string }>((previous) =>
     props.loading && previous ? previous : { modelName: props.modelName },
   )
   const content = () => (
     <>
       <span class="prompt-input-control-icon flex shrink-0">
-        {/* Only the built-in loop reaches this control (no harness controller), so it shows that harness's logo,
-            never the model provider's. */}
         <HarnessIcon
           instance={{ id: Harness.OpenCode, name: "" }}
           class="size-4 opacity-40 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"

@@ -83,8 +83,6 @@ export async function spawnWslSidecar(
     listener: {
       stop: () => {
         child.kill()
-        // Ending the wsl.exe client doesn't reliably end the Linux process, which would keep the port
-        // and credential alive. The command line is unique by port, so end exactly this server.
         void runWsl(wslArgs(["pkill", "-f", `serve --hostname 127.0.0.1 --port ${port}$`], distro)).catch(
           () => undefined,
         )

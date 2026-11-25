@@ -15,10 +15,6 @@ import { usePlatform } from "@/context/platform"
 import type { ServerConnection } from "@/context/server"
 import { linkFolderErrorKey } from "./project-folder-error"
 
-/**
- * Add a folder from anywhere as a Project of the workspace. A modal over the current page: type or paste
- * a path (with folder suggestions from the server), or browse with the system picker where there is one.
- */
 export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (folder: string) => Promise<unknown> }) {
   const dialog = useDialog()
   const language = useLanguage()
@@ -28,13 +24,11 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
   const [state, setState] = createStore({ path: "", busy: false, error: "" })
   const home = () => ctx.sync.data.path.home || ""
   const search = createDirectorySearch({ sdk: ctx.sdk, home, base: () => home() || ctx.sync.data.path.directory })
-  // An object source so an empty field still asks: it lists the folders in the home folder.
   const [suggestions] = createResource(
     () => ({ value: state.path.trim() }),
     async (input) => (await search(input.value)).slice(0, 6),
     { initialValue: [] },
   )
-  // The system folder picker only sees this computer, so it is offered for a local server on desktop.
   const nativeBrowse = () => directoryPickerKind(platform.platform, props.server) === "native"
 
   const browse = () => {
@@ -107,7 +101,6 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
                     >
                       <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
                       <span class="shrink-0 text-v2-text-text-base">{getFilename(folder)}</span>
-                      {/* Long paths keep their end visible: the start is what the name already implies. */}
                       <span class="min-w-0 flex-1 truncate text-right font-mono text-[11px] text-v2-text-text-muted [direction:rtl]">
                         <bdi>{folder}</bdi>
                       </span>
@@ -136,7 +129,6 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
   )
 }
 
-/** Confirms taking a Project off the workspace's list. Only the list changes; its folder and files stay on disk. */
 export function DialogRemoveProject(props: { name: string; onRemove: () => Promise<unknown> }) {
   const dialog = useDialog()
   const language = useLanguage()

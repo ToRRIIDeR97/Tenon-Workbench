@@ -12,7 +12,6 @@ const state = Effect.fn("ComputerUse.state")(function* (enabled?: boolean) {
   const location = yield* Location.Service
   const config = Global.make().config
   const locations = yield* LocationServiceMap.Service
-  // The built-in agent's computer tools are registered with the folder's services: a switch rebuilds them.
   if (enabled !== undefined) {
     yield* Effect.promise(() => HarnessComputerUse.setEnabled(location.directory, enabled, config))
     yield* locations.invalidate({ directory: location.directory }).pipe(Effect.ignore)

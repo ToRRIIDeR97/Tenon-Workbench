@@ -1,10 +1,3 @@
-// Regression: a stored step-finish part with a negative token count made the
-// messages endpoint 400. Some providers reported `outputTokens` excluding
-// reasoning while also reporting `reasoningTokens` separately, so the
-// `outputTokens - reasoningTokens` math in Session.getUsage underflowed to
-// negative. The pre-fix `safe()` clamp only guarded against non-finite. The
-// strict `NonNegativeInt` schema then made every load of the message list
-// fail to encode, killing Desktop boot for every user with such a row.
 import { describe, expect } from "bun:test"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect, Layer } from "effect"
@@ -47,8 +40,6 @@ function seedNegativeTokenSession() {
       tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     })
 
-    // Bypass the schema with a direct SQL update to install the
-    // negative `output` value we want to test loading.
     const { db } = yield* Database.Service
     yield* db
       .update(PartTable)

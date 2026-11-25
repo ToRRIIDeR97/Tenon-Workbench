@@ -4,8 +4,6 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { brain, openApp } from "./open-app"
 
-// P5 · D Tracked edits (implementations/live-agent-canvas/implementation.md, AC-25)
-
 const directory = brain
 const sessionID = "ses_tracked"
 const userID = "msg_tracked_user"
@@ -90,7 +88,6 @@ type Write = { path: string; content: string; expectedHash: string }
 
 async function start(page: Page, answer: (body: Write, index: number) => { status: number; body: unknown }) {
   const feed: unknown[] = []
-  // The mock serves the text as it is when a read arrives; `reads` counts the plan's reads.
   const disk = { text: plan, reads: 0 }
   const writes: Write[] = []
   await openApp(page, {
@@ -123,7 +120,6 @@ async function start(page: Page, answer: (body: Write, index: number) => { statu
   const viewer = page.locator('[data-component="file-viewer"]')
   const tracked = viewer.locator('[data-slot="tracked-source"]')
 
-  // The edit streams: the panel opens on the file; Source shows the change live.
   feed.push(edit("pending", "Ship it soon"), edit("pending", "Ship it soon, in two"))
   await expect(viewer).toBeVisible()
   await expect.poll(() => disk.reads).toBeGreaterThan(0)
@@ -133,7 +129,6 @@ async function start(page: Page, answer: (body: Write, index: number) => { statu
   await expect(tracked.locator('[data-row="added"]')).toContainText("Ship it soon, in two")
   await expect(tracked.locator('[data-slot="tracked-review"]')).toHaveCount(0)
 
-  // The edit finishes: the file reloads and the change gets Keep and Undo.
   const reads = disk.reads
   disk.text = edited
   feed.push(edit("completed", longer))
@@ -205,7 +200,6 @@ test("AC-25 the live edit, for the screenshot", async ({ page }) => {
   await expect(viewer).toBeVisible()
   await viewer.locator('[data-action="file-viewer-source"]').click()
   await expect(viewer.locator('[data-row="added"]')).toContainText("in two steps")
-  // The segmented control says which view shows.
   await expect(viewer.locator('[data-action="file-viewer-source"]')).toHaveAttribute("aria-pressed", "true")
   await expect(viewer.locator('[data-action="file-viewer-rendered"]')).toHaveAttribute("aria-pressed", "false")
   await page.mouse.move(0, 0)

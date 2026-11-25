@@ -236,7 +236,6 @@ const layer = Layer.effect(
       let keep: Tail | undefined
       for (let i = recent.length - 1; i >= 0; i--) {
         const turn = recent[i]!
-        // estimate lazily so cost stays proportional to the retained tail, not the whole session
         const size = yield* estimate({
           messages: input.messages.slice(turn.start, turn.end),
           model: input.model,
@@ -268,8 +267,6 @@ const layer = Layer.effect(
       }
     })
 
-    // goes backwards through parts until there are PRUNE_PROTECT tokens worth of tool
-    // calls, then erases output of older tool calls to free context space
     const prune = Effect.fn("SessionCompaction.prune")(function* (input: { sessionID: SessionID }) {
       const cfg = yield* config.get()
       if (!cfg.compaction?.prune) return
@@ -369,7 +366,6 @@ const layer = Layer.effect(
         cfg,
         model,
       })
-      // Allow plugins to inject context or replace compaction prompt.
       const compacting = yield* plugin.trigger(
         "experimental.session.compacting",
         { sessionID: input.sessionID },
@@ -534,9 +530,6 @@ const layer = Layer.effect(
               messageID: continueMsg.id,
               sessionID: input.sessionID,
               type: "text",
-              // Internal marker for auto-compaction followups so provider plugins
-              // can distinguish them from manual post-compaction user prompts.
-              // This is not a stable plugin contract and may change or disappear.
               metadata: { compaction_continue: true },
               synthetic: true,
               text,

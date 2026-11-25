@@ -3,8 +3,6 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { brain, openApp } from "./open-app"
 
-// P4 · C Live document (implementations/live-agent-canvas/implementation.md, AC-18, AC-19)
-
 const directory = brain
 const sessionID = "ses_live_doc"
 const userID = "msg_live_doc_user"
@@ -22,7 +20,6 @@ const thread = {
 
 const filler = Array.from({ length: 40 }, (_, index) => `Paragraph ${index + 1} of the plan, kept as written.`)
 const plan = ["# Plan", "## Goals", "Ship it.", ...filler, "## Anchor", "The reader is here."].join("\n\n")
-// Longer than the line it replaces, so everything below it moves down unless the reader is held.
 const longer =
   "Ship it soon, in two steps: first the read path behind a flag for a week, then the write path once the error rate stays flat."
 const edited = plan.replace("Ship it.", longer)
@@ -63,7 +60,6 @@ const tool = (callID: string, name: string, status: string, input: Record<string
         ? { status, input, time: { start: 1 } }
         : { status, input, raw: JSON.stringify(input) },
 })
-// The thread loads through the legacy message list, so tool parts arrive as legacy part updates.
 const partEvent = (part: Record<string, unknown>) => ({
   directory,
   payload: { type: "message.part.updated", properties: { part: { ...part, sessionID, messageID: assistantID } } },
@@ -85,7 +81,6 @@ test.use({ viewport: { width: 1440, height: 900 } })
 
 async function start(page: Page, parts: Record<string, unknown>[] = [intro], completed?: number) {
   const feed: unknown[] = []
-  // `reads` counts the reads of the plan: the mock serves the text as it is when the request arrives.
   const disk = { text: plan, reads: 0 }
   await openApp(page, {
     sessions: [thread],
@@ -102,7 +97,6 @@ async function start(page: Page, parts: Record<string, unknown>[] = [intro], com
       if (file.endsWith("plan.md")) disk.reads += 1
       return { type: "text", content: disk.text }
     },
-    // A heartbeat on otherwise empty connections keeps the app's reconnect backoff at its base.
     events: () => (feed.length ? feed.splice(0, 1) : [heartbeat]),
     eventRetry: 40,
   })
@@ -116,7 +110,6 @@ test("AC-18 … AC-19 a write types into the Files tab live, then an edit flashe
   const viewer = page.locator('[data-component="file-viewer"]')
   await expect(viewer).toHaveCount(0)
 
-  // The write starts and grows: the panel opens on the file, rendered live.
   feed.push(
     writing("# Plan\n\n## Goals"),
     writing("# Plan\n\n## Goals\n\nShip it.\n\n" + filler.slice(0, 3).join("\n\n")),
@@ -131,13 +124,10 @@ test("AC-18 … AC-19 a write types into the Files tab live, then an edit flashe
   await expect(follow).toHaveText("Following Tenon")
   await shot(page, "1-writing")
 
-  // Source shows the raw text with the caret.
   await viewer.locator('[data-action="file-viewer-source"]').click()
   await expect(viewer.locator('[data-slot="live-document-source"]')).toContainText("## Goals")
   await viewer.locator('[data-action="file-viewer-rendered"]').click()
 
-  // The write finishes: the file reloads from disk and the chip settles. The panel read the file when it
-  // opened; the write's own reload follows it, and the edit below changes the disk only after that read.
   await expect.poll(() => disk.reads).toBeGreaterThan(0)
   const reads = disk.reads
   feed.push(writing(plan, "completed"))
@@ -146,7 +136,6 @@ test("AC-18 … AC-19 a write types into the Files tab live, then an edit flashe
   await expect(viewer.getByText("The reader is here.")).toBeVisible()
   await expect(viewer.locator('[data-slot="live-document-caret"]')).toHaveCount(0)
 
-  // The reader scrolls to the end; an edit above changes one paragraph.
   const anchor = viewer.getByText("The reader is here.")
   await anchor.scrollIntoViewIfNeeded()
   const before = (await anchor.boundingBox())!.y
@@ -176,7 +165,6 @@ test("AC-18 closing the panel while the file streams doesn't reopen it", async (
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expect(viewer).toHaveCount(0)
   feed.push(writing("# Plan\n\n## Goals\n\nShip it."), writing("# Plan\n\n## Goals\n\nShip it.\n\nMore."))
-  // The stream goes on; a last reply update proves the app took every event, and the panel stays closed.
   feed.push(partEvent({ ...intro, text: "Writing the plan. All written." }))
   await expect(page.getByText("Writing the plan. All written.")).toBeVisible()
   await expect(viewer).toHaveCount(0)

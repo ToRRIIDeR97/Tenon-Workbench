@@ -28,13 +28,6 @@ import { sessionHref } from "@/utils/session-route"
 import { showToast } from "@/utils/toast"
 import { createVisibleInterval } from "@/utils/visible-interval"
 
-/**
- * Routines: vault pages under `Routines/` with a `schedule` property. Each row shows the schedule, last and
- * next run, and Run now starts a Command Centre thread with the routine's prompt. A page runs only once
- * approved, and again after any change to what it would run; the row links to the page to read first. New
- * routine writes a `Routines/` page from a template (switched off until ready) and opens it in the page editor,
- * which returns here on Back (`from=routines`) so the routine stays in the Command Centre's context. A row's name opens its page and its switch turns the schedule on or off.
- */
 export default function RoutinesPage() {
   const language = useLanguage()
   const layout = useLayout()
@@ -53,7 +46,6 @@ export default function RoutinesPage() {
   })
   const client = (directory: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory } })
   const workspace = () => layout.home.workspace() ?? undefined
-  // A failed list shows inline instead of throwing into the error boundary.
   const [routines, { refetch }] = createResource(workspace, (directory) =>
     listRoutines(client(directory)).then(
       (items) => {
@@ -63,10 +55,8 @@ export default function RoutinesPage() {
       () => ({ items: [] as Routine[], failed: true }),
     ),
   )
-  // A revisit shows the last list at once, while the fresh read is in flight, instead of the loading state.
   const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> =>
     settled(routines)?.items ?? lastRoutines.get(`${server.key}\0${workspace() ?? ""}`) ?? []
-  // A run ends on the server, so the list is re-read while one is in flight.
   createEffect(() => {
     if (!items().some((routine) => routine.lastStatus === "running")) return
     createVisibleInterval(() => void refetch(), 15_000)
@@ -95,7 +85,6 @@ export default function RoutinesPage() {
         })
       })
       .catch((error: unknown) => {
-        // Already running or no longer approved: the refreshed row says so.
         if (!(error instanceof SecondBrainRequestError && error.status === 409)) setState("failed", true)
       })
       .then(() => refetch())
@@ -116,7 +105,6 @@ export default function RoutinesPage() {
     setState("toggling", routine.id, false)
   }
 
-  // A page changed since this list was read stays unapproved; the refetch shows its new content's state.
   const approve = async (routine: Routine) => {
     const directory = workspace()
     if (!directory) return
@@ -127,7 +115,6 @@ export default function RoutinesPage() {
     setState("running", routine.id, false)
   }
 
-  // Routines are pages under `Routines/` whose properties carry a `schedule`; the template starts switched off.
   const create = async () => {
     const directory = workspace()
     if (!directory || state.creating) return
@@ -181,7 +168,6 @@ export default function RoutinesPage() {
           </>
         }
       />
-      {/* With no workspace there is nowhere to write a routine, so say so rather than leave New routine inert. */}
       <Show
         when={workspace()}
         fallback={
@@ -240,7 +226,6 @@ export default function RoutinesPage() {
                             {language.t("secondBrain.routines.disabled")}
                           </span>
                         </Show>
-                        {/* `harness` and `tools` are read from the page but runs don't honour them yet. */}
                         <Show when={(routine.unsupported ?? []).length > 0}>
                           <span class="block type-meta text-v2-text-text-muted">
                             {language.t("secondBrain.routines.unsupported", {
@@ -327,8 +312,6 @@ export default function RoutinesPage() {
   )
 }
 
-// The list last read per server and workspace, kept for the life of the window. Rebuilt by the next read.
 const lastRoutines = new Map<string, ReadonlyArray<Routine>>()
 
-/** A routine's page in the editor; `from=routines` sends Back here and keeps the rail on Command Centre. */
 const routineHref = (path: string) => `/projects?page=${encodeURIComponent(path)}&from=routines`

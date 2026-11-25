@@ -425,8 +425,6 @@ const layer = Layer.effect(
           setStatus(space.id, "disconnected")
         }
 
-        // Back off reconnect attempts up to 2 minutes while the workspace
-        // stays unavailable.
         yield* Effect.sleep(`${Math.min(120_000, 1_000 * 2 ** attempt)} millis`)
         attempt += 1
       }
@@ -462,8 +460,6 @@ const layer = Layer.effect(
       yield* FiberMap.run(
         syncFibers,
         space.id,
-        // TODO: look into `tapError` to set the status but still
-        // allow the fiber to fail and automatically get removed
         syncWorkspaceLoop(space).pipe(
           Effect.catch((error) =>
             Effect.gen(function* () {
@@ -578,8 +574,6 @@ const layer = Layer.effect(
               yield* prompt.cancel(input.sessionID)
             }
 
-            // "claim" this session so any future events coming from
-            // the old workspace are ignored
             yield* events.claim(input.sessionID, input.workspaceID ?? previous.projectID)
           }
         }
@@ -599,9 +593,6 @@ const layer = Layer.effect(
             : ""
 
         if (sourcePatch) {
-          // Attempt to apply the file changes to the new workspace.
-          // We intentionally do first so if it fails we don't warp
-          // the session.
           yield* runInWorkspace({
             workspaceID: input.workspaceID ?? undefined,
             local: () => vcs.apply({ patch: sourcePatch }),

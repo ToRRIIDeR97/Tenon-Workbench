@@ -12,7 +12,6 @@ import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
 
-/** Settings › Command Centre: the harness and model its threads start with, and how long threads are kept. */
 export function SettingsCommandCentreV2() {
   const language = useLanguage()
   const layout = useLayout()
@@ -21,10 +20,8 @@ export function SettingsCommandCentreV2() {
   const serverSync = useServerSync()
   const settings = useSettings()
   const current = () => settings.commandCentre.current()
-  // The age the panel opened with; a lower value warns that more threads will go.
   const [saved] = createSignal(current().memoryDays)
   const [draft, setDraft] = createSignal(String(current().memoryDays))
-  // Harness settings are global; the route only needs some valid location.
   const directory = () =>
     layout.home.workspace() || layout.projects.list()[0]?.worktree || serverSync().data.path.home || undefined
   const [instances] = createResource(directory, (dir) =>
@@ -111,8 +108,6 @@ export function SettingsCommandCentreV2() {
                 class="h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
                 aria-label={language.t("secondBrain.commandCentre.settings.memoryDays")}
                 value={draft()}
-                // Typing only updates the draft (and the lowering warning); the value saves, clamped to 1–365,
-                // when the field commits (Enter, the stepper or leaving it), so "3" on the way to "30" never saves.
                 onInput={(event) => setDraft(event.currentTarget.value)}
                 onChange={(event) => {
                   if (event.currentTarget.value.trim() === "") return setDraft(String(current().memoryDays))

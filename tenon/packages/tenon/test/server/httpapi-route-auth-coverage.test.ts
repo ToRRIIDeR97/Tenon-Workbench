@@ -7,8 +7,6 @@ import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
 
-// Operations that are reachable without the server credential on purpose. Keep this list short
-// and justify every entry.
 const PUBLIC = new Set<string>([])
 
 function operations() {

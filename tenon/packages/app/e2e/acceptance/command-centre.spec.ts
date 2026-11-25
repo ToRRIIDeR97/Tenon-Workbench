@@ -2,8 +2,6 @@ import { expect, test, type Page } from "@playwright/test"
 import { base64Encode } from "@tenon/core/util/encode"
 import { brain, openApp, sidebar } from "./open-app"
 
-// P7 · Command Centre (implementations/notes-command-centre/implementation.md, AC-7.1, AC-7.2, AC-7.3, AC-7.4, AC-7.7)
-
 const vaultRoot = "C:/Users/me/Documents/Tenon"
 const commandDirectory = `${vaultRoot}/.command-centre`
 const commandThread = {
@@ -40,10 +38,8 @@ async function start(page: Page, events: unknown[] = [], input: Parameters<typeo
   )
 }
 const strip = (page: Page) => page.locator("[data-command-strip]")
-// The hub's band names the Command Centre's harness and model and opens its newest thread.
 const band = (page: Page) => page.locator('[data-component="hub-band"]')
 const openLeadThread = (page: Page) => band(page).getByRole("button", { name: "Open thread", exact: true }).click()
-// The app picks Ctrl or Cmd from navigator.platform, which the "Desktop Chrome" device reports as Win32 on any host.
 const toggleStrip = async (page: Page) => {
   const mac = await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))
   await page.keyboard.press(mac ? "Meta+j" : "Control+j")
@@ -65,7 +61,6 @@ test("AC-7.1 the rail's fourth destination is Command Centre and /activity redir
 })
 
 test("AC-7.2 the Command Centre opens only its own threads, and they stay out of the sidebar", async ({ page }) => {
-  // The Project thread is the newer one: the hub must still open the Command Centre's own.
   await start(page, [], {
     sessions: [commandThread, { ...projectThread, time: { created: 1762000400000, updated: 1762000500000 } }],
   })
@@ -76,7 +71,6 @@ test("AC-7.2 the Command Centre opens only its own threads, and they stay out of
   await expect(sidebar(page).getByText("Plan the billing webhook work")).toHaveCount(0)
 })
 
-// implementations/command-centre-thread/implementation.md, AC-2 and AC-3
 const threadURL = new RegExp(`/session/${commandThread.id}$`)
 
 test("AC-3 a Command Centre thread opens in the thread view, as do older ?thread= links", async ({ page }) => {
@@ -102,7 +96,6 @@ test("AC-3 the hub names the Command Centre's harness and model and has its comp
   await page.goto("/command")
   await expect(page.getByRole("textbox", { name: "Ask or steer the Command Centre", exact: true })).toBeVisible()
   await expect(band(page)).toContainText("Command Centre")
-  // The model is chosen in the thread, where the composer has the model pill.
   await openLeadThread(page)
   await expect(page.locator('[data-action="prompt-model-pill"]')).toBeVisible()
 })
@@ -135,7 +128,6 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
   await expect(page).toHaveURL(threadURL)
 })
 
-// One exchange in the Command Centre thread; the reply is Markdown with a list long enough to pass the card's cap.
 const tasks = [
   "Duolingo",
   "Read Bible",
@@ -239,18 +231,14 @@ test("AC-7.7 a Command Centre thread lists its writes as Done for you in the thr
     write("b", "tasks", "started"),
     write("b", "tasks", "done"),
   ])
-  // Open the thread view first: on any other page these writes would rightly show the top pill.
   await page.goto(`/${base64Encode(commandDirectory)}/session/${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
-  // The thread view lists each write once, under "Done for you" (a Project thread shows inline cards instead); never
-  // also as the top pill.
   const done = page.locator('[data-agent-write][data-variant="done"]')
   await expect(done).toHaveCount(2)
   await expect(page.getByRole("heading", { name: "Done for you · 2 actions" })).toBeVisible()
   expect(await page.locator('[data-agent-write][data-variant="pill"]').count()).toBe(0)
 })
 
-// implementations/command-centre-orchestrator/implementation.md, Task 1 (AC-1.4 to AC-1.6): the mission board.
 const repo = "C:/OpenCode/Repo"
 const boardProject = {
   project: {
@@ -302,7 +290,6 @@ const group = (page: Page, name: string) => mission(page).locator(`[data-group="
 const threadIDs = (scope: ReturnType<typeof group>) =>
   scope.locator("[data-thread]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-thread")))
 
-// The Command Centre's fixtures: a running, a waiting and a finished Project thread, and a pending permission.
 async function startCommand(
   page: Page,
   input: Pick<
@@ -316,7 +303,6 @@ async function startCommand(
     | "children"
     | "sessions"
   > = {},
-  // Events the stream delivers, one per connection.
   events: unknown[] = [],
 ) {
   await start(page, events, {
@@ -327,7 +313,6 @@ async function startCommand(
     ...input,
   })
 }
-// The mission board sits in the panel beside a Command Centre thread.
 const showBoard = async (page: Page) => {
   await page.goto(`/command?thread=${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
@@ -337,7 +322,6 @@ async function startBoard(page: Page, input: Parameters<typeof startCommand>[1] 
   await startCommand(page, input)
   await showBoard(page)
 }
-// The Command Centre page: the hub, with Waiting on you and Workflows in its header.
 async function startHub(
   page: Page,
   input: Parameters<typeof startCommand>[1] = {},
@@ -359,11 +343,9 @@ test("AC-1.4 the board lists every Project's recent threads by state, beside the
   await expect(mission(page).locator('[data-thread="ses_command_1"]')).toHaveCount(0)
   await expect(group(page, "running").getByText("Migrate the billing webhook")).toBeVisible()
 
-  // The board sits beside the Command Centre's own thread, whose composer stays in reach.
   await expect(page.locator('[data-component="command-mission-panel"]')).toBeVisible()
   await expect(page.locator('[data-component="prompt-input-v2"]')).toBeVisible()
 
-  // By project: one section per Project, General last, each row keeping its state.
   await mission(page).locator('[data-action="board-view"]', { hasText: "By project" }).click()
   await expect
     .poll(() =>
@@ -393,7 +375,6 @@ test("AC-1.5 Steer sends one line to that thread, an empty line sends nothing, a
   const row = mission(page).locator('[data-thread="ses_board_run"]')
   await expect(row.locator('[data-action="board-steer"]')).toBeVisible()
   await expect(row.locator('[data-action="board-stop"]')).toBeVisible()
-  // Only a running row can be steered or stopped.
   await expect(mission(page).locator('[data-thread="ses_board_need"] [data-action="board-steer"]')).toHaveCount(0)
   await expect(mission(page).locator('[data-thread="ses_board_done"] [data-action="board-stop"]')).toHaveCount(0)
 
@@ -437,16 +418,13 @@ test("AC-1.6 Review and Open go to the thread", async ({ page }) => {
   await expect(page).toHaveURL(/\/session\/ses_board_done$/)
 })
 
-// implementations/command-centre-bugs/implementation.md (AC-1): Back returns to the screen a thread was opened from.
 test("AC-1 Back in a thread opened from the Command Centre returns to that screen", async ({ page }) => {
   await start(page, [], { sessions: boardSessions(), projectThreads: [boardProject] })
-  // Reached without the Command Centre's state (an older link), a Command Centre thread goes back to the hub.
   await page.goto(`/command?thread=${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
   await page.locator('[data-action="thread-back"]').click()
   await expect(page).toHaveURL(/\/command$/)
 
-  // Opened from the Mission panel beside a Command Centre thread, Back returns to that thread.
   await page.goto(`/command?thread=${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
   await mission(page).locator('[data-thread="ses_board_done"] [data-action="board-open"]').click()
@@ -455,8 +433,6 @@ test("AC-1 Back in a thread opened from the Command Centre returns to that scree
   await expect(page).toHaveURL(threadURL)
 })
 
-// implementations/command-centre-bugs/implementation.md (AC-3, AC-4): the crew splits Working from Finished, and the
-// plan's item in progress spins.
 test("AC-4 a Project's crew lists working agents above finished ones, and AC-3 the current step spins", async ({
   page,
 }) => {
@@ -477,7 +453,6 @@ test("AC-4 a Project's crew lists working agents above finished ones, and AC-3 t
   const working = page.locator('[data-hub-crew="working"]')
   const finished = page.locator('[data-hub-crew="finished"]')
   await expect(working.locator('[data-hub-agent="ses_board_run"]')).toBeVisible()
-  // Without a pending request this fixture's "needs" thread is idle, so it lists as finished.
   await expect(finished.locator('[data-hub-agent="ses_board_need"]')).toBeVisible()
   await expect(working.locator('[data-hub-agent="ses_board_need"]')).toHaveCount(0)
   await working.locator('[data-hub-agent="ses_board_run"]').click()
@@ -487,11 +462,9 @@ test("AC-4 a Project's crew lists working agents above finished ones, and AC-3 t
   await page.screenshot({ path: "e2e/test-results/command-centre-crew.png" })
 })
 
-// implementations/command-centre-orchestrator/implementation.md, Task 2 (AC-2.6, AC-2.7): the "Waiting on you" view.
 const queue = (page: Page) => page.locator('[data-component="approval-queue"]')
 const doneLog = (page: Page) => page.locator('[data-component="command-actions"]')
 const waitingView = (page: Page) => page.locator('[data-action="command-view"]', { hasText: "Waiting on you" })
-// A request reaches the Command Centre live, from the event stream, whichever Project folder it is in.
 const asked = (type: "permission.asked" | "question.asked", properties: { id: string }) => ({
   directory: repo,
   payload: { id: `evt_${properties.id}`, type, properties },
@@ -530,7 +503,6 @@ test("AC-2.6 a pending permission of a Project thread is in the queue and Allow 
     .poll(() => replies.map((reply) => [reply.sessionID, reply.requestID]))
     .toEqual([["ses_board_need", "per_board_need"]])
   expect(JSON.stringify(replies[0]!.body)).toContain("once")
-  // Answering removes the item; the page stays where it was.
   await expect(card).toHaveCount(0)
   await expect(queue(page)).toContainText("Nothing is waiting on you.")
   await expect(page).toHaveURL(/\/command\?view=waiting$/)
@@ -602,7 +574,6 @@ test("AC-2.7 the view lists today's actions of the agent with Open, and each Pro
   await expect(message).toContainText("Steered")
   await expect(message).toContainText("Use the staging vault only.")
 
-  // Each Project shows its permission mode, with the control that changes it.
   const mode = page.locator('[data-component="project-modes"] [data-project-mode="prj_repo"]')
   await expect(mode).toContainText("Repo project")
   const control = mode.getByRole("button", { name: "Permissions for Repo project" })
@@ -615,7 +586,6 @@ test("AC-2.7 the view lists today's actions of the agent with Open, and each Pro
   await expect(page).toHaveURL(/\/session\/ses_board_need$/)
 })
 
-// implementations/command-centre-orchestrator/implementation.md, Task 3 (AC-3.3, AC-3.4): the Workflows view.
 const harnessModel = (id: string, name: string, isDefault: boolean) => ({
   id,
   name,
@@ -646,7 +616,6 @@ const problems = (page: Page) => workflows(page).locator('[data-slot="workflow-p
 
 async function startWorkflows(page: Page, input: Parameters<typeof startCommand>[1] = {}) {
   await startCommand(page, input)
-  // The same harness list the composer offers.
   await page.route("**/api/harness?**", (route) =>
     route.fulfill({
       json: {
@@ -658,7 +627,6 @@ async function startWorkflows(page: Page, input: Parameters<typeof startCommand>
       },
     }),
   )
-  // The Command Centre opens on its hub; `?view=workflows` is how the app links straight to this view.
   await page.goto("/command?view=workflows")
   await expect(workflows(page)).toBeVisible()
 }
@@ -679,7 +647,6 @@ test("AC-3.3 the Workflows view lists Build and review with a numbered card for 
     )
     .toEqual(["director", "implementor", "reviewer"])
   await expect(roleCard(page, "director").getByRole("textbox", { name: "Role 1 name" })).toHaveValue("Director")
-  // Each row shows its job on one line and unfolds, one at a time, to edit it and say what the role may do.
   const unfold = async (id: string) => {
     await roleCard(page, id).locator('[data-action="workflow-role-toggle"]').click()
     await expect(roleCard(page, id).locator('[data-action="workflow-role-toggle"]')).toHaveAttribute(
@@ -697,7 +664,6 @@ test("AC-3.3 the Workflows view lists Build and review with a numbered card for 
   )
   await unfold("reviewer")
   await expect(roleCard(page, "reviewer")).toContainText("Reads files and runs tests, and never edits files.")
-  // The built-in workflow can be duplicated but not deleted.
   await expect(workflows(page).locator('[data-action="workflow-duplicate"]')).toBeVisible()
   await expect(workflows(page).locator('[data-action="workflow-delete"]')).toHaveCount(0)
 })
@@ -708,7 +674,6 @@ test("AC-3.3 Start is refused with a message while a role has no harness, and no
   await workflows(page).locator('[data-slot="workflow-brief"]').fill("Replace the tab strip with a rail.")
   await workflows(page).locator('[data-action="workflow-project"]').click()
   await page.getByRole("menuitemradio", { name: "Repo project" }).click()
-  // Only the director has a harness: the other two roles are still missing theirs.
   await roleCard(page, "director").locator('[data-action="workflow-role-harness"]').click()
   await page.getByRole("menuitemradio", { name: "Claude Code" }).click()
   await expect(problems(page).locator('[data-problem="role"]')).toHaveText(
@@ -742,7 +707,6 @@ test("AC-3.4 Start creates a director thread in the Project's folder, sends the 
   const field = workflows(page).locator('[data-slot="workflow-brief"]')
   await expect(problems(page).locator("[data-problem]")).toHaveCount(3)
 
-  // Each choice is looked up in its own menu, which closes once a choice is made.
   const choose = async (role: string, action: string, option: string) => {
     const trigger = roleCard(page, role).locator(`[data-action="${action}"]`)
     const label = await trigger.getAttribute("aria-label")
@@ -767,25 +731,21 @@ test("AC-3.4 Start creates a director thread in the Project's folder, sends the 
 
   await workflows(page).locator('[data-action="workflow-start"]').click()
 
-  // One thread, in the Project's folder, on the director's harness and model.
   await expect.poll(() => created.length).toBe(1)
   expect(created[0]!.body).toMatchObject({
     harnessInstanceID: "claude-code",
     harnessModel: { id: "fable-5-2" },
     location: { directory: repo },
   })
-  // Its first message is the generated brief, which carries the user's brief and the delegation tool.
   await expect.poll(() => prompts.length).toBe(1)
   expect(prompts[0]!.sessionID).toBe(created[0]!.sessionID)
   expect(prompts[0]!.text).toContain("delegate_task")
   expect(prompts[0]!.text).toContain("opus-5-5")
   expect(prompts[0]!.text.trimEnd().endsWith(brief)).toBe(true)
 
-  // The page stays on the Command Centre and goes back to its hub.
   await expect(page.locator('[data-component="command-hub"]')).toBeVisible()
   await expect(workflows(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/command$/)
-  // The run is recorded for the run view, running and without rounds.
   const runs = await page.evaluate(() => {
     const raw = Object.entries(localStorage).find(([key]) => key.endsWith("command-workflows.v1"))?.[1]
     return raw ? (JSON.parse(raw) as { runs: Record<string, unknown>[] }).runs : []
@@ -819,7 +779,6 @@ test("AC-3.3 a new workflow can be edited, survives a reload and can be deleted"
   await expect(workflows(page).locator('[data-workflow="build-and-review"]')).toBeVisible()
 })
 
-// implementations/command-centre-orchestrator/implementation.md, Task 4 (AC-4.5, AC-4.6): runs, limits and the run view.
 const runsKey = "tenon.global.dat:command-workflows.v1"
 const runList = (page: Page) => page.locator('[data-component="workflow-runs"]')
 const runView = (page: Page) => page.locator('[data-component="workflow-run"]')
@@ -841,7 +800,6 @@ const seedRun = (id: string, sessionID: string, extra: Record<string, unknown> =
   rounds: [],
   ...extra,
 })
-// A director thread of the Repo project; its messages are given by thread.
 const directorThread = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
   ...boardThread(id, title, repo, 30_000),
   ...extra,
@@ -872,7 +830,6 @@ async function startRuns(
     children?: (sessionID: string) => unknown[]
   },
 ) {
-  // Only when nothing is stored yet, so a reload keeps what the app saved.
   await page.addInitScript(
     ({ key, runs }) => {
       if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify({ workflows: [], runs }))
@@ -926,7 +883,6 @@ test("AC-4.5 AC-4.6 the run view shows a block per reported round, and the user'
   await expect(item).toContainText("Running")
   await item.click()
 
-  // The run view replaces the workflow editor; the saved workflows stay on the left.
   await expect(runView(page)).toBeVisible()
   await expect(workflows(page).getByRole("textbox", { name: "Workflow name" })).toHaveCount(0)
   await expect(runView(page)).toContainText("Replace the tab strip")
@@ -951,7 +907,6 @@ test("AC-4.5 AC-4.6 the run view shows a block per reported round, and the user'
   await expect(second).toContainText("Adding the missing test")
   await expect(runView(page).locator('[data-round="9"]')).toHaveCount(0)
 
-  // Rounds and spend against their limits, with a meter each, and the statement about the limits.
   await expect(runView(page).locator('[data-slot="run-rounds"]')).toContainText("2 of 5")
   await expect(runView(page).locator('[data-slot="run-rounds"]').getByRole("meter")).toHaveAttribute(
     "aria-valuenow",
@@ -968,7 +923,6 @@ test("AC-4.5 AC-4.6 the run view shows a block per reported round, and the user'
   await expect(runView(page).locator('[data-action="run-stop"]')).toBeVisible()
   await expect(runView(page).locator('[data-action="run-resume"]')).toHaveCount(0)
 
-  // The rounds are saved, so they survive a reload; the saved run is not replaced by the seeded one.
   await expect.poll(async () => (await storedRuns(page))[0]?.rounds.length).toBe(2)
   expect((await storedRuns(page))[0]?.status).toBe("running")
   await page.reload()
@@ -976,7 +930,6 @@ test("AC-4.5 AC-4.6 the run view shows a block per reported round, and the user'
   await expect(runList(page).locator('[data-run="run_a"]')).toBeVisible()
   expect((await storedRuns(page))[0]?.rounds.length).toBe(2)
 
-  // The director thread opens from the run view.
   await runList(page).locator('[data-run="run_a"]').click()
   await runView(page).locator('[data-action="run-open-thread"]').click()
   await expect(page).toHaveURL(/\/session\/ses_dir_a$/)
@@ -1005,7 +958,6 @@ test("AC-4.5 a run whose reports pass its round cap is interrupted once and show
   await expect(runList(page).locator('[data-run="run_b"]')).toContainText("Out of rounds")
   await runList(page).locator('[data-run="run_b"]').click()
   await expect(runStatus(page)).toHaveText("Stopped · past 2 rounds")
-  // A finished run offers the links and a way to remove it, not Pause or Stop.
   await expect(runView(page).locator('[data-action="run-open-thread"]')).toBeVisible()
   await expect(runView(page).locator('[data-action="run-pause"]')).toHaveCount(0)
   await expect(runView(page).locator('[data-action="run-stop"]')).toHaveCount(0)
@@ -1056,7 +1008,6 @@ test("AC-4.6 Pause interrupts the director, Resume sends it on, and Stop interru
   await runList(page).locator('[data-run="run_c"]').click()
   await expect(runStatus(page)).toHaveText("Running · no report yet")
   await expect(runView(page).locator('[data-slot="run-rounds"]')).toContainText("0 of 5")
-  // No budget: just the amount, and no meter.
   await expect(runView(page).locator('[data-slot="run-spend"]')).toContainText("$0.00")
   await expect(runView(page).locator('[data-slot="run-spend"]')).not.toContainText(" of ")
   await expect(runView(page).locator('[data-slot="run-spend"]').getByRole("meter")).toHaveCount(0)
@@ -1090,13 +1041,11 @@ test("AC-4.6 a director's board row shows its round and opens the run view, and 
   await showBoard(page)
   const row = mission(page).locator('[data-thread="ses_dir_a"]')
   await expect(row.locator('[data-slot="board-row-detail"]')).toContainText("Round 2 of 5")
-  // A thread without a run has neither.
   await expect(mission(page).locator('[data-thread="ses_board_run"] [data-action="board-run"]')).toHaveCount(0)
   await row.locator('[data-action="board-run"]').click()
   await expect(runView(page)).toBeVisible()
   await expect(runStatus(page)).toHaveText("Running · round 2 of 5")
 
-  // The run's Project opens in the hub, with its crew.
   await runView(page).locator('[data-action="run-open-project"]').click()
   await expect(page).toHaveURL(/\/command\?project=prj_repo$/)
   await expect(page.locator('[data-component="hub-project"]')).toBeVisible()
@@ -1117,7 +1066,6 @@ test("AC-4.5 a resumed run reads its director's reports again", async ({ page })
   await openRuns(page)
   await runList(page).locator('[data-run="run_p"]').click()
   await expect(runStatus(page)).toHaveText("Paused")
-  // A paused run is not followed: nothing is read until it runs again.
   await expect(runView(page).locator("[data-round]")).toHaveCount(0)
 
   await runView(page).locator('[data-action="run-resume"]').click()
@@ -1164,7 +1112,6 @@ test("AC-4.6 a budget with no cost reported says so instead of showing $0, and t
   await expect(spend).toContainText("The budget cannot be enforced for this run.")
   await expect(spend).not.toContainText("$")
   await expect(spend.getByRole("meter")).toHaveCount(0)
-  // The reports are still read: the run itself is following along.
   await expect(runStatus(page)).toHaveText("Running · round 1 of 5")
   expect(aborts).toEqual([])
 })

@@ -75,18 +75,6 @@
     animation: toastSwipeOut var(--v2-duration-exit) var(--v2-ease-exit) forwards;
   }
 
-  /* &[data-variant="success"] { */
-  /*   border-color: var(--color-semantic-positive); */
-  /* } */
-  /**/
-  /* &[data-variant="error"] { */
-  /*   border-color: var(--color-semantic-danger); */
-  /* } */
-  /**/
-  /* &[data-variant="loading"] { */
-  /*   border-color: var(--color-semantic-info); */
-  /* } */
-
   [data-slot="toast-icon"] {
     flex-shrink: 0;
     display: flex;
@@ -95,7 +83,6 @@
 
     [data-component="icon"] {
       color: var(--text-invert-stronger);
-      /* color: var(--icon-invert-base); */
     }
   }
 
@@ -121,12 +108,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 
-    /* text-14-medium */
     font-family: var(--font-family-sans);
     font-size: 14px;
     font-style: normal;
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
+    line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);
 
     margin: 0;
@@ -138,12 +124,11 @@
     overflow-wrap: anywhere;
     word-break: break-word;
 
-    /* text-14-regular */
     font-family: var(--font-family-sans);
     font-size: var(--font-size-base);
     font-style: normal;
     font-weight: var(--font-weight-regular);
-    line-height: var(--line-height-x-large); /* 171.429% */
+    line-height: var(--line-height-x-large);
     letter-spacing: var(--letter-spacing-normal);
 
     margin: 0;
@@ -237,7 +222,6 @@
   }
 }
 
-/* Reduced motion: toasts appear and leave at once; the progress bar still counts down. */
 @media (prefers-reduced-motion: reduce) {
   [data-component="toast"],
   [data-component="toast"][data-swipe="cancel"] {

@@ -105,7 +105,6 @@ describe("v2 location HttpApi", () => {
     }
   })
 
-  // The router refuses a path it can't percent-decode before the fs.read handler runs.
   test("answers a file read path with a malformed percent escape as not found, not a server error", async () => {
     await using tmp = await tmpdir({ git: true })
     await Bun.write(`${tmp.path}/100%.txt`, "hello\n")
@@ -143,7 +142,6 @@ describe("v2 location HttpApi", () => {
     const reader = eventStream(response.body!)
     expect((await readEvent(reader)).type).toBe("server.connected")
 
-    // TUI events are published on the shared bus but are not part of the /api/event schema.
     const toast = await request("/tui/show-toast", tmp.path, {
       method: "POST",
       headers: { "content-type": "application/json" },

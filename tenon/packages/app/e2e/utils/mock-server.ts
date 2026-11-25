@@ -27,29 +27,18 @@ export interface MockServerConfig {
   questions?: unknown[] | (() => unknown[])
   fileList?: (path: string) => unknown | Promise<unknown>
   fileContent?: (path: string) => unknown | Promise<unknown>
-  /** PUT /file/content (an Undo of an agent edit): the answer's status and body. Without it the route answers 404. */
   fileWrite?: (input: {
     body: unknown
     directory?: string
   }) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>
   findFiles?: (input: { query: string; dirs?: string; limit?: number }) => unknown | Promise<unknown>
   sessionStatus?: Record<string, unknown> | (() => Record<string, unknown>)
-  /** Second Brain Projects with their thread directories (GET /second-brain/project-threads). */
   projectThreads?: unknown[] | (() => unknown[])
-  /** A prompt sent to a thread (legacy `prompt_async` or the current `/api/session/:id/prompt`). */
   onPrompt?: (input: { sessionID: string; directory?: string; body: unknown }) => void
-  /**
-   * A new thread (POST `/api/session`, or the legacy POST `/session`). The mock adds it to `sessions` under a fresh
-   * ID and answers with it; `body` is what the app sent (the folder is `location.directory`).
-   */
   onSessionCreate?: (input: { sessionID: string; body: unknown; directory?: string }) => void
-  /** An abort of a thread's run (legacy `abort` or the current `interrupt`). */
   onAbort?: (input: { sessionID: string; directory?: string }) => void
-  /** A reply to a pending permission request (legacy `permissions/:id` or the current `permission/:id/reply`). */
   onPermissionReply?: (input: { sessionID: string; requestID: string; directory?: string; body: unknown }) => void
-  /** The child threads of a thread (GET `/session/:id/children`); without it a thread has none. */
   children?: (sessionID: string) => unknown[]
-  /** The Command Centre agent's logged actions (GET /command-centre/actions); the `since` query is not applied. */
   commandActions?: unknown[] | (() => unknown[])
 }
 
@@ -79,7 +68,6 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
       process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`,
     ).port
     if (url.port !== targetPort && url.port !== appPort) return route.fallback()
-    // Page loads are the app's own routes (`/command` is also a server API path); only API calls are mocked.
     if (route.request().isNavigationRequest()) return route.fallback()
 
     const path = url.pathname
@@ -228,7 +216,6 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
-    // The Command Centre reads the folders its threads have lived in; a real server always sends the list.
     if (path === "/command-centre/folders") return json(route, { folders: [] })
     if (path === "/command-centre/actions")
       return json(

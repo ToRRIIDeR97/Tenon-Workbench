@@ -1,23 +1,4 @@
-/**
- * SerializeAddon - Serialize terminal buffer contents
- *
- * Port of xterm.js addon-serialize for ghostty-web.
- * Enables serialization of terminal contents to a string that can
- * be written back to restore terminal state.
- *
- * Usage:
- * ```typescript
- * const serializeAddon = new SerializeAddon();
- * term.loadAddon(serializeAddon);
- * const content = serializeAddon.serialize();
- * ```
- */
-
 import type { ITerminalAddon, ITerminalCore, IBufferRange } from "ghostty-web"
-
-// ============================================================================
-// Buffer Types (matching ghostty-web internal interfaces)
-// ============================================================================
 
 interface IBuffer {
   readonly type: "normal" | "alternate"
@@ -96,74 +77,28 @@ const getTerminalMode = (value: ITerminalCore, mode: number) => {
   return terminal.getMode(mode) === true
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface ISerializeOptions {
-  /**
-   * The row range to serialize. When an explicit range is specified, the cursor
-   * will get its final repositioning.
-   */
   range?: ISerializeRange
-  /**
-   * The number of rows in the scrollback buffer to serialize, starting from
-   * the bottom of the scrollback buffer. When not specified, all available
-   * rows in the scrollback buffer will be serialized.
-   */
   scrollback?: number
-  /**
-   * Whether to exclude the terminal modes from the serialization.
-   * Default: false
-   */
   excludeModes?: boolean
-  /**
-   * Whether to exclude the alt buffer from the serialization.
-   * Default: false
-   */
   excludeAltBuffer?: boolean
 }
 
 export interface ISerializeRange {
-  /**
-   * The line to start serializing (inclusive).
-   */
   start: number
-  /**
-   * The line to end serializing (inclusive).
-   */
   end: number
 }
 
 export interface IHTMLSerializeOptions {
-  /**
-   * The number of rows in the scrollback buffer to serialize, starting from
-   * the bottom of the scrollback buffer.
-   */
   scrollback?: number
-  /**
-   * Whether to only serialize the selection.
-   * Default: false
-   */
   onlySelection?: boolean
-  /**
-   * Whether to include the global background of the terminal.
-   * Default: false
-   */
   includeGlobalBackground?: boolean
-  /**
-   * The range to serialize. This is prioritized over onlySelection.
-   */
   range?: {
     startLine: number
     endLine: number
     startCol: number
   }
 }
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 function constrain(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(value, high))
@@ -189,10 +124,6 @@ function equalFlags(cell1: IBufferCell, cell2: IBufferCell): boolean {
     !!cell1.isStrikethrough() === !!cell2.isStrikethrough()
   )
 }
-
-// ============================================================================
-// Base Serialize Handler
-// ============================================================================
 
 abstract class BaseSerializeHandler {
   constructor(protected readonly _buffer: IBuffer) {}
@@ -238,10 +169,6 @@ abstract class BaseSerializeHandler {
     return ""
   }
 }
-
-// ============================================================================
-// String Serialize Handler
-// ============================================================================
 
 class StringSerializeHandler extends BaseSerializeHandler {
   private _rowIndex: number = 0
@@ -346,7 +273,6 @@ class StringSerializeHandler extends BaseSerializeHandler {
           if (mode === 2 || mode === 3 || mode === -1) {
             sgrSeq.push(38, 2, (color >>> 16) & 0xff, (color >>> 8) & 0xff, color & 0xff)
           } else if (mode === 1) {
-            // Palette
             if (color >= 16) {
               sgrSeq.push(38, 5, color)
             } else {
@@ -362,7 +288,6 @@ class StringSerializeHandler extends BaseSerializeHandler {
           if (mode === 2 || mode === 3 || mode === -1) {
             sgrSeq.push(48, 2, (color >>> 16) & 0xff, (color >>> 8) & 0xff, color & 0xff)
           } else if (mode === 1) {
-            // Palette
             if (color >= 16) {
               sgrSeq.push(48, 5, color)
             } else {
@@ -505,34 +430,17 @@ class StringSerializeHandler extends BaseSerializeHandler {
   }
 }
 
-// ============================================================================
-// SerializeAddon Class
-// ============================================================================
-
 export class SerializeAddon implements ITerminalAddon {
   private _terminal?: ITerminalCore
 
-  /**
-   * Activate the addon (called by Terminal.loadAddon)
-   */
   public activate(terminal: ITerminalCore): void {
     this._terminal = terminal
   }
 
-  /**
-   * Dispose the addon and clean up resources
-   */
   public dispose(): void {
     this._terminal = undefined
   }
 
-  /**
-   * Serializes terminal rows into a string that can be written back to the
-   * terminal to restore the state. The cursor will also be positioned to the
-   * correct cell.
-   *
-   * @param options Custom options to allow control over what gets serialized.
-   */
   public serialize(options?: ISerializeOptions): string {
     if (!this._terminal) {
       throw new Error("Cannot use addon until it has been loaded")
@@ -564,10 +472,6 @@ export class SerializeAddon implements ITerminalAddon {
     return content
   }
 
-  /**
-   * Serializes terminal content as plain text (no escape sequences)
-   * @param options Custom options to allow control over what gets serialized.
-   */
   public serializeAsText(options?: { scrollback?: number; trimWhitespace?: boolean }): string {
     if (!this._terminal) {
       throw new Error("Cannot use addon until it has been loaded")
@@ -600,7 +504,6 @@ export class SerializeAddon implements ITerminalAddon {
       }
     }
 
-    // Trim trailing empty lines if requested
     if (options?.trimWhitespace) {
       while (lines.length > 0 && lines[lines.length - 1] === "") {
         lines.pop()

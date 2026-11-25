@@ -686,7 +686,6 @@
   --amber-dark-alpha-11: #ffab0eef;
   --amber-dark-alpha-12: #fff8e1f9;
 
-  /* Legacy palette aliases (keeps older themes working) */
   --smoke-light-1: var(--gray-light-1);
   --smoke-light-2: var(--gray-light-2);
   --smoke-light-3: var(--gray-light-3);

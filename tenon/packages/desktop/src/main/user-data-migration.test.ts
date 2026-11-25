@@ -85,7 +85,6 @@ describe("migrateUserData", () => {
 
   test("keeps the copy and retries on the next start when an entry cannot be moved", () => {
     const dirs = setup({ "opencode.settings": "old", "storage/default.dat": "old" })
-    // The single-instance lock creates the new folder before the copy runs.
     mkdirSync(dirs.to)
     writeFileSync(join(dirs.to, "SingletonLock"), "x")
     const failing = (from: PathLike, to: PathLike) => {
@@ -96,7 +95,6 @@ describe("migrateUserData", () => {
     expect(() => migrateUserData(dirs.from, dirs.to, failing)).toThrow("could not move storage into")
     expect(existsSync(join(dirs.to, marker))).toBe(false)
     expect(readdirSync(dirs.root).filter((name) => name.includes(".migrating-"))).toHaveLength(1)
-    // A second failed start replaces the earlier copy instead of adding another.
     expect(() => migrateUserData(dirs.from, dirs.to, failing)).toThrow("could not move storage into")
     expect(readdirSync(dirs.root).filter((name) => name.includes(".migrating-"))).toHaveLength(1)
 

@@ -20,7 +20,6 @@ export type CalendarEvent = {
   end?: string
   details?: string
   projectId?: string
-  /** The Google account of a provider event; absent on local events and on saves from before multiple accounts. */
   accountId?: string
   providerId?: string
   calendarId?: string
@@ -75,7 +74,6 @@ export type ProjectRecord = {
   nextMilestone?: string | null
   blocker?: string | null
   tags: ReadonlyArray<string>
-  /** `path` is the project folder: relative to the workspace root, or absolute for a linked folder. */
   location?: { workspaceId?: string; displayPath: string; path?: string } | null
   createdAt: string
   updatedAt: string
@@ -106,7 +104,6 @@ export type ProjectUpdate = Partial<
 export type ProjectWorkspace = { id: string; worktree: string; name?: string }
 export type ProjectThreads = {
   project: ProjectRecord
-  /** Absolute directory where the Project's threads run; use it verbatim as the session directory. */
   threadDirectory: string
   threadDirectoryKind: "workspace" | "folder" | "project"
   workspace: ProjectWorkspace | null
@@ -114,7 +111,6 @@ export type ProjectThreads = {
   lastActivityAt: number | null
 }
 
-/** `header` sends the directory as `x-opencode-directory` instead of a query parameter. */
 type Target = { directory?: string; workspace?: string; header?: boolean }
 type Client = {
   server: ServerConnection.Any
@@ -123,7 +119,6 @@ type Client = {
 }
 
 export class SecondBrainRequestError extends Error {
-  /** `reason` is the server's validation code for a 400, such as `invalid_event`. */
   constructor(
     readonly status: number,
     readonly reason?: string,
@@ -133,12 +128,10 @@ export class SecondBrainRequestError extends Error {
   }
 }
 
-/** The validation code a 400 response carries as `{ data: { message } }`. */
 export function requestErrorReason(body: unknown) {
   if (!body || typeof body !== "object" || !("data" in body)) return undefined
   const data = body.data
   if (!data || typeof data !== "object" || !("message" in data) || typeof data.message !== "string") return undefined
-  // `vault_unavailable` alone carries a detail: the vault-relative file that could not be read.
   return /^[a-z0-9_]{1,64}$/.test(data.message) || data.message.startsWith("vault_unavailable: ")
     ? data.message
     : undefined
@@ -196,30 +189,25 @@ export const updateProject = (client: Client, id: string, input: ProjectUpdate) 
     body: JSON.stringify(input),
   })
 
-/** Projects with their resolved thread directory and root thread stats. */
 export const listProjectThreads = (client: Client) => request<ProjectThreads[]>(client, "/second-brain/project-threads")
 
 export type ScanResult = { folders: number; created: number; missing: ReadonlyArray<string> }
 
-/** Give every folder in the workspace's projects folder, and every linked folder, a Project card. */
 export const scanProjects = (client: Client) =>
   request<ScanResult>(client, "/second-brain/projects/scan", { method: "POST" })
 
-/** Add an absolute folder from outside the workspace as one of its Projects. */
 export const linkProjectFolder = (client: Client, folder: string) =>
   request<ScanResult>(client, "/second-brain/projects/link", { method: "POST", body: JSON.stringify({ folder }) })
 
 export const unlinkProjectFolder = (client: Client, folder: string) =>
   request<ScanResult>(client, "/second-brain/projects/unlink", { method: "POST", body: JSON.stringify({ folder }) })
 
-/** Whether the target folder is approved, and what its config asks for that stays off until it is. */
 export type FolderTrust = { root: string; trusted: boolean; withheld: ReadonlyArray<string> }
 
 export const readFolderTrust = (client: Client) => request<FolderTrust>(client, "/config/trust")
 
 export const approveFolder = (client: Client) => request<FolderTrust>(client, "/config/trust", { method: "POST" })
 
-/** The target folder's own AGENTS.md; `content` is null when it has none. */
 export type Instructions = { path: string; content: string | null }
 
 export const readInstructions = (client: Client) => request<Instructions>(client, "/second-brain/instructions")
@@ -230,9 +218,7 @@ export const writeInstructions = (client: Client, content: string) =>
 export const removeInstructions = (client: Client) =>
   request<Instructions>(client, "/second-brain/instructions", { method: "DELETE" })
 
-/** The workspace's folder in the Tenon vault, where its pages, timelines and Project logs live. */
 export type VaultInfo = { root: string; workspace: { id: string; name: string; folder: string } }
-/** `path` is relative to the workspace's vault folder and uses `/` on every platform. */
 export type VaultPageInfo = {
   id: string
   path: string
@@ -257,7 +243,6 @@ export type VaultConflict = { path: string; original: string }
 
 export const readVault = (client: Client) => request<VaultInfo>(client, "/second-brain/vault")
 
-/** Newest first. */
 export const listVaultPages = (client: Client, filter: { project?: string; search?: string } = {}) => {
   const query = new URLSearchParams()
   if (filter.project) query.set("project", filter.project)
@@ -268,7 +253,6 @@ export const listVaultPages = (client: Client, filter: { project?: string; searc
 export const readVaultPage = (client: Client, path: string) =>
   request<VaultPage>(client, `/second-brain/vault/page?path=${encodeURIComponent(path)}`)
 
-/** With `projectId` the path may be relative to the Project's folder. A 409 means stale, or (with `create`) taken. */
 export const writeVaultPage = (
   client: Client,
   input: {
@@ -293,7 +277,6 @@ export const writeVaultPage = (
     }),
   })
 
-/** The file stays in the page's history. A 409 means the page changed since `revision`. */
 export const removeVaultPage = (client: Client, path: string, revision: string) =>
   request<{ removed: true }>(
     client,
@@ -301,7 +284,6 @@ export const removeVaultPage = (client: Client, path: string, revision: string) 
     { method: "DELETE" },
   )
 
-/** Earlier saved versions of a page, newest first. */
 export const listVaultPageVersions = (client: Client, path: string) =>
   request<VaultPageVersion[]>(client, `/second-brain/vault/page/history?path=${encodeURIComponent(path)}`)
 
@@ -311,7 +293,6 @@ export const readVaultPageVersion = (client: Client, path: string, revision: str
     `/second-brain/vault/page/history?path=${encodeURIComponent(path)}&revision=${encodeURIComponent(revision)}`,
   )
 
-/** Switch a routine on or off. The server replaces all properties, so this sends the page's others back. */
 export const setRoutineEnabled = async (client: Client, path: string, enabled: boolean) => {
   const page = await readVaultPage(client, path)
   return writeVaultPage(client, {
@@ -336,20 +317,14 @@ export const writeTimeline = (
     body: JSON.stringify(input),
   })
 
-/** Newest first, merged from every machine's log file. */
 export const readProjectLog = (client: Client, projectId: string) =>
   request<LogEntry[]>(client, `/second-brain/vault/log?project=${encodeURIComponent(projectId)}`)
 
 export const listVaultConflicts = (client: Client) => request<VaultConflict[]>(client, "/second-brain/vault/conflicts")
 
-/** Moves the workspace's pre-vault notes into the vault (with a backup); a repeat call moves nothing. */
 export const migrateVault = (client: Client) =>
   request<{ moved: number; backup: string }>(client, "/second-brain/vault/migrate", { method: "POST" })
 
-/**
- * Reverts one agent write by its undo token; a 409 means it was already undone or has changed since.
- * The folder travels in a header so the route's URL stays `/second-brain/writes/<token>/undo`.
- */
 export const undoAgentWrite = (client: Client, token: string) =>
   request<{ undone: true }>({ ...client, target: {} }, `/second-brain/writes/${encodeURIComponent(token)}/undo`, {
     method: "POST",
@@ -372,17 +347,14 @@ export type Routine = {
 export type ModelChoice = { providerID: string; modelID: string }
 export type MemoryHit = { sessionID?: string; text: string; at: number }
 
-/** Something the Command Centre agent did to another thread on the user's behalf. */
 export type CommandAction = {
   id: string
-  /** ms. */
   at: number
   kind: "message" | "stop" | "start"
   sessionID: string
   title: string
   project?: string
   text?: string
-  /** The Command Centre thread that acted. */
   by: string
 }
 
@@ -400,17 +372,14 @@ export const approveRoutine = (client: Client, id: string, hash: string) =>
     body: JSON.stringify({ hash }),
   })
 
-/** Creates the vault's `.command-centre` folder when missing and returns it. */
 export const commandDirectory = (client: Client) =>
   request<{ directory: string }>(client, "/command-centre/directory", { method: "POST" })
 
-/** Every Command Centre folder on this machine; a moved vault's threads stay in the earlier root's folder. */
 export const commandFolders = (client: Client) => request<{ folders: string[] }>(client, "/command-centre/folders")
 
 export const searchCommandMemory = (client: Client, search: string) =>
   request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)
 
-/** The Command Centre agent's logged actions at or after `since` (ms), newest first. */
 export const listCommandActions = (client: Client, since: number) =>
   request<CommandAction[]>(client, `/command-centre/actions?since=${since}`)
 
@@ -420,7 +389,6 @@ export const compactCommandMemory = (client: Client, input: { days: number; mode
     body: JSON.stringify(input),
   })
 
-/** A vault page in the shape the Projects map and overview list notes in. The vault keeps no link index. */
 export const vaultPageSummary = (info: VaultPageInfo): NoteSummary => ({
   path: info.path,
   title: info.title,

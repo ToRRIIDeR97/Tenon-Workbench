@@ -20,11 +20,6 @@ function createModel(fetchFn: ReturnType<typeof mock>) {
   })
 }
 
-// GitHub Copilot's Responses model echoes item metadata (itemId, reasoningEncryptedContent,
-// responseId, ...) under the "copilot" providerOptions/providerMetadata namespace, matching the
-// namespace request options already use. It used to echo this metadata under "openai" (a leftover
-// from forking the OpenAI Responses model), which left it unreachable by anything reading the
-// "copilot" namespace and let stale itemIds slip past stripping meant for that namespace.
 describe("doGenerate", () => {
   test("attaches item metadata under the copilot namespace, not openai", async () => {
     const mockFetch = createMockFetch({

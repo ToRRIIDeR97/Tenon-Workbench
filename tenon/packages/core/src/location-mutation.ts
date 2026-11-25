@@ -9,14 +9,8 @@ import { Location } from "./location"
 export const Kind = Schema.Literals(["file", "directory"])
 export type Kind = typeof Kind.Type
 
-/**
- * Mutation paths do not accept project references. Relative paths must stay
- * inside the active Location. Absolute paths outside it require separate
- * `external_directory` approval.
- */
 export const ResolveInput = Schema.Struct({
   path: Schema.String,
-  /** Selects the external approval boundary; it does not validate the target type. */
   kind: Kind.pipe(Schema.optional),
 })
 export type ResolveInput = typeof ResolveInput.Type
@@ -28,9 +22,7 @@ export class PathError extends Schema.TaggedError<PathError>()("LocationMutation
 
 export interface ExternalDirectoryAuthorization {
   readonly action: "external_directory"
-  /** Canonical existing directory used as the external approval boundary. */
   readonly directory: string
-  /** `external_directory` permission resource. */
   readonly resource: string
   readonly save: string
 }
@@ -42,19 +34,12 @@ export const externalDirectoryPermission = (input: ExternalDirectoryAuthorizatio
 })
 
 export interface Target {
-  /** Canonical existing path, or missing path below a canonical directory. */
   readonly canonical: string
-  /** Permission resource: Location-relative for internal paths, canonical for external paths. */
   readonly resource: string
   readonly externalDirectory?: ExternalDirectoryAuthorization
 }
 
 export interface Interface {
-  /**
-   * Resolve a path and derive its permission resources. Relative paths must
-   * stay inside the Location. Absolute paths outside it require separate
-   * `external_directory` approval. This does not approve the mutation.
-   */
   readonly resolve: (input: ResolveInput) => Effect.Effect<Target, PathError | FSUtil.Error>
 }
 

@@ -145,7 +145,6 @@ describe("session.listGlobal", () => {
         const tied = rest.filter((item) => item.time.updated === time)
         expect([...first, ...tied].map((item) => item.id).toSorted()).toEqual(created.map((item) => item.id).toSorted())
 
-        // The legacy numeric cursor still pages by time_updated alone.
         const legacy = yield* SessionNs.Service.use((session) =>
           session.listGlobal({
             directory: test.directory,

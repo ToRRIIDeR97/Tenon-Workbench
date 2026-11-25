@@ -56,7 +56,6 @@ export type SessionReviewV2SidebarProps = {
   minWidth?: number
   maxWidth?: number
   viewportRef?: (element: HTMLDivElement) => void
-  /** The panel is too narrow to share: the sidebar floats over the viewer instead of squeezing it. */
   overlay?: boolean
   children?: JSX.Element
 }
@@ -182,7 +181,6 @@ export function SessionReviewV2(props: SessionReviewV2Props) {
   const previousKey = () => (locale.direction() === "rtl" ? "ArrowRight" : "ArrowLeft")
   const nextKey = () => (locale.direction() === "rtl" ? "ArrowLeft" : "ArrowRight")
   const showCollapsedMeta = () => props.sidebarOpen === false
-  // Memoize slot getters so Show conditions do not instantiate throwaway elements.
   const title = createMemo(() => props.title)
   const stats = createMemo(() => props.stats)
 
@@ -191,8 +189,6 @@ export function SessionReviewV2(props: SessionReviewV2Props) {
     props.onSelectFile(file)
   }
 
-  // Keep the advertised arrow keys working while the
-  // pane is mounted, but never while typing in an input or comment editor.
   makeEventListener(document, "keydown", (event) => {
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
     if (event.key !== previousKey() && event.key !== nextKey()) return

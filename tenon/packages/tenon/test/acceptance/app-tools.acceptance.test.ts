@@ -22,8 +22,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// P5 · App tools (implementations/notes-command-centre/implementation.md, AC-5.1 … AC-5.6)
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
   [
@@ -62,7 +60,6 @@ const json = <T>(response: HttpClientResponse.HttpClientResponse) =>
 
 type Result = { isError: boolean; value: unknown }
 
-// A workspace with Projects A and B, and a thread running in A's folder.
 const setup = Effect.gen(function* () {
   const test = yield* TestInstance
   process.env.TENON_VAULT_DIR = yield* tmpdirScoped()
@@ -117,7 +114,6 @@ describe("AgentAppTools", () => {
       expect(String(foreign.value)).toContain("outside this Project")
       const foreignTimeline = yield* call("timeline_update", { projectId: b.id, items: [] })
       expect(foreignTimeline.isError).toBe(true)
-      // Reading another Project is allowed.
       yield* request(`/second-brain/vault/page?path=Spec.md`, {
         method: "PUT",
         headers,
@@ -132,7 +128,6 @@ describe("AgentAppTools", () => {
   it.instance("AC-5.2 a thread in a linked folder of a non-git workspace finds its Project", () =>
     Effect.gen(function* () {
       process.env.TENON_VAULT_DIR = yield* tmpdirScoped()
-      // The workspace is a plain folder (no repository record) and the Project's code lives elsewhere.
       const workspace = yield* tmpdirScoped()
       const code = yield* tmpdirScoped()
       const headers = { "x-opencode-directory": workspace, "content-type": "application/json" }

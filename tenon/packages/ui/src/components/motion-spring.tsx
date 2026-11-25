@@ -26,7 +26,6 @@ export function useSpring(target: () => number, options?: Opt | (() => Opt), sna
     const next = target()
     const nextSnap = snapKey?.()
     if ((snapKey && nextSnap !== snapValue) || prefersReducedMotion()) {
-      // State boundaries, and reduced motion, adopt their target without animating from the previous context.
       snapValue = nextSnap
       stop()
       spring.jump(next)

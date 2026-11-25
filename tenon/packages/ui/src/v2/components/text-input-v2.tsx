@@ -4,23 +4,15 @@ import { useI18n } from "../../context/i18n"
 import "./text-input-v2.css"
 
 export interface TextInputV2Props extends Omit<ComponentProps<"input">, "type"> {
-  /** Icon or adornment shown before the field value. */
   leadingIcon?: JSX.Element
-  /** Show the trailing copy action. */
   showCopyButton?: boolean
-  /** Show the trailing clear action. */
   showClearButton?: boolean
-  /** Accessible label for the copy button. */
   copyLabel?: string
-  /** Accessible label for the clear button. */
   clearLabel?: string
   onCopyClick?: (event: MouseEvent) => void
   onClearClick?: (event: MouseEvent) => void
-  /** Apply tabular numerals to the field value. */
   numeric?: boolean
-  /** Error styling for the field and value text. */
   invalid?: boolean
-  /** `base` is 28px tall; `large` is 32px tall. */
   appearance?: "base" | "large"
   type?: ComponentProps<"input">["type"]
 }

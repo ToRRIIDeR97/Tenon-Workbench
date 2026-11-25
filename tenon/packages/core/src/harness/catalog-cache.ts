@@ -6,14 +6,6 @@ import { Effect, Option, Schema, Semaphore } from "effect"
 import { Harness } from "@tenon/schema/harness"
 import { Hash } from "../util/hash"
 
-/**
- * What harnesses last reported, kept across restarts so the picker has harnesses and models before the
- * harness CLIs answer: the model lists (`fileName`) and the last availability check (`probeFileName`).
- * Rebuildable: a missing or corrupt file only means the next check runs as on a first start.
- * Entries are keyed by a hash of the instance key, because an instance's config can carry API keys.
- */
-// v3: lists from before OpenCode models kept their reasoning levels (opened threads overwrote them), dropped once
-// so every harness re-checks.
 export const fileName = "harness-models.v3.json"
 export const probeFileName = "harness-probes.json"
 
@@ -27,13 +19,11 @@ export const id = (instanceKey: string) => Hash.sha256(instanceKey)
 
 export const read = (dataDir: string) => readFile(dataDir, fileName, decodeEntries)
 
-/** Stores one instance's list, keeping the entries other Locations wrote. A failed write is ignored. */
 export const write = (dataDir: string, instanceKey: string, entry: Entry) =>
   writeEntry(dataDir, fileName, decodeEntries, instanceKey, entry)
 
 export const readProbes = (dataDir: string) => readFile(dataDir, probeFileName, decodeProbes)
 
-/** Stores one instance's last check. Its `error` text comes from the CLI's output, so it isn't kept. */
 export const writeProbe = (dataDir: string, instanceKey: string, instance: Harness.Instance) => {
   const { error: _error, ...kept } = instance
   return writeEntry(dataDir, probeFileName, decodeProbes, instanceKey, kept)

@@ -13,8 +13,6 @@ export const CODE_MODE_TOOL = "execute"
 
 const DESCRIPTION = "Run a confined orchestration script with access to connected MCP tools."
 
-// Backstops for model-written programs. The timeout is wall-clock and includes time spent waiting on
-// child-call permission prompts, so it is generous; the user can still cancel sooner.
 export const CODE_MODE_LIMITS = {
   timeoutMs: 600_000,
   maxToolCalls: 100,
@@ -108,7 +106,6 @@ function projectMcpResult(result: CallToolResult, collect: (attachment: Attachme
         break
       }
       case "resource_link":
-        // A link is a reference, not fetchable media; hand it to the program instead of the attachment channel.
         text.push(`${block.name}: ${block.uri}`)
         break
     }
@@ -153,7 +150,6 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
   )
   const result: CallToolResult = yield* Effect.gen(function* () {
     yield* input.ctx.ask(MCP.permission(input.entry.tool))
-    // Deliberately mirrors McpCatalog.convertTool's transport call so the MCP service stays free of tool-loop concerns.
     return yield* Effect.promise(async () => {
       const raw = await input.entry.tool.client.callTool(
         { name: input.entry.tool.def.name, arguments: input.args },
@@ -162,7 +158,6 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
           resetTimeoutOnProgress: true,
           signal: input.ctx.abort,
           timeout: input.entry.tool.timeout,
-          // The MCP SDK only sends a progress token when this hook is present, enabling timeout resets.
           onprogress: () => {},
         },
       )
@@ -299,8 +294,6 @@ export const CodeModeTool = Tool.define(
           return yield* Effect.fail(new Error(withLogs([result.error.message, ...hints].join("\n"))))
         }
 
-        // The interpreter validates returned values as plain JSON, so stringify cannot throw;
-        // it yields undefined only for a program that returns undefined.
         const output =
           typeof result.value === "string"
             ? result.value

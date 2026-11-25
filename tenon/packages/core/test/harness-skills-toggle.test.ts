@@ -5,7 +5,6 @@ import path from "node:path"
 import { Effect, Exit } from "effect"
 import { HarnessSkills } from "@tenon/core/harness/skills"
 
-// #323: a harness skill is switched off by renaming its SKILL.md, which every harness looks for by that exact name.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "harness-skills-toggle-"))
 const home = path.join(root, "home")
 const project = path.join(root, "project")
@@ -62,7 +61,6 @@ describe("AC-7 harness skills can be switched off and back", () => {
     await toggle("pdf", false)
     const pdf = path.join(home, ".claude/skills/pdf/SKILL.md")
     await write(pdf, "---\nname: pdf\n---\nA newer copy\n")
-    // The live SKILL.md is the copy listed, so the skill is already on: nothing is renamed over it.
     const exit = await toggle("pdf", true)
     expect(Exit.isSuccess(exit) && exit.value).toEqual({ name: "pdf", enabled: true })
     expect(await fs.readFile(pdf, "utf8")).toBe("---\nname: pdf\n---\nA newer copy\n")

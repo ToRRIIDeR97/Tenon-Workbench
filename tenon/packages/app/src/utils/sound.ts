@@ -10,7 +10,6 @@ function getFiles() {
   return files
 }
 
-// Tenon's own sounds first, made by ui/script/sounds.ts: three families, each with done, attention and error.
 export const SOUND_OPTIONS = [
   { id: "tenon-soft-done", label: "secondBrain.sound.softDone" },
   { id: "tenon-soft-attention", label: "secondBrain.sound.softAttention" },

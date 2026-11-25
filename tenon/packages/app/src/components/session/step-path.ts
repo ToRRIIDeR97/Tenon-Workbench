@@ -1,10 +1,5 @@
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-/**
- * Shows the paths in a step's target relative to the workspace: `C:\Users\me\ws\src\a.ts` reads `src\a.ts`, and
- * the workspace itself reads `.`. Paths inside commands are shortened too; anything outside the workspace is left
- * alone. Windows roots (drive letter or UNC) match case-insensitively and with either separator.
- */
 export function workspaceRelative(text: string, root: string | undefined) {
   if (!text || !root) return text
   const segments = root.split(/[\\/]+/).filter(Boolean)

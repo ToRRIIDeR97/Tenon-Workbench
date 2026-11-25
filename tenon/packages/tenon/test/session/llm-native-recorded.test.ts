@@ -261,7 +261,6 @@ const modelsFixture = Filesystem.readJson<Record<string, ModelsDev.Provider>>(
 
 function recordedNativeLLMLayer(scenario: RecordedScenario) {
   const auth = authLayer(scenario)
-  // Only the HTTP client is recorded; RequestExecutor and the opencode LLM stack remain real.
   const metadata = {
     provider: scenario.providerID,
     protocol: scenario.protocol,

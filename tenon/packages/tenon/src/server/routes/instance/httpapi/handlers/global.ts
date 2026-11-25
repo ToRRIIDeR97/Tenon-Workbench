@@ -17,10 +17,6 @@ import { GlobalUpgradeInput } from "../groups/global"
 
 const subscriberCapacity = 4096
 
-// Durable events are emitted twice on the bus: as the event itself and as a
-// `sync` copy that remote control planes replay. Local clients that do not
-// replay can send this header to skip the copies (half the bytes and stringify
-// work while a session streams). Without it the stream is unchanged.
 export const SKIP_SYNC_EVENTS_HEADER = "x-tenon-skip-sync-events"
 
 function eventData(data: unknown): Sse.Event {
@@ -43,8 +39,6 @@ function parseBody(body: string) {
 function eventResponse(options: { skipSync: boolean }) {
   return Effect.gen(function* () {
     yield* Effect.logInfo("global event connected")
-    // A subscriber that falls `subscriberCapacity` events behind is disconnected;
-    // clients resync on the `server.connected` event of their next connection.
     const events = Stream.callback<GlobalBusEvent, EventV2.SubscriberOverflowError>(
       (queue) => {
         const handler = (event: GlobalBusEvent) => {
@@ -114,7 +108,6 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
 
     const configMcpRemove = Effect.fn("GlobalHttpApi.configMcpRemove")(function* (ctx: { params: { name: string } }) {
       const result = yield* config.removeGlobalMcp(ctx.params.name)
-      // A removed server's sign-in goes with it, so a new server with the same name starts signed out.
       if (result.changed) yield* mcpAuth.remove(ctx.params.name)
       if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
       return result
@@ -125,7 +118,6 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       payload: { rename?: string; clear?: ReadonlyArray<string> }
     }) {
       const result = yield* config.editGlobalMcp(ctx.params.name, ctx.payload)
-      // A sign-in is stored by server name; a renamed server keeps its own.
       const rename = ctx.payload.rename?.trim()
       if (result.changed && rename && rename !== ctx.params.name) {
         const stored = yield* mcpAuth.get(ctx.params.name)

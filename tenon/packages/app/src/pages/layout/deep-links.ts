@@ -1,6 +1,5 @@
 export const deepLinkEvent = "tenon:deep-link"
 
-// Must match DEEP_LINK_SCHEME in packages/desktop/src/main/constants.ts.
 const scheme = "tenon://"
 
 const parseUrl = (input: string) => {

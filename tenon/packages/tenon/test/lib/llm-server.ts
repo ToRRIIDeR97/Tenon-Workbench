@@ -433,7 +433,6 @@ function send(item: Sse) {
 
 const reset = Effect.fn("TestLLMServer.reset")(function* (item: Sse) {
   const req = yield* HttpServerRequest.HttpServerRequest
-  // The test server speaks HTTP/1.1; Effect 4.1 also types HTTP/2 responses here.
   const res = NodeHttpServerRequest.toServerResponse(req) as ServerResponse
   yield* Effect.sync(() => {
     res.writeHead(200, { "content-type": "text/event-stream" })
@@ -503,7 +502,6 @@ export class Reply {
     return this
   }
 
-  // A finish_reason the SDK does not recognise; it maps to the "unknown" finish.
   unrecognizedFinish() {
     this.#finish = "eos"
     this.#hang = false

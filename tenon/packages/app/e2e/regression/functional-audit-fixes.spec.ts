@@ -13,7 +13,6 @@ async function setup(page: Page, spanish = false) {
     project: fixture.project,
     pageMessages: () => ({ items: [] }),
   })
-  // Home's composer shows the harness picker once the server lists its harnesses.
   await page.route("**/api/harness?**", (route) =>
     route.fulfill({
       json: {
@@ -46,7 +45,6 @@ async function setup(page: Page, spanish = false) {
     createdAt: date,
     updatedAt: date,
   }
-  // Vault pages: paths are relative to the workspace's vault folder; a Project's pages sit in its folder.
   const folder = "Audit Project"
   const vaultPage = (path: string, title: string, body: string): VaultPage => ({
     info: {
@@ -64,7 +62,6 @@ async function setup(page: Page, spanish = false) {
     vaultPage(`${folder}/Alpha.md`, "Alpha", "# First heading\n\nUnique-body-needle and [[Beta]]."),
     vaultPage(`${folder}/Beta.md`, "Beta Updated", "# Beta body"),
   ]
-  // A file the page list has not seen yet (written by another machine), so creating it is refused.
   const unlisted = new Set(["Untitled.md"])
   const writes: Writes = []
   await page.route("**/second-brain/**", async (route) => {
@@ -72,7 +69,6 @@ async function setup(page: Page, spanish = false) {
     if (!url.pathname.startsWith("/second-brain/")) return route.fallback()
     const method = route.request().method()
     if (url.pathname === "/second-brain/projects") return route.fulfill({ json: [project] })
-    // Home and the sidebar list Projects with their thread folder (the card folder here).
     if (url.pathname === "/second-brain/project-threads")
       return route.fulfill({
         json: [
@@ -156,11 +152,9 @@ test("notes preserve edits across navigation, search bodies, render headings and
 }, testInfo) => {
   const writes = await setup(page)
   await page.goto("/projects")
-  // The first visit moves the workspace's pre-vault notes into the vault and says how many.
   await expect(page.getByRole("status").filter({ hasText: "Moved 2 notes into the Tenon vault" })).toBeVisible()
   await page.getByRole("textbox", { name: "Search pages" }).fill("Unique-body-needle")
   const results = page.getByRole("list", { name: "Search results" })
-  // A result names its Project after the title.
   await expect(results.getByRole("button", { name: /^Alpha/ })).toBeVisible()
   await expect(results.getByRole("button", { name: /^Beta Updated/ })).toHaveCount(0)
   await results.getByRole("button", { name: /^Alpha/ }).click()
@@ -174,13 +168,11 @@ test("notes preserve edits across navigation, search bodies, render headings and
   const editor = page.getByRole("textbox", { name: "Markdown note editor" })
   await editor.fill("Edited, unsaved body")
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
-  // Leaving asks first; Keep editing stays on the page with the text.
   const unsaved = page.getByRole("dialog", { name: "Save your changes?" })
   await unsaved.getByRole("button", { name: "Keep editing" }).click()
   await expect(page).toHaveURL(/\/projects\?page=/)
   await expect(editor).toHaveValue("Edited, unsaved body")
   await page.screenshot({ path: testInfo.outputPath("notes.png"), fullPage: true })
-  // Save sends the revision the page was loaded at, then finishes the navigation.
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
   await unsaved.getByRole("button", { name: "Save", exact: true }).click()
   await expect(page).toHaveURL(/\/calendar$/)
@@ -216,19 +208,15 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await setup(page)
   await page.goto("/")
   await page.getByRole("button", { name: /Audit Event/ }).click()
-  // An event opened from Home shows its preview first; Edit opens the editor.
   await expect(page.getByRole("heading", { name: "Audit Event", exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Audit Event")
-  // Close the editor so its draft doesn't hold later navigation.
   await page.getByRole("button", { name: "Cancel", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Event title" })).toHaveCount(0)
   await page.getByRole("button", { name: "Home", exact: true }).click()
   await page.getByRole("button", { name: /Audit Task/ }).click()
   await expect(page.getByRole("textbox", { name: "Task name" })).toHaveValue("Audit Task")
   await page.getByRole("button", { name: "Home", exact: true }).click()
-  // Regression: clicking during Home's fade-in once changed the URL to /projects but left Home on screen.
-  // Home's Active Projects card (the sidebar lists the same Project by name only).
   await page.getByRole("button", { name: "Audit Project 25%", exact: true }).click()
   await expect(page.getByText("An editable outcome", { exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
@@ -268,7 +256,6 @@ test("Spanish Brain navigation and harness names are localized", async ({ page }
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "Inicio", exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "Proyectos", exact: true })).toBeVisible()
-  // The harness is chosen in the composer's model pill since the composer redesign.
   await page.getByRole("button", { name: "Claude Opus 4.6", exact: true }).click()
   await expect(page.getByText("Motor de agente", { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("spanish-home.png"), fullPage: true })

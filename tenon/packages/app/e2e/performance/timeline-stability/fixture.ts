@@ -98,7 +98,6 @@ export async function setupTimeline(
     deviceScaleFactor?: number
     seedHistory?: boolean
     protocol?: "v1" | "v2"
-    /** Turns fold their steps; open every turn header as it mounts so specs can reach tool rows (default true). */
     expandSteps?: boolean
   } = {},
 ) {
@@ -144,9 +143,6 @@ export async function setupTimeline(
       localStorage.setItem("app-version.v1", JSON.stringify({ version: "1.17.20" }))
     }
   }, input.settings ?? {})
-  // Default changes every stability spec's precondition: turns start expanded, not folded, including working
-  // turns whose live ticker would otherwise replace the step rows these specs measure. Opening each header
-  // as it mounts (before paint) keeps the rows' appearance identical to an expanded turn.
   if (input.expandSteps !== false) {
     await page.addInitScript(() => {
       const open = () =>
@@ -181,8 +177,6 @@ export async function setupTimeline(
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
-  // Specs name the throttle they were tuned with, but it only applies with TIMELINE_STABILITY_THROTTLE=1: it
-  // slows each run about fourfold and fights parallel workers for CPU.
   if (process.env.TIMELINE_STABILITY_THROTTLE === "1" && input.cpuRate && input.cpuRate > 1) {
     const devtools = await page.context().newCDPSession(page)
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: input.cpuRate })
@@ -288,7 +282,6 @@ export function validateTimelineMessages(input: readonly TimelineMessage[]): Tim
   return messages
 }
 
-/** Opens every rendered, folded turn-steps header. */
 export async function expandTurnSteps(page: Page) {
   await expect(page.locator("[data-timeline-row]").first()).toBeVisible()
   const closed = page.locator('[data-component="turn-steps-summary"][data-state="closed"]')

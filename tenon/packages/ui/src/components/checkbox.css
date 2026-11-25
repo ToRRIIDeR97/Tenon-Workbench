@@ -32,7 +32,6 @@
       border-color var(--v2-duration-short) var(--v2-ease-standard),
       background-color var(--v2-duration-short) var(--v2-ease-standard),
       box-shadow var(--v2-duration-short) var(--v2-ease-standard);
-    /* background-color: var(--surface-weak); */
   }
 
   [data-slot="checkbox-checkbox-indicator"] {
@@ -48,9 +47,6 @@
       opacity var(--v2-duration-short) var(--v2-ease-standard),
       transform var(--v2-duration-short) var(--v2-ease-standard);
   }
-
-  /* [data-slot="checkbox-checkbox-content"] { */
-  /* } */
 
   [data-slot="checkbox-checkbox-label"] {
     user-select: none;

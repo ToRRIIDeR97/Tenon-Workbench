@@ -11,11 +11,6 @@ import { it } from "./lib/effect"
 import { readFile, rm, writeFile, utimes, mkdir } from "fs/promises"
 import path from "path"
 
-// test/preload.ts pins TENON_MODELS_PATH to a fixture so other tests can
-// resolve providers without network. These tests need to drive the on-disk
-// cache themselves and silence the eager refresh fork. Save/restore around
-// the suite — never leak the mutation to subsequent test files in the same
-// bun process.
 const ORIGINAL_MODELS_PATH = Flag.TENON_MODELS_PATH
 const ORIGINAL_DISABLE_FETCH = Flag.TENON_DISABLE_MODELS_FETCH
 beforeAll(() => {
@@ -88,9 +83,6 @@ const makeMockClient = (state: Ref.Ref<MockState>) =>
   )
 
 const buildLayer = (state: Ref.Ref<MockState>) =>
-  // Layer.fresh is required because the ModelsDev implementation is a module-level Layer constant,
-  // and Effect.provide uses a process-global MemoMap by default — without fresh,
-  // every test would reuse the cachedInvalidateWithTTL state from the first run.
   Layer.fresh(
     AppNodeBuilder.build(ModelsDev.node, [
       [LayerNodePlatform.httpClient, Layer.succeed(HttpClient.HttpClient, makeMockClient(state))],
@@ -202,7 +194,6 @@ describe("ModelsDev Service", () => {
         Effect.gen(function* () {
           const svc = yield* ModelsDev.Service
           const a = yield* svc.get()
-          // mutate disk between calls — cache should mask the change
           yield* writeCache(fixture2)
           const b = yield* svc.get()
           return { a, b }
@@ -238,7 +229,6 @@ describe("ModelsDev Service", () => {
 
   it.live("refresh(false) skips fetch when on-disk file is fresh", () =>
     Effect.gen(function* () {
-      // Fresh: mtime within the 5-minute TTL.
       yield* writeCache(fixture, Date.now() - 1000)
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
       yield* provided(
@@ -252,7 +242,6 @@ describe("ModelsDev Service", () => {
 
   it.live("refresh(false) fetches when on-disk file is stale", () =>
     Effect.gen(function* () {
-      // Stale: mtime 10 minutes ago, beyond the 5-minute TTL.
       yield* writeCache(fixture, Date.now() - 10 * 60 * 1000)
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
       const after = yield* provided(
@@ -282,7 +271,6 @@ describe("ModelsDev Service", () => {
         }),
       )
       expect(result).toEqual(fixture)
-      // retryTransient retries 5xx, so calls may be > 1.
       const final = yield* Ref.get(state)
       expect(final.calls.length).toBeGreaterThanOrEqual(1)
     }),

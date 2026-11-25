@@ -14,12 +14,6 @@ import { useLanguage } from "@/context/language"
 const doneToken = "\u0000done\u0000"
 const totalToken = "\u0000total\u0000"
 
-/**
- * The agent's checklist as the top section of the composer's tray (the lighter tab that holds the folder and
- * branch), so it is part of the composer rather than a card parked on it. A 36px row shows the step in progress,
- * "2 of 5" and a 2px line that fills as steps finish; expanding unfolds the steps above the row, inside the same
- * tray. The section opens and closes with the run (`dockProgress`), clipped from the top so the row leads.
- */
 export function SessionTodoDock(props: {
   todos: Todo[]
   collapsed: boolean
@@ -143,7 +137,6 @@ export function SessionTodoDock(props: {
                 icon={<Icon name="outline-chevron-down" size="small" />}
                 size="small"
                 variant="ghost-muted"
-                // Collapsed it points up, where the steps open; open it points down.
                 style={{ transform: `rotate(${value() * 180}deg)` }}
                 tabIndex={-1}
                 onMouseDown={(event) => {
@@ -158,7 +151,6 @@ export function SessionTodoDock(props: {
               />
             </TooltipV2>
           </div>
-          {/* The run's progress, on the row's bottom edge. */}
           <span
             aria-hidden="true"
             class="absolute inset-x-4 bottom-0 h-0.5 overflow-hidden rounded-full bg-v2-border-border-muted"
@@ -174,14 +166,8 @@ export function SessionTodoDock(props: {
   )
 }
 
-/** The step row's height; the section never folds below it while the run is on. */
 const ROW = 36
 
-/**
- * The steps, in the workshop's variant A: a filled check for a finished step (its text dimmed), the spinner on the
- * step in progress, and a dashed circle for one still to come; a cancelled step is dimmed and struck through.
- * Status is told by the mark's shape, never by colour alone.
- */
 function TodoList(props: { todos: Todo[] }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
@@ -237,7 +223,6 @@ function statusLabel(status: string) {
   return "secondBrain.todo.status.pending" as const
 }
 
-/** A step's status mark: 16px, drawn in the icon colours so it follows the theme. */
 function TodoMark(props: { status: string }) {
   return (
     <Switch

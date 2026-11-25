@@ -9,9 +9,6 @@ type MantleSDK = {
   responses: (modelID: string) => LanguageModelV3
 }
 
-// Bedrock cross-region inference profiles require regional prefixes only for
-// specific model/region combinations. Keep the mapping narrow and avoid
-// double-prefixing model IDs that models.dev already marks as global/us/eu/etc.
 function resolveModelID(modelID: string, region: string | undefined) {
   const crossRegionPrefixes = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
   if (crossRegionPrefixes.some((prefix) => modelID.startsWith(prefix))) return modelID
@@ -70,8 +67,6 @@ export const AmazonBedrockPlugin = define({
           evt.provider.update(item.provider.id, (provider) => {
             if (provider.api.type !== "aisdk") return
             if (typeof provider.request.body.endpoint !== "string") return
-            // The AI SDK expects a base URL, but users configure Bedrock private/VPC
-            // endpoints as `endpoint`; move it into the catalog endpoint URL once.
             provider.api.url = provider.request.body.endpoint
             delete provider.request.body.endpoint
           })
@@ -95,8 +90,6 @@ export const AmazonBedrockPlugin = define({
         options.region = region
         if (typeof options.endpoint === "string") options.baseURL = options.endpoint
         if (!bearerToken && options.credentialProvider === undefined) {
-          // Do not gate SDK creation on explicit AWS env vars. The default chain
-          // also handles ~/.aws/credentials, SSO, process creds, and instance roles.
           const { fromNodeProviderChain } = yield* Effect.promise(() => import("@aws-sdk/credential-providers"))
           options.credentialProvider = fromNodeProviderChain(profile ? { profile } : {})
         }

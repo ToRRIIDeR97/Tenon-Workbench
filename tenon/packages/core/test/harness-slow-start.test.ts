@@ -3,7 +3,6 @@ import { AcpHarness } from "@tenon/core/harness/acp"
 import { ProtocolError } from "@tenon/core/harness/codex-app-server"
 import { Harness } from "@tenon/schema/harness"
 
-// #321: an agent that answers its start check late (an npx adapter fetching its update) stays usable.
 const base = { id: Harness.InstanceID.make("gemini"), driver: Harness.AcpDriver, name: "Gemini" }
 
 describe("AC-13 a late start check doesn't disable a harness", () => {

@@ -48,7 +48,6 @@ describe("live frame script policy", () => {
   })
 })
 
-// These need a DOM: run with `bun test --preload ../app/happydom.ts src/components/design-stream.test.ts`.
 const dom = typeof document === "undefined"
 
 describe.skipIf(dom)("morphChildren", () => {
@@ -88,7 +87,6 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       parent,
     }
   }
-  // The element being written carries an outline mark; the shape tests ignore it.
   const html = () => document.body.innerHTML.replaceAll(' data-tenon-writing=""', "")
 
   test("morphs frames from the parent into the body", () => {

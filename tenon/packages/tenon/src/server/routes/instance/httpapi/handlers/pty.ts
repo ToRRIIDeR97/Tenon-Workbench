@@ -37,9 +37,6 @@ const ticketScope = Effect.gen(function* () {
   return { directory: instance?.directory, workspaceID }
 })
 
-// Legacy surface compatibility: before exited-session retention, sessions vanished the moment
-// their process exited. These routes preserve that observable behavior — exited sessions are
-// invisible here — while the canonical /api/pty surface exposes them until removal.
 export const ptyHandlers = HttpApiBuilder.group(InstanceHttpApi, "pty", (handlers) =>
   Effect.gen(function* () {
     const tickets = yield* PtyTicket.Service
@@ -225,10 +222,7 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
           return HttpServerResponse.empty()
         }
 
-        // Outbound frames flow through one queue drained by a single writer so replay, live
-        // output, and the close frame keep their order.
         const outbox = yield* Queue.unbounded<string | Uint8Array | Socket.CloseEvent>()
-        // Bounded by bytes: a slow client is closed and resyncs from its cursor rather than growing memory.
         const budget = PtyProtocol.pendingBudget()
         const offerOutput = (chunk: string | Uint8Array) => {
           const admitted = budget.admit(chunk)
@@ -270,8 +264,6 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
           }
         })
 
-        // The reader runs concurrently with the writer; whichever finishes first ends the
-        // connection and the attachment is always released.
         yield* Effect.race(
           drain,
           runRaw(socket, (message) => {

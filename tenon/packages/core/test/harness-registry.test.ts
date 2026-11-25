@@ -14,7 +14,6 @@ describe("HarnessRegistry title agent", () => {
 
       await Effect.runPromise(HarnessRegistry.setTitleAgent(dir, Harness.Codex))
       expect(await Effect.runPromise(HarnessRegistry.titleAgent(dir))).toBe(Harness.Codex)
-      // The preference lives apart from harnesses.json, so the registry list is unaffected.
       expect(await Effect.runPromise(HarnessRegistry.read(dir))).toEqual({})
 
       await Effect.runPromise(HarnessRegistry.setTitleAgent(dir, undefined))

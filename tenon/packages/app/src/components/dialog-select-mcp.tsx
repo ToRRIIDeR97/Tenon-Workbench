@@ -30,7 +30,6 @@ export const DialogSelectMcp: Component = () => {
 
   const toggle = useMcpToggle()
   const dialog = useDialog()
-  // Settings › MCP servers is the one place to add, sign in, retry and remove; this list is its shortcut (#334).
   const manage = async () => {
     const { DialogSettings } = await import("@/components/settings-v2/dialog-settings-v2")
     void dialog.show(() => <DialogSettings defaultValue="mcp" />)

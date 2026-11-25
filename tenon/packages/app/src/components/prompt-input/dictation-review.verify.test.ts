@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
-// Verification for #328 (plan author's check): the button renders the language and compares the final text with
-// the caption before inserting.
 const button = readFileSync(path.join(import.meta.dir, "dictation-button.tsx"), "utf8")
 
 describe("dictation button wiring", () => {

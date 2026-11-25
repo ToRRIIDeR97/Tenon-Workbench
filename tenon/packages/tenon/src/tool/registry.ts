@@ -123,10 +123,6 @@ const layer = Layer.effect(
         const custom: Tool.Def[] = []
 
         function fromPlugin(id: string, def: ToolDefinition): Tool.Def {
-          // Plugin tools still expose Zod args publicly; keep that compatibility
-          // boxed at the registry boundary and give the LLM the original JSON Schema.
-          // Normalize missing args to `{}` once — pre-1.14.49 the code was
-          // `z.object(def.args)` and Zod silently tolerated undefined (#27451, #27630).
           const args = def.args ?? {}
           const entries = Object.entries(args)
           const allZod = entries.every((entry) => isZodType(entry[1]))
@@ -142,8 +138,6 @@ const layer = Layer.effect(
             description: def.description,
             execute: (args, toolCtx) =>
               Effect.gen(function* () {
-                // Bridge the host's Effect-based `ask` into a Promise-returning
-                // function for the plugin to make sure context persists
                 const bridge = yield* EffectBridge.make()
                 const pluginCtx: PluginToolContext = {
                   ...toolCtx,
@@ -187,8 +181,6 @@ const layer = Layer.effect(
         if (matches.length) yield* config.waitForDependencies()
         for (const match of matches) {
           const namespace = path.basename(match, path.extname(match))
-          // `match` is an absolute filesystem path from `Glob.scanSync(..., { absolute: true })`.
-          // Import it as `file://` so Node on Windows accepts the dynamic import.
           const mod = yield* Effect.promise(() => import(pathToFileURL(match).href))
           for (const [id, def] of Object.entries(mod)) {
             if (!isPluginTool(def)) continue

@@ -31,18 +31,15 @@ import { cachedUsage, rememberUsage } from "@/components/harness-usage"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
 import { formatResetIn, threadUsage, threadWorktree } from "./context-strip-model"
 
-/** The harnesses the composer knows: the thread's own harness and every harness's display name. */
 type ComposerHarness = {
   current: () => Harness.InstanceID
   instances: () => ReadonlyArray<Harness.Instance> | undefined
 }
 
-// The server caches each harness's usage for a minute, so the open menu asks no more often than that.
 const USAGE_REFRESH_MS = 60_000
 
 export type ComposerContext = ReturnType<typeof createComposerContext>
 
-/** The thread's messages and its context-window use, for the composer's context ring and menu. */
 export function createComposerContext() {
   const sync = useSync()
   const sdk = useSDK()
@@ -53,13 +50,10 @@ export function createComposerContext() {
   const context = createMemo(() =>
     getSessionContext(messages(), [...providers.all().values()], undefined, (id) => sync().data.part[id]),
   )
-  // The server keeps whole-session totals on the session info; the loaded messages may be only part of the thread.
   const totals = createMemo(() => getSessionTotals(params.id ? sync().session.get(params.id) : undefined, messages()))
   const subagents = createMemo(() => getSubagentUsage(messages(), parts, (id) => sync().session.get(id)))
-  // Each subagent's own context, beside the main agent's: a `task` child reads its last step once loaded.
   const agents = createMemo(() =>
     latestSubagentContexts(messages(), parts, (id) => {
-      // With its parts, so a report from before the child's compaction isn't shown as its context now.
       const child = getSessionContext(
         sync().data.message[id] ?? [],
         [...providers.all().values()],
@@ -72,17 +66,12 @@ export function createComposerContext() {
   return { messages, context, totals, subagents, agents }
 }
 
-/**
- * The composer's context ring: it fills with the share of the context window used and opens the context menu,
- * a list of groups: the context window, this turn, the thread's cost and subagent spend, and the harness's plan limits.
- */
 export function ComposerContextRing(props: { context: ComposerContext; harness?: ComposerHarness }) {
   const language = useLanguage()
   const { params } = useSessionLayout()
   const [state, setState] = createStore({ open: false })
   const usage = createPlanUsage(() => state.open)
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
-  // The ring, its menu and the Context tab read one readout (#310).
   const readout = createMemo(() => contextReadout(props.context.context()))
   const label = () => {
     const value = readout()
@@ -141,10 +130,6 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
   )
 }
 
-/**
- * Where the thread runs, for the composer's header: its folder (marked when it's a linked worktree) and its branch,
- * which opens the branch picker. A thread's folder is fixed, so unlike a new thread there's no worktree switch.
- */
 export function ComposerWhereRow() {
   const sync = useSync()
   const sdk = useSDK()
@@ -153,7 +138,6 @@ export function ComposerWhereRow() {
   const directory = () => (params.id ? sync().session.get(params.id)?.directory : undefined) ?? sdk().directory
   const worktree = createMemo(() => threadWorktree({ directory: directory(), project: sync().project }))
   const git = () => sync().project?.vcs === "git"
-  // Picking another Project starts a new thread there; this thread keeps its own folder.
   const projects = createPromptProjectController({ controls: createPromptProjectControls(), onDone: () => {} })
 
   return (
@@ -182,10 +166,6 @@ export function ComposerWhereRow() {
   )
 }
 
-/**
- * The context menu's list: how much of the context window is used, what the latest turn read from cache, the
- * thread's whole cost and what its subagents spent, and the thread's harness's plan limits. A window the harness doesn't report shows tokens without a share.
- */
 function ContextMenu(props: {
   open: boolean
   context: NonNullable<ReturnType<ComposerContext["context"]>>
@@ -210,7 +190,6 @@ function ContextMenu(props: {
     return value.kind === "share" ? value : undefined
   }
   const percent = (value: number) => `${Math.round(value)}%`
-  // Only the subagents still working: finished ones are in the Subagents tab, which the link opens.
   const running = createMemo(() => props.agents.filter((agent) => agent.running))
   const openAgents = () => {
     props.onView()
@@ -240,7 +219,6 @@ function ContextMenu(props: {
             fallback={
               <>
                 <Row label={language.t("secondBrain.contextMenu.used")}>
-                  {/* Without a live report the only figure is the turn's total over every model call, shown below. */}
                   <Show
                     when={readout().kind !== "unreported"}
                     fallback={
@@ -381,12 +359,6 @@ function ContextMenu(props: {
 
 type PlanUsage = ReturnType<typeof createPlanUsage>
 
-/**
- * The harness plan-limit reports for the context menu, loaded as soon as the ring shows (not when the menu opens),
- * kept between openings, and asked again when the menu opens a minute or more after the last check and once a
- * minute while it stays open. It starts from the last answer in local storage, so the menu opens with its bars
- * already drawn and they move to the new values in place.
- */
 function createPlanUsage(open: () => boolean) {
   const platform = usePlatform()
   const serverSDK = useServerSDK()
@@ -413,14 +385,9 @@ function createPlanUsage(open: () => boolean) {
   return state
 }
 
-/**
- * The plan limits the thread's own harness reports, one row per window with its reset time. Until the first
- * answer for this harness arrives the group stays out rather than showing a loading line.
- */
 function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
   const language = useLanguage()
   const state = props.usage
-  // Only the thread's own harness; one that doesn't report usage (OpenCode without a Go plan) shows nothing.
   const report = createMemo(() => threadUsage(state.reports ?? [], props.harness?.current()))
   const shown = () => !!report() || (state.failed && !state.reports)
   const name = () => props.harness?.instances()?.find((item) => item.id === props.harness?.current())?.name ?? ""
@@ -472,7 +439,6 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
   )
 }
 
-/** A titled group of rows on its own surface. */
 function Group(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col">
@@ -484,7 +450,6 @@ function Group(props: { title: string; children: JSX.Element }) {
   )
 }
 
-/** A label on the left and its value on the right; the value may hold extra detail, a meter and a percentage. */
 function Row(props: { label: string; children: JSX.Element }) {
   return (
     <div class="flex min-h-8 items-center gap-2.5">
@@ -494,7 +459,6 @@ function Row(props: { label: string; children: JSX.Element }) {
   )
 }
 
-/** A small accent meter for a share from 0 to 100. */
 function Meter(props: { value: number }) {
   return (
     <span class="block h-1 w-9 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-04" aria-hidden="true">

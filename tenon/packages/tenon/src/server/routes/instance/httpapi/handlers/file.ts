@@ -17,11 +17,6 @@ import { FileConflictError, FileInvalidError } from "../groups/file"
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex")
 const invalid = (message: string) => new FileInvalidError({ name: "FileInvalidError", data: { message } })
 
-/**
- * The file's text, or `undefined` for a binary file. A UTF-8 byte-order mark stays as a leading U+FEFF,
- * which `trim()` removes, so the trimmed text (and its hash) is the content route's, and the mark is
- * written back with the leading whitespace.
- */
 const decodeText = (bytes: Uint8Array) =>
   bytes.includes(0)
     ? Effect.succeed(undefined)
@@ -29,7 +24,6 @@ const decodeText = (bytes: Uint8Array) =>
         Effect.catchDefect(() => Effect.succeed(undefined)),
       )
 
-/** `content` (trimmed) between the leading and trailing whitespace of `current`. */
 export const withOuterWhitespace = (current: string, content: string) => {
   if (!current.trim()) return current + content.trim()
   const leading = current.slice(0, current.length - current.trimStart().length)
@@ -150,8 +144,6 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       )
     })
 
-    // Writes back only an existing text file inside the folder, also after resolving symlinks, and only
-    // when the caller saw its current text (the hash precondition). Nothing is created or removed.
     const write = Effect.fn("FileHttpApi.write")(function* (ctx: {
       payload: { path: string; content: string; expectedHash: string }
     }) {
@@ -173,7 +165,6 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       const currentHash = sha256(current.trim())
       if (currentHash !== ctx.payload.expectedHash)
         return yield* new FileConflictError({ name: "FileConflictError", currentHash })
-      // Atomic (synced temp file and rename) and only if the bytes are still the ones just compared.
       const stale = yield* filesystem(
         FileMutation.Service.use((files) =>
           files.writeIfUnchanged({

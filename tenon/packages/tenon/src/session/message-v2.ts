@@ -36,7 +36,6 @@ import type { SystemError } from "bun"
 import type { Provider } from "@/provider/provider"
 import { Effect, Schema } from "effect"
 
-/** Error shape thrown by Bun's fetch() when gzip/br decompression fails mid-stream */
 interface FetchDecompressionError extends Error {
   code: "ZlibError"
   errno: number
@@ -135,15 +134,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
 ) {
   const result: UIMessage[] = []
   const toolNames = new Set<string>()
-  // Track media from tool results that need to be injected as user messages
-  // for providers that don't support that media type in tool results.
-  //
-  // OpenAI-compatible APIs only support string content in tool results, so we need
-  // to extract media and inject as user messages. Some SDKs only support a subset
-  // of media in tool results; e.g. Bedrock supports images but not PDFs there.
-  //
-  // Only apply this workaround if the model actually supports that media input -
-  // otherwise unsupportedParts() will turn it into a user-visible error.
   const supportsMediaInToolResult = (attachment: { mime: string }) => {
     if (model.api.npm === "@ai-sdk/anthropic") return true
     if (model.api.npm === "@ai-sdk/openai") return true
@@ -202,13 +192,11 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         parts: [],
       }
       for (const part of msg.parts) {
-        // User message parts should never be empty
         if (part.type === "text" && !part.ignored && part.text !== "")
           userMessage.parts.push({
             type: "text",
             text: part.text,
           })
-        // text/plain and directory files are converted into text parts, ignore them
         if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
           if (options?.stripMedia && isMedia(part.mime)) {
             userMessage.parts.push({
@@ -259,17 +247,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         role: "assistant",
         parts: [],
       }
-      // Anthropic adaptive thinking can persist assistant turns like:
-      // step-start, reasoning(signature), text(""), step-start,
-      // reasoning(signature). The empty text part is a structural separator,
-      // but it does not carry the signature metadata itself. Dropping it shifts
-      // signed thinking positions after step-start splitting/provider regrouping;
-      // keeping it as "" is filtered by the AI SDK and rejected by Anthropic.
-      // It is unclear whether this shape originates in our stream processing,
-      // a proxy, or a lower-level library, but preserving a non-empty separator
-      // here is the only safe replay point we have.
-      // Use a single space so the separator survives replay without changing
-      // the neighboring signed reasoning blocks.
       const hasSignedReasoning = msg.parts.some((part) => {
         if (part.type !== "reasoning") return false
         return part.metadata?.anthropic?.signature != null
@@ -295,8 +272,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
               : truncateToolOutput(part.state.output, options?.toolOutputMaxChars)
             const attachments = part.state.time.compacted || options?.stripMedia ? [] : (part.state.attachments ?? [])
 
-            // For providers that don't support media in tool results, extract media files
-            // (images, PDFs) to be sent as a separate user message
             const mediaAttachments = attachments.filter((a) => isMedia(a.mime))
             const extractedMedia = mediaAttachments.filter((a) => !supportsMediaInToolResult(a))
             if (extractedMedia.length > 0) {
@@ -346,8 +321,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
               })
             }
           }
-          // Handle pending/running tool calls to prevent dangling tool_use blocks
-          // Anthropic/Claude APIs require every tool_use to have a corresponding tool_result
           if (part.state.status === "pending" || part.state.status === "running")
             assistantMessage.parts.push({
               type: ("tool-" + part.tool) as `tool-${string}`,
@@ -377,8 +350,6 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
       }
       if (assistantMessage.parts.length > 0) {
         result.push(assistantMessage)
-        // Inject pending media as a user message for providers that don't support
-        // media (images, PDFs) in tool results
         if (media.length > 0) {
           result.push({
             id: MessageID.ascending(),
@@ -489,8 +460,6 @@ export function stream(sessionID: SessionID) {
   })
 }
 
-// Page newest-first and stop at the page holding messageID. Returns everything from that message on, oldest first,
-// plus whatever older messages share its page.
 export const fromMessage = Effect.fnUntraced(function* (input: { sessionID: SessionID; messageID: MessageID }) {
   const result = [] as WithParts[]
   let before: string | undefined
@@ -542,7 +511,6 @@ export function filterCompacted(msgs: Iterable<WithParts>) {
 }
 
 export const filterCompactedEffect = Effect.fnUntraced(function* (sessionID: SessionID) {
-  // Page newest-first and stop at the compaction boundary instead of loading the whole history.
   const scan = compactionScan()
   let before: string | undefined
   while (true) {
@@ -559,7 +527,6 @@ export const filterCompactedEffect = Effect.fnUntraced(function* (sessionID: Ses
   return reorderCompacted(scan.result)
 })
 
-// Collects messages newest-first; push returns true once the compaction boundary is reached.
 function compactionScan() {
   const result = [] as WithParts[]
   const completed = new Set<string>()
@@ -614,10 +581,6 @@ function reorderCompacted(scanned: WithParts[]) {
   return result
 }
 
-// filterCompacted reorders messages for model consumption
-// ([compaction-user, summary, ...retained tail..., continue-user]), so array
-// position is not chronological. IDs are only a deterministic tie-breaker
-// because imported messages do not necessarily have monotonic IDs.
 export function latest(msgs: WithParts[]) {
   let user: User | undefined
   let assistant: Assistant | undefined
@@ -646,8 +609,6 @@ export function fromError(
   e: unknown,
   ctx: { providerID: ProviderV2.ID; aborted?: boolean },
 ): NonNullable<Assistant["error"]> {
-  // @ai-sdk/provider-utils wraps errors thrown while reading a successful response body in
-  // APICallError. Classify stream timeouts, socket resets and decompression failures as before.
   const cause =
     APICallError.isInstance(e) && e.message === "Failed to process successful response" ? e.cause : undefined
   if (

@@ -115,7 +115,6 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
         setState("dismiss", null)
       }}
     >
-      {/* <Kobalte.Arrow data-slot="popover-arrow" /> */}
       <Show when={local.title}>
         <div data-slot="popover-header">
           <Kobalte.Title data-slot="popover-title">{local.title}</Kobalte.Title>

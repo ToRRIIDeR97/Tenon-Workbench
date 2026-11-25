@@ -4,7 +4,6 @@ import fs from "fs/promises"
 import path from "path"
 import { Effect, Schema, Semaphore } from "effect"
 
-/** Tenon's switched-off skills, by name, in its config directory. */
 export const fileName = "skills.json"
 
 const File = Schema.Struct({ disabled: Schema.Array(Schema.String) })
@@ -31,14 +30,9 @@ const load = (configDir: string) =>
     ),
   )
 
-/** The names of switched-off skills. A missing or malformed file switches nothing off. */
 export const disabled = (configDir: string): Effect.Effect<ReadonlySet<string>> =>
   load(configDir).pipe(Effect.map((contents) => new Set(contents.state === "ok" ? contents.disabled : [])))
 
-/**
- * Switches a skill on or off and returns the new set. Writes are serialized and atomic, and a malformed file
- * is reported rather than overwritten, so a hand edit is never lost.
- */
 export const set = Effect.fn("SkillToggle.set")(function* (configDir: string, name: string, enabled: boolean) {
   return yield* writeLock.withPermit(
     Effect.gen(function* () {

@@ -7,8 +7,6 @@ export const ServeCommand = effectCmd({
   command: "serve",
   builder: (yargs) => withNetworkOptions(yargs),
   describe: "starts a headless Tenon server",
-  // Server loads instances per-request via x-opencode-directory header — no
-  // need for an ambient project InstanceContext at startup.
   instance: false,
   handler: Effect.fn("Cli.serve")(function* (args) {
     const { Server } = yield* Effect.promise(() => import("../../server/server"))

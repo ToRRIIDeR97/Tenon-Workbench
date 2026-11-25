@@ -2,9 +2,6 @@ import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
 import { getSessionContext } from "./session-context-metrics"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-9): OpenCode reports its context only when a turn
-// ends, so a running turn shows the last report instead of "Not reported".
-
 const assistant = (id: string, input: { harness?: string; contextUsed?: number; contextWindow?: number }) =>
   ({
     id,

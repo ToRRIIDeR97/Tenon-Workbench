@@ -9,11 +9,6 @@ type Deps = {
   onUpgraded?: (result: Harness.UpdateStatus) => void
 }
 
-/**
- * The app's record of harness CLI updates: the statuses the last check returned and each upgrade in flight.
- * Upgrades of different harnesses run side by side (they are separate CLIs); a second start of the same harness,
- * from Settings or from the update toast, joins the one already running (#320).
- */
 export function createHarnessUpgrades(deps: Deps) {
   const [state, setState] = createStore<{
     statuses: Record<string, Harness.UpdateStatus>
@@ -64,13 +59,11 @@ export function createHarnessUpgrades(deps: Deps) {
   }
 }
 
-/** Per-key locks for Settings actions: one action per harness at a time, different harnesses at once. */
 export function createActionLocks() {
   const [busy, setBusy] = createStore<Record<string, boolean>>({})
   return {
     busy: (id: string) => busy[id] === true,
     any: () => Object.values(busy).some(Boolean),
-    /** Runs `action` unless `id` is busy; returns whether it ran. A failure is the action's to report. */
     run(id: string, action: () => Promise<unknown>) {
       if (busy[id]) return false
       setBusy(id, true)
@@ -81,13 +74,11 @@ export function createActionLocks() {
   }
 }
 
-// One registry per server URL: harness routes are global, so any valid folder serves the request.
 const registries = new Map<
   string,
   { target: { server: HarnessServer; directory: string }; upgrades: ReturnType<typeof createHarnessUpgrades> }
 >()
 
-/** The shared registry for a server; the latest folder given is the one its requests use. */
 export function harnessUpgrades(server: HarnessServer, directory: string) {
   const key = server.server.url
   const existing = registries.get(key)
@@ -101,7 +92,6 @@ export function harnessUpgrades(server: HarnessServer, directory: string) {
     upgrades: createHarnessUpgrades({
       upgrade: (id) => upgradeHarness(entry.target.server, entry.target.directory, id),
       list: () => listHarnessUpdates(entry.target.server, entry.target.directory),
-      // The probe that failed is stale: list the harnesses again so the upgraded one can be picked.
       onUpgraded: () => harnessSettingsChanged(),
     }),
   }

@@ -1,8 +1,3 @@
-/**
- * Taken from https://www.solid-ui.com/docs/components/drawer
- * Only used in one place hence not a v2 component yet... can be promoted to ui/v2 later
- */
-
 import type { Component, ComponentProps, JSX, ValidComponent } from "solid-js"
 import { splitProps } from "solid-js"
 import type { ContentProps, DescriptionProps, DynamicProps, LabelProps, OverlayProps } from "@corvu/drawer"

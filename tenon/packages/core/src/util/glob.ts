@@ -8,7 +8,6 @@ export namespace Glob {
     include?: "file" | "all"
     dot?: boolean
     symlink?: boolean
-    /** Patterns to skip; one ending in `/**` also stops the walk from entering that folder. */
     ignore?: string[]
   }
 

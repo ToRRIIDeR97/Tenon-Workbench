@@ -37,7 +37,6 @@ export function NewSessionView(props: {
     <div class="@container relative flex flex-col min-h-0 h-full flex-1">
       <div data-component="session-new-design" class={`relative flex-1 min-h-0 overflow-hidden ${pagePanelClass}`}>
         <div class="absolute inset-0 flex items-center justify-center px-6 pb-[12vh]">
-          {/* Padded inside the width like Home's column, so both composers come out the same width. */}
           <div class={`${NEW_SESSION_CONTENT_WIDTH} px-6`}>
             <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)]">
               <Greeting />
@@ -59,10 +58,6 @@ export function NewSessionView(props: {
   )
 }
 
-/**
- * Where the thread runs, inside the composer's top: the folder, its branch, and on the right the switch that
- * starts the thread in a new worktree. Without a folder it offers to add one.
- */
 function WhereRow(props: {
   project: PromptProjectController
   workspace: NewSessionWorkspaceController

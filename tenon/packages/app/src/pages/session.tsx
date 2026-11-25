@@ -146,8 +146,6 @@ const sessionViewState = () => ({
 
 function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
   if (!sessionID) return false
-  // Thread IDs start with "ses" (schema/src/session-id.ts); the server rejects any other ID with a 400 instead of a
-  // not-found, so a malformed link would otherwise show the generic crash screen.
   if (!sessionID.startsWith("ses")) return true
   return isSessionNotFoundError(error, sessionID) || isLocalSessionNotFoundError(error, sessionID)
 }
@@ -183,17 +181,11 @@ export function SessionPage() {
   )
 }
 
-// Rendered under app.tsx's TargetSessionRoute, which owns the per-server keyed
-// remount around the server-scoped providers. Nothing here may key on the
-// session ID: session tabs on the same server share this route instance, and
-// workspace-scoped state (terminal, directory providers) lives below.
 export function TargetSessionRouteContent() {
   const params = useParams<{ serverKey: string; id: string }>()
   const serverSync = useServerSync()
   const directory = createMemo(() => serverSync().session.lineage.peek(params.id)?.session.directory)
   return (
-    // Settings must keep the target-server SDK, sync, and models context and remain registered
-    // when session content falls back to the route error boundary.
     <TargetServerScopedProviders directory={directory} sessionID={() => params.id}>
       <TargetSessionSettingsCommand />
       <SessionRouteErrorBoundary sessionID={params.id} serverKey={requireServerKey(params.serverKey)}>
@@ -280,10 +272,6 @@ function ResolvedTargetSessionRoute() {
   const targetDirectory = () => directory()!
 
   return (
-    // Non-keyed: closes only while the target's directory is unknown (uncached
-    // lineage mid-resolution), which tears down the workspace subtree including
-    // the terminal. Same-workspace tab switches keep it open because warm
-    // targets resolve synchronously from the sync cache.
     <Show when={directory()}>
       <SDKProvider directory={targetDirectory}>
         <DirectoryDataProvider directory={targetDirectory} server={serverKey}>
@@ -294,9 +282,6 @@ function ResolvedTargetSessionRoute() {
   )
 }
 
-// Owns the workspace-identity remount. Must not include the session ID in the
-// key: SessionPage handles session changes reactively, and remounting here
-// destroys workspace-scoped state (terminal PTYs, file/prompt providers).
 function TargetSessionPage() {
   const sdk = useSDK()
   const serverSDK = useServerSDK()
@@ -451,9 +436,7 @@ export default function Page() {
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
-  // A Command Centre thread has no code folder: no review, files or terminal, only the timeline and composer.
   const commandThread = createMemo(() => isCommandThread(sdk().directory))
-  // Back to the Command Centre screen a thread was opened from, or to the hub for a Command Centre thread.
   const headerBack = createMemo(() => {
     const back = threadBack({ state: location.state, commandThread: commandThread() })
     if (!back) return undefined
@@ -462,13 +445,11 @@ export default function Page() {
       onClick: () => (back.type === "history" ? navigate(-1) : navigate(back.href)),
     }
   })
-  // A Command Centre thread is its Mission control view: the Mission board sits beside it on a desktop window.
   const [missionPref, setMissionPref] = createMissionPanelPref()
   const missionOpen = createMemo(() => commandThread() && isDesktop() && missionPref.open)
   const desktopReviewOpen = createMemo(() => isDesktop() && !commandThread() && view().reviewPanel.opened())
   const desktopV2ReviewOpen = createMemo(() => desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => !commandThread() && view().terminal.opened())
-  // A terminal the agent starts for this thread (a dev server, a watch build) shows in the panel, without taking focus.
   createEffect(
     on(
       () => terminal.agentStarted()?.at,
@@ -502,9 +483,6 @@ export default function Page() {
     shown: desktopReviewOpen() || desktopFileTreeOpen(),
     key: sessionKey(),
   })
-  // Closing Review with nothing else in the right column slides it out: the panel stays mounted until the
-  // thread column has eased right. A memo rather than a signal set from the computed below, so the Shows that
-  // keep the panel mounted see the close in the same update as the toggle and never unmount it for one pass.
   const [closeSettled, setCloseSettled] = createSignal<object>()
   const panelClose = createMemo(
     (prev: { state: ReturnType<typeof panelState>; close?: object }) => {
@@ -536,14 +514,9 @@ export default function Page() {
       },
     ),
   )
-  // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
-  // the rail's place first.
   const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !commandThread())
-  // A file the agent starts writing in this view opens in the Files tab (live document).
   createLiveDocumentOpener(desktopRailOpen)
-  // The file tab Files last showed, per session, so leaving the section and coming back returns to it.
   const lastFileTab = new Map<string, string>()
-  // The rail's buttons: a section's button opens the panel on it, and the open section's button closes the panel.
   const selectPanelSection = (section: PanelSection) => {
     if (desktopV2ReviewOpen() && tabState.section() === section) return view().reviewPanel.close()
     view().reviewPanel.open()
@@ -551,7 +524,6 @@ export default function Page() {
     const last = lastFileTab.get(sessionKey())
     const tab = (last && tabState.openedTabs().includes(last) ? last : undefined) ?? tabState.openedTabs()[0]
     if (!tab) {
-      // No file is open: show the file browser, as the strip's "open file" button does.
       tabs().previewTab(SESSION_OPEN_FILE_TAB)
       queueMicrotask(() => tabs().setActive(SESSION_OPEN_FILE_TAB))
       return
@@ -560,11 +532,7 @@ export default function Page() {
     if (path) void file.load(path)
     tabs().setActive(tab)
   }
-  // The rail joins the side panel in the right shell, so beside an open panel it takes only its own width; alone
-  // it also keeps the 8px gap to the thread.
   const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_WIDTH : 0))
-  // The observer reports the row width; subtract the gap between the thread and
-  // the right shell, and the rail inside that shell.
   const sessionPanelAvailable = createMemo(() => {
     const width = panelRowWidth()
     if (width === undefined) return undefined
@@ -575,18 +543,12 @@ export default function Page() {
     if (available === undefined) return 1000
     return sidePanelWidthMax(available)
   })
-  // Clamp at render time so window or sidebar resizes squeeze the side panel
-  // only once the chat panel is at its minimum, without overwriting the
-  // persisted width.
   const sidePanelWidth = createMemo(() =>
     clampSidePanelWidth({
       width: layout.sidePanel.width(),
       available: sessionPanelAvailable(),
     }),
   )
-  // A drag moves the split by writing the session panel's width straight to the element, once per frame
-  // (the handle coalesces moves). The persisted layout store, and everything that reads it such as the
-  // review's diff layout, takes the width once, on release.
   let sessionPanel: HTMLDivElement | undefined
   const previewSidePanelWidth = (width: number) => {
     if (!sessionPanel) return
@@ -597,11 +559,8 @@ export default function Page() {
   }
   const commitSidePanelWidth = (width: number) => {
     layout.sidePanel.resize(width)
-    // The reactive style only writes when its value changes, so restore it in case the drag ended where it began.
     if (sessionPanel) sessionPanel.style.width = sessionPanelWidth()
   }
-  // Dragging the collapsed rail to the left pulls the side panel out: past a small threshold Review opens at the
-  // pulled width, then the panel follows the pointer like the resize handle and keeps its width on release.
   const dragOutSidePanel = (event: PointerEvent) => {
     if (event.button !== 0) return
     const startX = event.clientX
@@ -646,7 +605,6 @@ export default function Page() {
     return `calc(100% - ${layout.fileTree.width() + 8 + railSpace()}px)`
   })
   const centered = createMemo(() => isDesktop())
-  // The side panel column (review, files, terminal) is showing, on its own or closing.
   const sideColumn = () => (isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen())
   const desktopV2PanelLayout = createMemo(() =>
     sessionPanelLayout({
@@ -678,8 +636,6 @@ export default function Page() {
   }
 
   const info = createMemo(() => (params.id ? (sync().session.get(params.id) as HarnessSession | undefined) : undefined))
-  // A harness or model pick shows at once and the pill stays usable; the server is told in the background, picks
-  // in order, and a message sent meanwhile waits for the switch (submit awaits `settled`) instead of being refused.
   type HarnessPick = { sessionID: string; instanceID: Harness.InstanceID; model?: Harness.ModelSelection }
   const [pendingHarness, setPendingHarness] = createSignal<HarnessPick>()
   const harnessSwitch = createHarnessSwitchQueue<HarnessPick>({
@@ -712,7 +668,6 @@ export default function Page() {
       sync().session.remember(next)
     },
   })
-  // Only this thread's pick: a switch still sending for a thread you left doesn't show here.
   const pick = () => {
     const value = pendingHarness()
     return value && value.sessionID === params.id ? value : undefined
@@ -730,7 +685,6 @@ export default function Page() {
       current: () => (pick() ? pick()!.model : info()?.harnessModel),
       set: (model) => switchHarness(currentHarness(), model),
     },
-    // While a turn runs the model and effort can still change; the server applies them from the next turn.
     harnessLocked: () => (params.id ? sync().data.session_working(params.id) : false),
     fallbackUnavailable: false,
   })
@@ -747,7 +701,6 @@ export default function Page() {
   })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
-  // One scan of the thread's subagents, shared by the composer's Tasks button and the side rail.
   const threadSubagentGroups = useThreadSubagents(() => true)
   const runningSubagents = createMemo(() => subagentCounts(threadSubagentGroups()).running)
   createEffect(() => {
@@ -833,16 +786,10 @@ export default function Page() {
 
   createComputed((prev: ReturnType<typeof panelState>) => {
     const next = panelState()
-    // The terminal alone counts like Review: it opens the right column from nothing.
     const terminalOnly = !prev.open && !next.open && prev.terminal !== next.terminal
     if (prev.open === next.open && !terminalOnly) return next
 
     if (reviewFrame !== undefined) cancelAnimationFrame(reviewFrame)
-    // Opening a closed side panel (Review or the terminal alone) slides it in while the thread column eases
-    // left; its content follows once it has arrived. Closing Review with nothing else in the column mirrors
-    // it: the panel stays mounted, fades and clips while the thread eases right, then gives way to the rail.
-    // Everything else snaps: switching sessions, closing beside a file tree or terminal, and adding Review
-    // beside a file tree that is already showing.
     const opening = terminalOnly ? next.terminal : next.open
     if (opening && !prev.shown && prev.key === next.key) {
       setUi("reviewSnap", false)
@@ -927,15 +874,12 @@ export default function Page() {
         : skipToken,
     }
   })
-  // File changes refresh both review modes while the agent works, not only when the turn ends.
   const refreshVcs = debounce(() => {
     void queryClient.invalidateQueries({ queryKey: vcsKey() })
     void queryClient.invalidateQueries({ queryKey: ["session-turn-diff"] })
   }, 100)
   const reviewDiffs = () => {
-    if (reviewMode() === "git" || reviewMode() === "branch")
-      // avoids suspense
-      return vcsQuery.isFetched ? (vcsQuery.data ?? []) : []
+    if (reviewMode() === "git" || reviewMode() === "branch") return vcsQuery.isFetched ? (vcsQuery.data ?? []) : []
     return turnDiffs()
   }
   const activeReviewFile = () => {
@@ -1105,7 +1049,6 @@ export default function Page() {
   let scroller: HTMLDivElement | undefined
   let content: HTMLDivElement | undefined
   let revealMessage = (_id: string) => {}
-  // The Details tab's "Taking the most room" asks for a turn by its user message.
   makeEventListener(window, "tenon:reveal-message", (event) => {
     const id = (event as CustomEvent<unknown>).detail
     if (typeof id === "string") revealMessage(id)
@@ -1520,9 +1463,6 @@ export default function Page() {
 
   const reviewV2State = createReviewPanelV2State()
 
-  // Getters defer reactive reads to the consuming scope. Eager reads here ran inside
-  // the side panel's Show children and remounted the whole review panel on unrelated
-  // updates such as session switches.
   const reviewPanelV2Props = () => ({
     get title() {
       return changesTitleV2()
@@ -1545,7 +1485,6 @@ export default function Page() {
     },
     onDiffStyleChange: (style: DiffStyle) => {
       layout.review.setDiffStyle(style)
-      // Split diffs need a wider panel; widen it so the choice takes effect.
       if (style === "split" && layout.sidePanel.width() < SIDE_PANEL_WIDTH_SPLIT)
         layout.sidePanel.resize(SIDE_PANEL_WIDTH_SPLIT)
     },
@@ -1563,9 +1502,6 @@ export default function Page() {
       return comments.focus()
     },
     onFocusedCommentChange: (focus: { file: string; id: string } | null) => {
-      // The preview clears the focus once it has opened the comment; persist the
-      // focused file as the active selection so the preview stays on it. Skip
-      // files outside the current diff set (their focus is cleared unhandled).
       if (!focus) {
         const current = comments.focus()
         if (current && reviewDiffs().some((diff) => diff.file === current.file)) focusReviewDiff(current.file)
@@ -1574,9 +1510,6 @@ export default function Page() {
     },
   })
 
-  // Latch: defer only the first diff render off the mount critical path. This Page
-  // stays mounted across same-workspace session tab switches, so gating on every
-  // deferRender flip tore down and remounted the whole review pane on tab switch.
   const reviewPanelV2Rendered = createMemo<boolean>((prev) => prev || !store.deferRender, false)
 
   const reviewPanelV2 = () => (
@@ -1765,7 +1698,6 @@ export default function Page() {
     if (el) scheduleScrollState(el)
   }
 
-  // When the user returns to the bottom, treat the active message as "latest".
   createEffect(
     on(
       autoScroll.userScrolled,
@@ -1914,7 +1846,6 @@ export default function Page() {
 
   const busy = (sessionID: string) => sync().data.session_working(sessionID)
 
-  // Queue-delivery messages the server holds until the agent goes idle (see docs/architecture/README.md).
   const queuedDock = createMemo(() => {
     const id = params.id
     if (!id) return []
@@ -1993,7 +1924,6 @@ export default function Page() {
           !next
             ? halt(sessionID).then(() => session.revert.clear({ sessionID }))
             : halt(sessionID).then(() =>
-                // keep a messages-only rewind from restoring files when moving the boundary forward
                 session.revert
                   .stage({ sessionID, messageID: next.id, files: revertRestoresFiles(last) })
                   .then(() => undefined),
@@ -2008,7 +1938,6 @@ export default function Page() {
   const reverting = createMemo(() => revertMutation.isPending || restoreMutation.isPending)
   const restoring = createMemo(() => (restoreMutation.isPending ? restoreMutation.variables : undefined))
 
-  // "Edit from here": with files, list what will be restored and ask before touching the workspace.
   const revert = async (input: { sessionID: string; messageID: string; files: boolean }) => {
     if (reverting()) return
     if (input.files) {
@@ -2041,8 +1970,6 @@ export default function Page() {
       .map((item) => ({ id: item.id, text: line(item.id) }))
   })
 
-  // attachment bytes are embedded as a data URL, so downloading always works;
-  // revealing requires the on-disk path captured by the client that attached the file
   const openAttachment = (file: FilePart) => {
     const download = () => {
       const anchor = document.createElement("a")
@@ -2305,7 +2232,6 @@ export default function Page() {
             get harnessDriver() {
               return sessionHarness.driver()
             },
-            // Only this thread's switch in flight is waited for; otherwise the send starts in the same tick.
             harnessSettled: () => (pick() === undefined ? undefined : harnessSwitch.settled()),
           })
           return (
@@ -2341,7 +2267,6 @@ export default function Page() {
           ref={sessionPanel}
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
-            // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
             "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
           }}
@@ -2362,8 +2287,6 @@ export default function Page() {
           <CommandMissionPanel />
         </Show>
 
-        {/* The right shell: the side panel and the rail in one 16px card with a hairline ring. It is not clipped, so
-            the resize handle can straddle the panel's left edge; the panel column clips itself. */}
         <Show when={sideColumn() || desktopRailOpen()}>
           <div
             data-component="session-right-shell"
@@ -2422,7 +2345,6 @@ export default function Page() {
                   </div>
                 </Show>
                 <Show when={desktopV2PanelLayout().stacked}>
-                  {/* Review and the terminal share the shell, split by a hairline under this strip. */}
                   <div
                     class="relative h-2 shrink-0 shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]"
                     onPointerDown={() => size.start()}
@@ -2449,8 +2371,6 @@ export default function Page() {
                 <Show when={terminalOpen()}>
                   <div
                     ref={(el) => {
-                      // Stacked under Review, the terminal grows up from the bottom edge (medium + emphasized-
-                      // decelerate) once it is in the DOM; closing snaps, like the side panel.
                       if (!desktopV2PanelLayout().stacked || prefersReducedMotion()) return
                       queueMicrotask(() => {
                         const height = el.getBoundingClientRect().height
@@ -2471,7 +2391,6 @@ export default function Page() {
                     classList={{
                       "min-h-0 shrink-0": desktopV2PanelLayout().stacked,
                       "min-h-0 flex-1": !desktopV2PanelLayout().stacked,
-                      // Like the side panel's content, the terminal shows once the sliding column has arrived.
                       "transition-opacity duration-medium ease-emphasized-decelerate motion-reduce:transition-none": true,
                       "opacity-0": !panelSettled(),
                     }}

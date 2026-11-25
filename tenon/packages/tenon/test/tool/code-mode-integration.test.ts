@@ -34,7 +34,6 @@ const ctx: Tool.Context = {
   ask: () => Effect.void,
 }
 
-// Avoid the SDK Client here; other MCP tests mock it process-globally.
 class RawJsonRpcClient {
   private nextId = 1
   private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>()
@@ -160,7 +159,6 @@ async function buildTool() {
 }
 
 const run = (code: string) => Effect.runPromise(tool.execute({ code }, ctx))
-// Program failures die at the tool boundary; recover the defect for message assertions.
 const runFailed = async (code: string) => {
   const exit = await Effect.runPromise(tool.execute({ code }, ctx).pipe(Effect.exit))
   if (Exit.isSuccess(exit)) throw new Error("expected the tool to fail")

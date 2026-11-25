@@ -5,11 +5,6 @@ import { Global } from "../global"
 import { HarnessComputerUse } from "./computer-use"
 import type { HarnessAskUser } from "./ask-user"
 
-// Computer use passes through Tenon (#333): Tenon runs the Cua Driver (`cua-driver mcp`) itself and offers its
-// tools to the agents, so every call can be checked. Reading the screen never asks. The first click or keystroke in
-// a thread asks once; a Project switched off refuses the next action; Stop on the on-screen pill shuts the driver
-// down at once and forgets every thread's grant.
-
 export type Tool = {
   name: string
   description?: string
@@ -29,7 +24,6 @@ export type Driver = {
 }
 export type Indicator = (event: { active: boolean; idle?: boolean; harness?: string; sessionID?: string }) => void
 
-/** A tool that only looks: marked read-only by the driver, or named like a read. */
 export function isRead(tool: Pick<Tool, "name" | "annotations">) {
   if (tool.annotations?.readOnlyHint) return true
   return /^(screenshot|get_|list_|read_|find_|describe|query|status|capture|observe|wait)/i.test(tool.name)
@@ -37,7 +31,6 @@ export function isRead(tool: Pick<Tool, "name" | "annotations">) {
 
 const text = (value: string) => [{ type: "text", text: value }]
 
-/** The first action named for the question: the tool and a short form of what it was given. */
 export function describeAction(name: string, args: Record<string, unknown>) {
   const detail = Object.entries(args)
     .map(
@@ -48,9 +41,7 @@ export function describeAction(name: string, args: Record<string, unknown>) {
   return detail ? `${name} (${detail.slice(0, 80)})` : name
 }
 
-/** A thread that used the desktop this recently counts as running when Stop is pressed (the pill's quiet time). */
 const RECENT_MS = 60_000
-/** How long a Project's card keeps saying how many threads Stop ended. */
 const STOP_NOTE_MS = 10 * 60_000
 
 export function make(input: {
@@ -61,12 +52,9 @@ export function make(input: {
 }) {
   const now = input.now ?? Date.now
   const grants = new Set<string>()
-  // One question per thread at a time: parallel first actions wait for the same answer.
   const asking = new Map<string, Promise<Answer>>()
-  // Threads that were using the desktop when Stop was pressed: their next action is told so, once.
   const stopped = new Set<string>()
   const active = new Set<string>()
-  // Each thread's folder and last action, so Stop can tell each Project how many of its threads it ended.
   const recent = new Map<string, { directory: string; at: number }>()
   let lastStop: { at: number; folders: string[] } | undefined
   let listed: Promise<ReadonlyArray<Tool>> | undefined
@@ -75,12 +63,10 @@ export function make(input: {
   const list = () => (listed ??= input.driver.tools().catch((error) => ((listed = undefined), Promise.reject(error))))
 
   return {
-    /** The driver's tools for a caller whose Project has computer use on; none otherwise. */
     async tools(caller: Pick<Caller, "directory">) {
       if (!(await input.enabled(caller.directory))) return []
       return list().catch(() => [])
     },
-    /** Every driver tool, whatever the switch says; for registering them once (each call still checks). */
     allTools: () => list().catch(() => [] as ReadonlyArray<Tool>),
     async call(
       name: string,
@@ -109,7 +95,6 @@ export function make(input: {
         asking.set(caller.sessionID, pending)
         const asked = generation
         const answer = await pending
-        // Stop pressed while the question was open counts as no.
         if (generation !== asked) return { content: text("The user pressed Stop on computer use."), isError: true }
         if (answer === "deny")
           return { content: text("The user didn't allow this thread to use the desktop."), isError: true }
@@ -138,12 +123,10 @@ export function make(input: {
         .finally(() => {
           running--
           if (running === 0) active.clear()
-          // The pill stays while any action runs; once the last one ends it fades after a quiet moment.
           if (running === 0 && generation === started)
             input.indicator?.({ active: true, idle: true, harness: caller.harness })
         })
     },
-    /** Stop: the driver is shut down at once (a running action ends with it) and every grant is forgotten. */
     stop() {
       const at = now()
       for (const [session, use] of recent) if (active.has(session) || at - use.at <= RECENT_MS) stopped.add(session)
@@ -162,7 +145,6 @@ export function make(input: {
       listed = undefined
       input.indicator?.({ active: false })
     },
-    /** How many threads in a Project folder (or inside it) the last Stop ended, for a while after it. */
     stoppedIn(folder: string) {
       if (!lastStop || now() - lastStop.at > STOP_NOTE_MS) return 0
       return lastStop.folders.filter(
@@ -172,7 +154,6 @@ export function make(input: {
   }
 }
 
-/** The ask_user question for the first action, in the thread's question dock. */
 export function askInDock(ask: HarnessAskUser.Ask | undefined) {
   return async (question: string): Promise<Answer> => {
     if (!ask) return "deny"
@@ -199,7 +180,6 @@ export function askInDock(ask: HarnessAskUser.Ask | undefined) {
   }
 }
 
-/** A stdio MCP client for `cua-driver mcp`, started on first use and again after Stop. */
 export function driverClient(command: () => string | undefined): Driver {
   let child: ChildProcessWithoutNullStreams | undefined
   let ready: Promise<void> | undefined
@@ -276,27 +256,22 @@ export function driverClient(command: () => string | undefined): Driver {
   }
 }
 
-// The desktop app's bridge (the same loopback URL and token as the browser tools) shows the pill and reports Stop.
 const bridge = (route: string, body: Record<string, unknown>, timeoutMs = 5_000) => {
   const url = process.env.TENON_BROWSER_URL
   const token = process.env.TENON_BROWSER_TOKEN
   if (!url || !token) return Promise.resolve(undefined)
-  return (
-    fetch(`${url}/${route}`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-      // The bridge wraps a tool's answer as `{ text }`; the pill's answers are JSON inside it.
-      .then((response) => response.json() as Promise<{ text?: string }>)
-      .then((body) => (body.text ? (JSON.parse(body.text) as { stop?: boolean }) : {}))
-      .catch(() => undefined)
-  )
+  return fetch(`${url}/${route}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+    .then((response) => response.json() as Promise<{ text?: string }>)
+    .then((body) => (body.text ? (JSON.parse(body.text) as { stop?: boolean }) : {}))
+    .catch(() => undefined)
 }
 
 let watching = false
-/** Waits on the desktop's Stop button while computer use is active; Stop shuts the driver down at once. */
 function watchStop() {
   if (watching) return
   watching = true
@@ -310,7 +285,6 @@ function watchStop() {
   })()
 }
 
-/** The one proxy for this server process. */
 export const shared = make({
   driver: driverClient(HarnessComputerUse.findDriver),
   enabled: (directory) => HarnessComputerUse.enabledFor(directory, Global.make().config).catch(() => false),

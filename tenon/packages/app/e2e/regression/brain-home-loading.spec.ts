@@ -58,7 +58,6 @@ test("Home remains usable during loading and reuses fresh harness availability",
       await projects.promise
       return route.fulfill({ json: [project] })
     }
-    // Home and the sidebar list Projects through their thread folders.
     if (path === "/second-brain/project-threads") {
       await projects.promise
       return route.fulfill({
@@ -88,10 +87,8 @@ test("Home remains usable during loading and reuses fresh harness availability",
     return route.fallback()
   })
   const home = page.getByRole("heading", { name: "Home", exact: true })
-  // Home's composer is the thread composer (implementations/harness-ux-batch-2, AC-3).
   const prompt = page.locator('main [data-component="prompt-input-v2"] [contenteditable="true"]')
   const selector = page.locator('[data-action="prompt-model-pill"]')
-  // The pill's text is the model; its Harness row names the harness.
   const expectHarness = async (name: string) => {
     await selector.click()
     await expect(page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]')).toContainText(name)
@@ -104,13 +101,10 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expect(home).toBeVisible()
     await prompt.fill("A draft while data loads")
     await expect(prompt).toContainText("A draft while data loads")
-    // The built-in loop is known by id, so a Run can start before the harness list arrives, and nothing waits on
-    // a "Checking harnesses…" placeholder (implementations/harness-ux-batch-2, AC-1).
     await expect(start).toBeEnabled()
     await expect(page.getByText("Checking harnesses…", { exact: true })).toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath("home-pending.png"), fullPage: true })
 
-    // Navigation works even when all three Home requests are still pending.
     await page.locator('[data-sidebar-item="command"]').click()
     await expect(home).not.toBeVisible()
     await page.locator('[data-sidebar-item="overview"]').click()
@@ -138,7 +132,6 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expectHarness("OpenCode")
     expect(harnessRequests).toBe(1)
 
-    // Advance freshness without a sleep. A stale result stays usable during refresh.
     await page.clock.setFixedTime(new Date(now.getTime() + 31_000))
     await page.locator('[data-sidebar-item="command"]').click()
     await expect(home).not.toBeVisible()

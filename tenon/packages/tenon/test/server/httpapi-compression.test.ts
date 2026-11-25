@@ -13,8 +13,6 @@ function app() {
   return Server.Default().app
 }
 
-// /config echoes the config back. Padding the config pushes the response body
-// well past the 1024 B threshold so we can observe compression behavior.
 function fatConfig() {
   const instructions: string[] = []
   for (let i = 0; i < 50; i++) {
@@ -89,7 +87,6 @@ describe("HttpApi compression", () => {
       })
       const compressed = new Uint8Array(await response.arrayBuffer())
       const declared = response.headers.get("content-length")
-      // Either absent (transfer-encoding chunked) or matches the compressed length.
       if (declared !== null) expect(Number(declared)).toBe(compressed.byteLength)
     })
   })
@@ -112,7 +109,6 @@ describe("HttpApi compression", () => {
     })
 
     test("when the response body is below the 1024-byte threshold", async () => {
-      // A bare config produces a tiny response (~few hundred bytes).
       await using tmp = await tmpdir({ config: { formatter: false, lsp: false } })
       const response = await app().request("/config", {
         headers: { "x-opencode-directory": tmp.path, "accept-encoding": "gzip" },

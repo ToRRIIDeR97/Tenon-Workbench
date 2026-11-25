@@ -5,7 +5,6 @@ import { HarnessForwardedMcp } from "@tenon/core/harness/forwarded-mcp"
 
 const doc = (mcp: unknown) => ({ type: "document", info: { mcp } }) as unknown as Config.Entry
 
-// Settings › MCP servers reach the external harnesses: Codex as `-c` overrides, ACP agents in session/new.
 describe("forwarded MCP servers", () => {
   const entries = [
     doc({ servers: { docs: { type: "local", command: ["npx", "docs-mcp"] }, old: { type: "local", command: ["a"] } } }),

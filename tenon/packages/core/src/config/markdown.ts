@@ -19,8 +19,6 @@ export function parseOption(content: string) {
   }
 }
 
-// Other coding agents accept unquoted colons in frontmatter values. Retry
-// those values as YAML block scalars so existing config files keep working.
 export function sanitize(content: string) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!match) return content

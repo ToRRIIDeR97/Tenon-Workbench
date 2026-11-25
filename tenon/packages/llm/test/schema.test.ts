@@ -60,9 +60,6 @@ describe("llm schema", () => {
 
 describe("LLM.Usage", () => {
   test("subtractTokens clamps non-sensical breakdowns to zero", () => {
-    // Defense against a provider reporting cached_tokens > prompt_tokens or
-    // reasoning_tokens > completion_tokens — the negative would otherwise
-    // round-trip through the pipeline and crash strict downstream schemas.
     expect(ProviderShared.subtractTokens(5, 3)).toBe(2)
     expect(ProviderShared.subtractTokens(5, 10)).toBe(0)
     expect(ProviderShared.subtractTokens(5, undefined)).toBe(5)
@@ -105,12 +102,10 @@ describe("ProviderShared media validation", () => {
   test("accepts canonical base64 and rejects malformed or non-canonical input", async () => {
     for (const data of ["QQ==", "QUI=", "QUJD", "data:image/png;base64,QUJD"])
       expect(await validate(data)).toMatchObject({ mime: "image/png", base64: data.replace(/^data:[^,]*,/, "") })
-    // "QR==" and "QUJ=" carry non-zero bits after the last byte.
     for (const data of ["QR==", "QUJ=", "QUJ", "QU=I", "QU*D", ""]) expect(await validate(data)).toMatch(/valid base64/)
   })
 
   test("accepts large media below the decoded limit", async () => {
-    // 12 MB decoded: large enough that a grouped base64 regex gives up on it.
     const base64 = "A".repeat(16_000_000)
     expect(await validate(base64)).toMatchObject({ mime: "image/png" })
   })

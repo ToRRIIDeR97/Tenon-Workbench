@@ -86,13 +86,11 @@ describe("normalizeSessionInfo", () => {
 
 describe("revertRestoresFiles", () => {
   test("keeps a messages-only rewind file-free when the boundary moves forward", () => {
-    // Current shape: a staged rewind with no file changes normalizes to an empty diff.
     const current = normalizeSessionInfo({
       ...currentSession("session-1"),
       revert: { messageID: "message-1", files: [] },
     } as unknown as SessionInfo)
     expect(revertRestoresFiles(current.revert)).toBe(false)
-    // Legacy shape (session.updated events) carries the stored diff.
     expect(revertRestoresFiles({ diff: "" })).toBe(false)
     expect(revertRestoresFiles({ diff: "patch a.ts\n" })).toBe(true)
     expect(revertRestoresFiles(undefined)).toBeUndefined()

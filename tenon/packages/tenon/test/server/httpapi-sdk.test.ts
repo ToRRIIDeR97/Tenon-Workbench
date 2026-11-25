@@ -449,13 +449,7 @@ describe("HttpApi SDK", () => {
         const missing = yield* capture(() => sdk.session.get({ sessionID }))
         const thrown = yield* captureThrown(() => sdk.session.get({ sessionID }, { throwOnError: true }))
 
-        // Result-tuple path: error body is preserved as-is so existing
-        // consumers reading `result.error.name` / `JSON.stringify(error)`
-        // keep working byte-for-byte.
         expect(missing.error).toEqual(expected)
-        // throwOnError path: SDK wraps the body in a real Error with the
-        // server's message, with the original parsed body preserved under
-        // `.cause.body`.
         expect(thrown).toBeInstanceOf(Error)
         expect((thrown as Error).message).toBe(expected.data.message)
         expect(((thrown as Error).cause as { body: unknown }).body).toEqual(expected)
@@ -650,12 +644,6 @@ describe("HttpApi SDK", () => {
     ),
   )
 
-  // Regression: EventV2 must publish on the same ProjectBus the /event handler
-  // subscribes to, AND the /event stream must forward handler ALS/context into the
-  // body-pump fiber. Drives the full SDK → /event → Session.updatePart → sync.run →
-  // bus.publish → SDK subscriber path. Goes red if either the publisher uses a
-  // different bus instance (Bug 2 / pre-#27825) or the stream loses context (Bug 1 /
-  // pre-#27425).
   serverPathParity("streams sync-backed part updates to /event subscribers", (serverPath) =>
     withStandardProject(serverPath, ({ sdk, directory }) =>
       Effect.gen(function* () {

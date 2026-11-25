@@ -19,10 +19,6 @@ import { Git } from "../../src/git"
 import { Vcs } from "@/project/vcs"
 import { testEffect } from "../lib/effect"
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const weird = process.platform === "win32" ? "space file.txt" : "tab\tfile.txt"
 
 const layer = LayerNode.compile(
@@ -77,10 +73,6 @@ const publishHeadChangeUntil = Effect.fn("VcsTest.publishHeadChangeUntil")(funct
     yield* Effect.sleep("10 millis")
   }
 })
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("Vcs", () => {
   afterEach(async () => {
@@ -337,7 +329,6 @@ describe("Vcs diff", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        // More untracked files than run side by side, each with its index as its line count.
         const names = Array.from({ length: 20 }, (_, index) => `new-${String(index).padStart(2, "0")}.txt`)
         for (const [index, name] of names.entries())
           yield* write(path.join(test.directory, name), "line\n".repeat(index + 1))

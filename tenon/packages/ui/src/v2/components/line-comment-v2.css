@@ -25,7 +25,6 @@
   box-shadow: var(--v2-elevation-raised);
 }
 
-/* --- Display (read) --- */
 [data-component="line-comment-v2"][data-variant="display"] [data-slot="line-comment-v2-shell"] {
   display: flex;
   flex-direction: row;
@@ -110,7 +109,6 @@
   flex-shrink: 0;
 }
 
-/* --- Editor --- */
 [data-component="line-comment-v2"][data-variant="editor"] [data-slot="line-comment-v2-shell"] {
   display: flex;
   flex-direction: column;

@@ -28,7 +28,6 @@ export type PromptInputV2SelectControl = {
   current: Accessor<string>
   onSelect: (id: string) => void
   keybind?: Accessor<string[]>
-  /** Keeps the control in place but inert while its data is still loading. */
   disabled?: Accessor<boolean>
 }
 
@@ -46,7 +45,6 @@ export type PromptInputV2ViewConfig = {
     onSubmit: (options?: PromptInputV2SubmitOptions) => void
     onStop: () => void
   }
-  /** Editor-local mod+S: park the current prompt. */
   stash?: () => void
   shell?: {
     onOpen: () => void
@@ -68,7 +66,6 @@ export function createPromptInputV2Controller(input: {
   history?: PromptInputV2History
   commands: Accessor<PromptInputV2Suggestion[]>
   context: Accessor<PromptInputV2Suggestion[]>
-  /** Called after typing pauses; `signal` aborts when a newer query supersedes this one. */
   searchContextFiles: (
     query: string,
     signal: AbortSignal,
@@ -118,8 +115,6 @@ export function createPromptInputV2Controller(input: {
     }
     attachments.pick(() => fileInput?.click())
   }
-  // One file search in flight: each keystroke aborts the previous one, and the list keeps
-  // showing the last results until the debounced search resolves.
   let fileSearch: AbortController | undefined
   onCleanup(() => fileSearch?.abort())
   const contextList = useFilteredList<PromptInputV2Suggestion>({

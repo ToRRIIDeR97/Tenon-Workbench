@@ -68,8 +68,6 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
   const searching = createMemo(() => props.state.filter().trim().length > 0)
   const kinds = createMemo(() => reviewDiffKinds(diffs()))
   const activeDiff = createMemo(() => {
-    // A focused comment takes over the preview until the preview applies it and
-    // clears the focus; the owner then persists the file as the active selection.
     const focus = props.focusedComment
     if (focus && diffs().some((diff) => diff.file === focus.file)) return focus.file
     const active = props.activeFile
@@ -115,8 +113,6 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
       empty={props.empty}
       sidebarOpen={props.state.sidebarOpened()}
       sidebar={
-        // Always mounted: the sidebar header hosts the changes-mode dropdown,
-        // which must stay reachable when the current mode has zero diffs.
         <ReviewPanelV2Sidebar
           title={props.title}
           state={props.state}
@@ -138,8 +134,6 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
       onExpandModeChange={props.state.setExpandMode}
       hasDiffs={diffs().length > 0}
       preview={
-        // Key on the file path, not the diff object identity, so refreshed diff data
-        // updates the mounted preview instead of remounting the whole viewer.
         <Show when={activeDiff()} keyed>
           {(file) => (
             <Show when={activeItem()}>
@@ -180,7 +174,6 @@ function ReviewPanelV2Sidebar(props: {
 }) {
   const language = useLanguage()
   const [explicitHighlight, setExplicitHighlight] = createSignal<string | undefined>()
-  // In a narrow panel the tree floats over the diff; picking a file puts it away.
   const select = (path: string) => {
     props.onSelectFile(path)
     props.state.closeOverlay()

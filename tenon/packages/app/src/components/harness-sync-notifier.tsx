@@ -3,7 +3,6 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { showToast } from "@/utils/toast"
 
-/** Tells the person when the background harness sync applied presets another computer saved (desktop only). */
 export function HarnessSyncNotifier() {
   const language = useLanguage()
   const platform = usePlatform()

@@ -25,7 +25,6 @@ import { CredentialGroup } from "./groups/credential"
 import { ProjectCopyGroup } from "./groups/project-copy"
 import { HarnessGroup } from "./groups/harness"
 
-// Protocol owns middleware placement, while Server injects concrete keys so Core service identities stay downstream.
 const makeApiFromGroup = <
   const Group extends HttpApiGroup.Constraint,
   LocationId extends HttpApiMiddleware.AnyId,

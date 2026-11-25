@@ -40,8 +40,6 @@ export const absoluteColumn = customType<{
   },
 })
 
-// Legacy sessions may persist an empty directory. Keep that existing value
-// readable while normalizing and validating every real directory.
 export const directoryColumn = customType<{
   data: string
   driverData: string

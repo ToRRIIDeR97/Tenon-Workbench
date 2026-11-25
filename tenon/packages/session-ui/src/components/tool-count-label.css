@@ -30,7 +30,6 @@
     overflow: hidden;
     transform: translateX(-0.04em);
     transition-property: grid-template-columns, opacity, filter, transform;
-    /* Leaving: short + emphasized-accelerate. Entering (below): medium + emphasized-decelerate. */
     transition-duration: var(--v2-duration-short);
     transition-timing-function: var(--v2-ease-emphasized-accelerate);
   }

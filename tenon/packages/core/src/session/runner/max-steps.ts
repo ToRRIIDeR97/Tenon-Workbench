@@ -1,7 +1,5 @@
-// Bounds a runaway loop when the agent configures no step limit; promoting user input resets the count.
 export const DEFAULT_MAX_STEPS = 200
 
-// Identical consecutive local tool calls (same tool and input) that trigger the doom_loop permission check.
 export const DOOM_LOOP_THRESHOLD = 3
 
 export const MAX_STEPS_PROMPT = `CRITICAL - MAXIMUM STEPS REACHED

@@ -20,7 +20,6 @@ const run = <A, R>(effect: Effect.Effect<A, unknown, R>) =>
     InstanceStore.Service.use((store) => store.provide({ directory: dir }, effect as never)),
   ) as Promise<A>
 
-// --- raw Fff picker ---
 const t0 = performance.now()
 const made = Fff.create({ basePath: dir, aiMode: true })
 if (!made.ok) {
@@ -34,7 +33,6 @@ const tw = performance.now()
 await picker.waitForScan(2_500)
 console.log(`wait for scan: ${(performance.now() - tw).toFixed(1)}ms`)
 
-// warmup grep to let the content index build
 const tWarmup = performance.now()
 picker.grep("_warmup_", { mode: "regex", maxMatchesPerFile: 1, timeBudgetMs: 1_500 })
 console.log(`grep warmup: ${(performance.now() - tWarmup).toFixed(1)}ms`)
@@ -58,14 +56,11 @@ for (const q of GREP_QUERIES) {
 
 picker.destroy()
 
-// --- Search service: init breakdown ---
 console.log()
 
-// 1) runtime + InstanceState + picker create + scan poll
 const tRuntime = performance.now()
 console.log(`[Search] init file (runtime + picker + scan): ${(performance.now() - tRuntime).toFixed(1)}ms`)
 
-// 2) grep warmup (content index cold-start inside the Search service picker)
 const tGrepWarmup = performance.now()
 await run(FileSystem.Service.use((svc) => svc.grep({ pattern: "_warmup_grep_", limit: 1 })))
 console.log(`[Search] init grep (content index warmup):    ${(performance.now() - tGrepWarmup).toFixed(1)}ms`)

@@ -6,10 +6,6 @@ import { useLanguage } from "@/context/language"
 
 type DiffApi = (input: { sessionID: string; messageID: string }) => Promise<ReadonlyArray<{ file: string }>>
 
-/**
- * Files an "Edit from here" with files would restore: every file changed by the turns
- * from `messageID` onward, using the per-turn `GET /api/session/:id/diff`.
- */
 export async function editFromHereFiles(input: {
   diff: DiffApi
   sessionID: string
@@ -22,7 +18,6 @@ export async function editFromHereFiles(input: {
   return Array.from(new Set(diffs.flatMap((files) => files.map((item) => item.file)))).sort()
 }
 
-/** Resolves true when the user confirms restoring `files` (undefined: the list could not be loaded). */
 export function confirmEditFromHere(dialog: ReturnType<typeof useDialog>, files: string[] | undefined) {
   return new Promise<boolean>((resolve) => {
     let confirmed = false

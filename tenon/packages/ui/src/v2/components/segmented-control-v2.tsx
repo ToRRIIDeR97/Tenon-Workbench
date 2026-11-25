@@ -33,12 +33,9 @@ function useSegmentedControlContext() {
 
 export type SegmentedControlV2Props = Omit<ComponentProps<"div">, "onChange"> &
   ParentProps<{
-    /** Selected value when controlled (including `null` when empty). Omit key for uncontrolled. */
     value?: string | null
-    /** Initial value when uncontrolled. */
     defaultValue?: string
     onChange?: OnChange
-    /** When true, clicking the active segment clears selection (`onChange(null)`). Default false. */
     allowDeselect?: boolean
     disabled?: boolean
   }>
@@ -96,7 +93,6 @@ export function SegmentedControlV2(props: SegmentedControlV2Props) {
   }
 
   const [root, setRoot] = createSignal<HTMLDivElement>()
-  // The selected fill slides between items; until it is placed, the selected item draws it.
   const placed = createSlidingIndicator({
     container: root,
     target: (element) => element.querySelector<HTMLElement>(`[data-slot="segmented-control-v2-item"][data-pressed]`),
@@ -179,10 +175,7 @@ export function SegmentedControlItemV2(props: SegmentedControlItemV2Props) {
     } else if (e.key === "ArrowLeft") {
       e.preventDefault()
       ctx.focusNext(t, -1)
-    }
-
-    // accessibility stuff
-    else if (e.key === "Home") {
+    } else if (e.key === "Home") {
       e.preventDefault()
       const root = t.closest(`[data-slot="segmented-control-v2"]`)
       const first = root?.querySelector<HTMLButtonElement>(

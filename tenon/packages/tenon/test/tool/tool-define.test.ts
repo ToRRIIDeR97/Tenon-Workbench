@@ -107,10 +107,6 @@ describe("Tool.define", () => {
     }),
   )
 
-  // Regression for #28438: the wrap is the canonical "untyped → typed" boundary.
-  // When the LLM emits a tool call with a payload that fails the parameter
-  // schema, the wrap must surface a typed `Tool.InvalidArgumentsError` whose
-  // `.message` is the actionable prose the AI SDK feeds back to the model.
   it.effect("invalid args surface as Tool.InvalidArgumentsError with friendly message and JSON path", () =>
     Effect.gen(function* () {
       const parameters = Schema.Struct({
@@ -134,13 +130,10 @@ describe("Tool.define", () => {
       const tool = yield* info.init()
       const execute = tool.execute as unknown as (args: unknown, ctx: Tool.Context) => ReturnType<typeof tool.execute>
 
-      // Missing required `question` field on the first questions[] entry.
       const exit = yield* execute({ questions: [{ options: ["a"] }] }, makeCtx()).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
       if (!Exit.isFailure(exit)) return
 
-      // The wrap ends with Effect.orDie, so the failure lives in the cause as a
-      // defect. Recover the typed instance from there.
       const die = exit.cause.reasons.find(Cause.isDieReason)
       const error = die?.defect
       expect(error).toBeInstanceOf(Tool.InvalidArgumentsError)

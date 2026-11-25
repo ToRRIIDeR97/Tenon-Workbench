@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 
-// Same contract as acceptance/, through different boundaries.
 
 const app = path.resolve(import.meta.dir, "../../../../tenon/packages/app/src")
 const read = (file: string) => (existsSync(path.join(app, file)) ? readFileSync(path.join(app, file), "utf8") : "")

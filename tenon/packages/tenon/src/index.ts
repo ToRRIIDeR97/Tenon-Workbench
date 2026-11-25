@@ -1,4 +1,3 @@
-// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
 import "@tenon/core/legacy-env"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
@@ -62,7 +61,6 @@ const cli = yargs(args)
 
     process.env.AGENT = "1"
     process.env.TENON = "1"
-    // Tools and git hooks that detect an agent environment check the upstream name.
     process.env.OPENCODE = "1"
     process.env.TENON_PID = String(process.pid)
   })
@@ -111,9 +109,5 @@ try {
   }
   process.exitCode = 1
 } finally {
-  // Some subprocesses don't react properly to SIGTERM and similar signals.
-  // Most notably, some docker-container-based MCP servers don't handle such signals unless
-  // run using `docker run --init`.
-  // Explicitly exit to avoid any hanging subprocesses.
   process.exit()
 }

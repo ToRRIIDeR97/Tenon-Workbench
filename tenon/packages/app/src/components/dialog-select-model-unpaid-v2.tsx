@@ -46,8 +46,6 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
     dialog.close()
   }
 
-  // Focus starts on the dialog's close button, outside the list, so listen at the
-  // document level while the dialog is mounted instead of on the list container.
   let listEl: HTMLDivElement | undefined
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

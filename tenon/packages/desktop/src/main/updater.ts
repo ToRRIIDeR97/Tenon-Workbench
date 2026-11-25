@@ -12,7 +12,6 @@ const key = "ready"
 export function setupAutoUpdater(stop: () => Promise<void>) {
   const logger = getLogger()
   let autoUpdater: AppUpdater | undefined
-  // A slow import, so the first check pays for it, after the first window; a disabled updater never does.
   const load = async () => {
     if (autoUpdater) return autoUpdater
     const { default: pkg } = await import("electron-updater")
@@ -40,15 +39,10 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
       checkForUpdates: () => load().then((updater) => updater.checkForUpdates()),
       downloadUpdate: () => load().then((updater) => updater.downloadUpdate()),
       quitAndInstall: () => {
-        // quitAndInstall closes all windows before emitting before-quit, so
-        // flag the quit first to keep window ids persisted for restore.
         setAppQuitting()
         try {
-          // "ready" is only reached through a download, so the updater is loaded by now.
           autoUpdater!.quitAndInstall()
         } catch (error) {
-          // The install failed and the app keeps running; clear the flag so
-          // deliberate window closes prune ids again.
           setAppQuitting(false)
           throw error
         }
@@ -63,7 +57,6 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
       set: (value) => store.set(key, value),
       clear: () => store.delete(key),
     },
-    // A failed stop leaves the app running, so the next close has to ask again.
     stop: () =>
       stop().catch((error) => {
         setAppQuitting(false)

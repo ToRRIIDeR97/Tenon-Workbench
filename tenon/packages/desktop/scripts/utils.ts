@@ -98,7 +98,6 @@ export async function downloadCliToResources() {
   console.log(`Copied ${cli.package} to ${dest}`)
 }
 
-/** Puts the pinned, checksum-verified ripgrep for the build target in resources/ripgrep for electron-builder. */
 export async function downloadRipgrepToResources() {
   const cli = getCurrentCli()
   const key = `${cli.cpu}-${cli.os}`

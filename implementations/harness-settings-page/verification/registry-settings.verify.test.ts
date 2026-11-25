@@ -1,6 +1,3 @@
-// Independent verification tests for the harness settings page (core level).
-// Same contract as implementation.md, different boundary cases from acceptance/.
-// Run from tenon/packages/core: bun test ../../../Implementations/harness-settings-page/verification/registry-settings.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"

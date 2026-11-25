@@ -26,7 +26,6 @@ const controller = () => {
   return { value, state }
 }
 
-// AC-4: a pick in any composer becomes the next new thread's harness and model.
 describe("rememberingHarness", () => {
   test("remembers a harness switch with the model it landed on", () => {
     const { value, state } = controller()
@@ -52,7 +51,6 @@ describe("rememberingHarness", () => {
   })
 })
 
-// AC-5: the harness model list can be searched by name or id.
 describe("filterHarnessModels", () => {
   const models = [
     { id: "gpt-5.5", name: "GPT-5.5" },

@@ -50,13 +50,7 @@ const installedTools = (locations: Locations) =>
     tools.filter((tool) => tool !== undefined),
   )
 
-/**
- * Skills edited in a tool's folder that are safe to upload without asking: the sync file still holds the version
- * Tenon last applied to that tool, the copy is a valid skill, and every edited copy on this computer is identical.
- * Anything else is a conflict for the user to settle.
- */
 export async function outsideEdits(document: SyncDocument, locations: Locations, state: LocalState) {
-  // `null` marks a skill with conflicting edits.
   const edits = new Map<string, Skill | null>()
   for (const tool of await installedTools(locations)) {
     for (const [name, skill] of skillSet(document, tool.id) ?? []) {
@@ -65,7 +59,6 @@ export async function outsideEdits(document: SyncDocument, locations: Locations,
       const wanted = skillHash(skill)
       const current = skillHash(copy)
       const applied = state.appliedSkills[`${tool.id}/${name}`]
-      // In sync, or an untouched older copy the next apply updates.
       if (current === wanted || applied === current) continue
       const safe = applied === wanted && isValidSkill(name, copy)
       const other = edits.get(name)
@@ -76,11 +69,6 @@ export async function outsideEdits(document: SyncDocument, locations: Locations,
   return Object.fromEntries([...edits].filter((item): item is [string, Skill] => item[1] !== null))
 }
 
-/**
- * Compares every installed tool's skills folder with its skill set. Unless `write` is `never`, replaces differing
- * copies as it allows and deletes unchanged copies Tenon wrote that left the set. A replaced copy that Tenon did not
- * write is first saved under `backups`; if that fails the copy is left alone. With no `backups` nothing is saved.
- */
 export async function applySkills(
   document: SyncDocument | undefined,
   locations: Locations,
@@ -125,8 +113,6 @@ export async function applySkills(
         result.state = "differs"
         const keep = write === "keepOutsideEdits" && result.editedOutside
         if (write !== "never" && !keep) {
-          // A copy Tenon last wrote or confirmed is already in the sync file's history; any other content exists
-          // nowhere else, so it is saved first.
           const unsaved =
             current && Object.keys(current.files).length > 0 && applied !== currentHash ? current : undefined
           const saved =
@@ -156,7 +142,6 @@ export async function applySkills(
       found.set(name, result)
     }
 
-    // Skills that left this tool's set: delete unchanged copies Tenon wrote, forget the rest.
     if (wanted && write !== "never") {
       const prefix = `${tool.id}/`
       const gone = Object.entries(state.appliedSkills).filter(

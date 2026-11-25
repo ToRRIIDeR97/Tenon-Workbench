@@ -3,10 +3,6 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 
-/**
- * Close control for a pill tab. It sits inside the tab trigger, so it keeps the
- * trigger from selecting the tab and closes on Enter or Space itself.
- */
 export function SessionTabClose(props: { label: string; keybind?: string[]; onClose: () => void }) {
   return (
     <TooltipV2

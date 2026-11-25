@@ -62,16 +62,11 @@ const layer: Layer.Layer<
       path.join(global.config, "AGENTS.md"),
       ...(!flags.disableClaudeCodePrompt ? [path.join(global.home, ".claude", "CLAUDE.md")] : []),
     ]
-    const instructionFiles = [
-      "AGENTS.md",
-      ...(!flags.disableClaudeCodePrompt ? ["CLAUDE.md"] : []),
-      "CONTEXT.md", // deprecated
-    ]
+    const instructionFiles = ["AGENTS.md", ...(!flags.disableClaudeCodePrompt ? ["CLAUDE.md"] : []), "CONTEXT.md"]
 
     const state = yield* InstanceState.make(
       Effect.fn("Instruction.state")(() =>
         Effect.succeed({
-          // Track which instruction files have already been attached for a given assistant message.
           claims: new Map<MessageID, Set<string>>(),
         }),
       ),
@@ -120,7 +115,6 @@ const layer: Layer.Layer<
         }
       }
 
-      // In a Tenon workspace the project's AGENTS.md replaces the workspace one.
       const workspace = Flag.TENON_DISABLE_PROJECT_CONFIG
         ? undefined
         : yield* WorkspaceInstructions.resolve(ctx.directory, global.data).pipe(
@@ -128,7 +122,6 @@ const layer: Layer.Layer<
           )
       workspace?.forEach((item) => paths.add(path.resolve(item)))
 
-      // The first project-level match wins so we don't stack AGENTS.md/CLAUDE.md from every ancestor.
       if (!Flag.TENON_DISABLE_PROJECT_CONFIG && !workspace) {
         for (const file of instructionFiles) {
           const matches = yield* fs
@@ -199,7 +192,6 @@ const layer: Layer.Layer<
       const target = path.resolve(filepath)
       let current = path.dirname(target)
 
-      // Walk upward from the file being read and attach nearby instruction files once per message.
       while (current.startsWith(root) && current !== root) {
         const found = yield* find(current)
         if (!found || found === target || sys.has(found) || already.has(found)) {

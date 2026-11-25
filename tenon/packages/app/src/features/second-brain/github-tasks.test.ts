@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { githubTaskRows, linkedIssueNumbers, type GithubWorkOk } from "./github-tasks"
 
-// #331 (variant A): the repository's open issues are tasks; PRs hang under the issue they close.
 const now = Date.parse("2026-11-19T00:00:00Z")
 const issue = (number: number, state: "open" | "closed", updatedAt: string, title = `Issue ${number}`) => ({
   number,
@@ -90,7 +89,6 @@ describe("AC-20 GitHub issues as tasks", () => {
   })
 })
 
-// #331 follow-up: a PR is traceable to the thread that produced it.
 describe("AC-12 GitHub task rows and threads", () => {
   test("a row carries the thread of the PR it shows", () => {
     const traced: GithubWorkOk = {
@@ -123,7 +121,6 @@ describe("AC-12 GitHub task rows and threads", () => {
   })
 })
 
-// #331 acceptance: the Project shows its PRs, and a merged PR leads back to its thread, even one that closes no issue.
 describe("AC-12b PRs that close no issue", () => {
   const standalone = (number: number, state: "open" | "merged" | "closed", thread?: { id: string; title: string }) => ({
     number,

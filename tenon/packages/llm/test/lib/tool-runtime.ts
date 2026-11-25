@@ -20,7 +20,6 @@ interface RunOptions<T extends Tools> {
   readonly maxSteps?: number
 }
 
-/** Test-owned continuation loop. Production callers must own durable history. */
 export const runTools = <T extends Tools>(options: RunOptions<T>) =>
   Stream.unwrap(
     Effect.gen(function* () {

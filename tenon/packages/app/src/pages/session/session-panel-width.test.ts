@@ -26,7 +26,6 @@ describe("clampSidePanelWidth", () => {
   })
 
   test("does not grow with the window", () => {
-    // Regression: the panel used to take everything the chat panel left over.
     expect(clampSidePanelWidth({ width: 420, available: 3440 })).toBe(420)
   })
 

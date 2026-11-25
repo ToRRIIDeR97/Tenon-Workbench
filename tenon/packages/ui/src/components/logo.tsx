@@ -1,6 +1,5 @@
 import { type ComponentProps } from "solid-js"
 
-// Tenon Workbench mark on a 120-unit grid: the right half's two tabs sit in matching slots in the left half.
 const MarkShapes = () => (
   <>
     <rect width="120" height="120" rx="32" fill="var(--v2-background-bg-accent, #3b5cf6)" />

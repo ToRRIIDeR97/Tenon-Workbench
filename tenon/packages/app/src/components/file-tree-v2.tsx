@@ -128,10 +128,6 @@ function GuideLines(props: { level: number }) {
 
 export default function FileTreeV2(props: {
   active?: string
-  /**
-   * A folder opened from a reply: its row glides into view, flashes, keeps an accent, and expands.
-   * Each new object replays that, even for the same path.
-   */
   revealed?: { path: string }
   allowed?: readonly string[]
   kinds?: ReadonlyMap<string, Kind>
@@ -179,12 +175,8 @@ export default function FileTreeV2(props: {
   })
 
   const revealed = () => normalizeFileTreeV2Path(props.revealed?.path ?? "")
-  // The folder whose row is flashing; cleared once the reveal has played, so rows the virtualizer
-  // mounts again later do not replay it.
   const [flash, setFlash] = createSignal<string>()
 
-  // Only scroll when the active path changes (or first appears in the tree).
-  // Do not re-scroll when expand/collapse reshuffles `rows()`.
   let scrolledActive: string | undefined
   let scrolledReveal: { path: string } | undefined
   createEffect(() => {
@@ -225,8 +217,6 @@ export default function FileTreeV2(props: {
     file.tree.expand(originalPath, live() ? undefined : { list: false })
   }
 
-  // Each reveal flashes the row and, once it has glided into view, opens the folder, so its chevron
-  // turns and its children fade in where the eye already is. A newer reveal cancels the pending one.
   createEffect(
     on(
       () => props.revealed,
@@ -235,17 +225,14 @@ export default function FileTreeV2(props: {
         if (!reveal) return
         const path = normalizeFileTreeV2Path(reveal.path)
         const motion = !prefersReducedMotion()
-        // A frame apart, so a repeat reveal of the same row restarts its animation.
         const frame = motion ? requestAnimationFrame(() => setFlash(path)) : undefined
         const expand = setTimeout(
           () => {
             const row = rows().find((item) => item.node.path === path)
             if (!expanded(path)) file.tree.expand(row?.node.originalPath ?? path, live() ? undefined : { list: false })
           },
-          // Roughly how long the smooth scroll to the folder takes (file-tree-v2.css times the wash to it).
           motion ? motionDuration("medium") : 0,
         )
-        // The row's wash (twice long) and its children's fade-in have played by then.
         const settle = motion ? setTimeout(() => setFlash(undefined), motionDuration("long") * 2) : undefined
         onCleanup(() => {
           if (frame !== undefined) cancelAnimationFrame(frame)
@@ -276,8 +263,6 @@ export default function FileTreeV2(props: {
     >
       <For each={virtualRowKeys()}>
         {(key) => {
-          // The rows can change a tick before the virtual keys do (a thread switch swaps the file list). Hold
-          // the row this key last had, so a row on its way out is never read as missing: that read throws.
           const heldRow = createMemo<ReturnType<typeof rows>[number] | undefined>(
             (prev) => rowByKey().get(key as string) ?? prev,
           )

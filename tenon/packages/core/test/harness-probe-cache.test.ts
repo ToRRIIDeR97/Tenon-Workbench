@@ -39,18 +39,14 @@ describe("harness probe cache", () => {
         Effect.gen(function* () {
           const ctx = yield* setup(new Map([["key", instance("available")]]))
           const release = yield* Deferred.make<void>()
-          // A slow check (Command Code takes about 5s) that fails once released.
           const slow = () => Deferred.await(release).pipe(Effect.as({ instance: instance("unavailable") }))
 
-          // The check is still blocked on `release`, so waiting for it here would hang the test.
           expect((yield* ctx.cachedProbe("key", config, slow)).status).toBe("available")
-          // A second listing during the background check gets the stored result too, without a new check.
           expect((yield* ctx.cachedProbe("key", config, slow)).status).toBe("available")
           expect(ctx.persisted).toEqual([])
 
           yield* Deferred.succeed(release, undefined)
           while (!ctx.probes.has("key")) yield* Effect.yieldNow
-          // The failed check replaces the stored one, for this run and the next start.
           expect(ctx.persisted.map((item) => item.status)).toEqual(["unavailable"])
           expect((yield* ctx.cachedProbe("key", config, slow)).status).toBe("unavailable")
         }),

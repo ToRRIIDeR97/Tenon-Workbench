@@ -38,7 +38,6 @@ describe("parseFileReference", () => {
       path: "packages/desktop-electron",
       kind: "either",
     })
-    // A line range only makes sense for a file.
     expect(parseFileReference("bin/opencode:12")).toEqual({ path: "bin/opencode", start: 12, end: 12 })
     expect(parseFileReference("notes/:12")).toBeUndefined()
   })
@@ -116,7 +115,6 @@ describe("resolveFileReferencePath", () => {
     expect(resolveFileReferencePath("notes\u0007/", "/repo")).toBeUndefined()
     expect(resolveFileReferencePath("..\\secret.txt", "C:\\repo")).toBeUndefined()
     expect(resolveFileReferencePath("D:\\repo\\a.ts", "C:\\repo")).toBeUndefined()
-    // Drive-relative paths resolve against that drive's current folder, not the thread folder.
     expect(resolveFileReferencePath("D:x.ts", "C:\\repo")).toBeUndefined()
     expect(resolveFileReferencePath("c:core\\a.ts", "C:\\repo")).toBeUndefined()
     expect(resolveFileReferencePath("D:x.ts", "/repo")).toBeUndefined()
@@ -139,7 +137,6 @@ describe("outsideFileReferencePath", () => {
     expect(outsideFileReferencePath("~/.bashrc", "/repo")).toBeUndefined()
     expect(outsideFileReferencePath("/other/../repo/a.ts", "/repo")).toBeUndefined()
     expect(outsideFileReferencePath("D:x.ts", "C:\\repo")).toBeUndefined()
-    // A route such as /api/fs/find in a Windows thread is not a file, nor is a drive path in a POSIX one.
     expect(outsideFileReferencePath("/api/fs/find.json", "C:\\repo")).toBeUndefined()
     expect(outsideFileReferencePath("C:/x/a.ts", "/repo")).toBeUndefined()
     expect(outsideFileReferencePath("C:/", "C:\\repo")).toBeUndefined()
@@ -209,7 +206,6 @@ describe("localLinkTarget", () => {
 describe("parseFileReference with file URLs", () => {
   test("cites the path of a local file URL", () => {
     expect(parseFileReference("file:///Users/me/repo/notes.md")).toEqual({ path: "/Users/me/repo/notes.md" })
-    // An extension outside the known list is settled by the folder listing, like any extensionless path.
     expect(parseFileReference("file:///Users/me/repo/report.docx")).toEqual({
       path: "/Users/me/repo/report.docx",
       kind: "either",

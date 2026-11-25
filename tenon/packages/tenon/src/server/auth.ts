@@ -25,7 +25,6 @@ export function required(config: Info) {
   return Option.isSome(config.password) && config.password.value !== ""
 }
 
-// Constant-time credential check shared with the server package.
 export { authorized } from "@tenon/server/auth"
 
 export function header(credentials?: Credentials) {

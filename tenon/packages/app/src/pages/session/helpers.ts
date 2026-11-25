@@ -22,26 +22,16 @@ type TabsInput = {
   fileBrowser?: Accessor<boolean>
 }
 
-/** Right-panel tab that lists the thread's subagents, or shows the one selected below. */
 export const AGENTS_TAB = "agents"
 
-/**
- * The retired one-tab-per-subagent IDs, keyed by tool part ID. Stored tab lists may still hold them; the side panel
- * folds them into the Agents tab with that agent selected.
- */
 export const AGENT_TAB_PREFIX = "agent://"
 export const isAgentTab = (tab: string | undefined) => !!tab?.startsWith(AGENT_TAB_PREFIX)
 export const agentTabPartID = (tab: string) => (isAgentTab(tab) ? tab.slice(AGENT_TAB_PREFIX.length) : undefined)
 
-// The agent the Agents tab shows, per session key; none shows the list. Kept for the app's lifetime only.
 const [agentSelection, setAgentSelection] = createStore<Record<string, string | undefined>>({})
 export const selectedAgent = (sessionKey: string) => agentSelection[sessionKey]
 export const selectAgent = (sessionKey: string, partID: string | undefined) => setAgentSelection(sessionKey, partID)
 
-/**
- * Folds retired `agent://` tabs into one Agents tab where the first of them stood. Returns undefined when there are
- * none; otherwise the new list, the active tab and the agent to select (the active one, else the last one).
- */
 export function migrateAgentTabs(all: readonly string[], active: string | undefined) {
   const legacy = all.filter(isAgentTab)
   if (legacy.length === 0) return undefined
@@ -57,21 +47,15 @@ export function migrateAgentTabs(all: readonly string[], active: string | undefi
   }
 }
 
-/** Right-panel tab that lays out the thread's html designs as artboards. */
 export const CANVAS_TAB = "canvas"
 
-/** Right-panel tabs for the Workbench browser and the device emulator. */
 export const BROWSER_TAB = "browser"
 export const DEVICE_TAB = "device"
-/** Right-panel tab listing the documents the thread's agent wrote or linked. */
 export const DOCUMENTS_TAB = "documents"
-// Sections that are one fixed tab, never kept in the file strip.
 const toolTabs = new Set([BROWSER_TAB, DEVICE_TAB, DOCUMENTS_TAB])
 
-/** The side panel's fixed sections. The rail switches between them; only Files holds tabs. */
 export type PanelSection = "changes" | "files" | "documents" | "agents" | "browser" | "device" | "canvas" | "details"
 
-/** The tab ID each section shows. Files has none of its own: it shows the active file tab. */
 export const SECTION_TAB = {
   changes: "review",
   documents: DOCUMENTS_TAB,
@@ -92,8 +76,6 @@ const tabSections: Record<string, PanelSection> = {
   context: "details",
 }
 
-// Sections where an agent did something the user hasn't looked at yet, per session key. Kept for the app's
-// lifetime only.
 const [attention, setAttention] = createStore<Record<string, Partial<Record<PanelSection, boolean>>>>({})
 export const sectionAttention = (sessionKey: string, section: PanelSection) => !!attention[sessionKey]?.[section]
 export const setSectionAttention = (sessionKey: string, section: PanelSection, value: boolean) =>
@@ -146,7 +128,6 @@ export const createSessionTabs = (input: TabsInput) => {
   const openedTabs = createMemo(() => panelTabs().filter((tab) => tab !== SESSION_OPEN_FILE_TAB), emptyTabs, {
     equals: same,
   })
-  // Retired `agent://` tabs count as the Agents tab until the side panel folds them in.
   const agentsOpen = createMemo(() =>
     input
       .tabs()
@@ -155,7 +136,6 @@ export const createSessionTabs = (input: TabsInput) => {
   )
   const activeTab = createMemo(() => {
     const active = input.tabs().active()
-    // A section is always there to switch to; it need not be in the stored tab list.
     if (active === "context" || active === CANVAS_TAB || active === AGENTS_TAB) return active
     if (active && toolTabs.has(active)) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
@@ -175,14 +155,12 @@ export const createSessionTabs = (input: TabsInput) => {
     if (!openedTabs().includes(active)) return
     return active
   })
-  // Only file tabs close. Sections are fixed.
   const closableTab = createMemo(() => {
     const active = activeTab()
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
     if (!openedTabs().includes(active)) return
     return active
   })
-  // Anything that isn't a section's own tab is a file tab, the Open File placeholder or the empty Files view.
   const section = createMemo<PanelSection>(() => tabSections[activeTab()] ?? "files")
 
   return {

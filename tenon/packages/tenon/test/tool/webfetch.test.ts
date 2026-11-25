@@ -53,7 +53,6 @@ describe("tool.webfetch", () => {
           new Response(
             new ReadableStream({
               async pull(controller) {
-                // Sends 6 MB with no length, then stalls without closing: only the reader's limit ends it.
                 if (sent >= 6 * chunk.byteLength) return new Promise<void>(() => {})
                 sent += chunk.byteLength
                 controller.enqueue(chunk)

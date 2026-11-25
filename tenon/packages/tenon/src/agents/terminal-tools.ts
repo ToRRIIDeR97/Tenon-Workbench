@@ -11,20 +11,10 @@ import { Effect, Option, Schema } from "effect"
 import { SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
 
-/**
- * Terminals an agent starts for a long-running command (a dev server, a watch build). Each one is a shell in a tab
- * of the agent's thread, in the thread's folder, so the user sees it and can type into it; the agent reads its
- * output back with `terminal_read`. A subagent's terminal belongs to its root thread, the one the user has open.
- * An agent reaches only the terminals started for its own thread, never the user's own tabs.
- */
-
-/** Terminals an agent may keep running per thread. */
 export const LIMIT = 6
-/** Lines `terminal_read` returns by default, at most, and the characters it returns at most. */
 const READ_LINES = 60
 const READ_LINES_MAX = 400
 const READ_CHARS = 12_000
-/** How far up the parent chain a subagent's root thread is looked for. */
 const PARENT_DEPTH = 8
 
 const terminalIdField = { type: "string", description: "A terminal id (pty_…) from terminal_start or terminal_read." }
@@ -32,7 +22,6 @@ const terminalIdField = { type: "string", description: "A terminal id (pty_…) 
 export const TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
   {
     name: "terminal_start",
-    // The in-process loop asks the thread's `bash` permission for the command, as its own shell tool would.
     permission: { action: "bash", field: "command" },
     description:
       "Run a long-running command (a dev server, a watch build, a log tail) in a new terminal tab of this thread, in the thread's folder, where the user sees it and can use it. Returns at once with its terminal id; read its output with terminal_read and stop it with terminal_stop. Use your own shell for commands that finish on their own.",
@@ -87,7 +76,6 @@ const Args = {
   terminal_stop: Schema.Struct({ terminalId: Schema.String }),
 }
 
-/** Runs one terminal tool for the thread `sessionID`. */
 export const call = Effect.fnUntraced(function* (name: string, input: Record<string, unknown>, sessionID: string) {
   const sessions = yield* Session.Service
   const id = Option.getOrUndefined(Schema.decodeUnknownOption(SessionID)(sessionID))
@@ -110,7 +98,6 @@ export const call = Effect.fnUntraced(function* (name: string, input: Record<str
 const start = Effect.fnUntraced(function* (thread: string, args: typeof Args.terminal_start.Type) {
   const command = args.command.trim()
   if (!command) return yield* new ToolError({ message: "terminal_start needs a command." })
-  // One line, typed into the shell as the user would: a control character could press keys the agent didn't show.
   if (/[\u0000-\u001f\u007f]/.test(command))
     return yield* new ToolError({ message: "terminal_start takes one command line, without control characters." })
   const pty = yield* Pty.Service
@@ -153,7 +140,6 @@ const stop = Effect.fnUntraced(function* (thread: string, args: typeof Args.term
   return { stopped: true, terminalId: id }
 })
 
-/** The terminal `value` names, when it is one this thread started. */
 const owned = Effect.fnUntraced(function* (thread: string, value: string) {
   const id = Option.getOrUndefined(Schema.decodeUnknownOption(PtyID)(value))
   if (!id) return yield* missing(value)
@@ -165,7 +151,6 @@ const owned = Effect.fnUntraced(function* (thread: string, value: string) {
 
 const missing = (value: string) => new ToolError({ message: `No terminal ${value} in this thread.` })
 
-/** The thread a subagent works for: its parents up to the root, the one the user has open. */
 const rootThread = Effect.fnUntraced(function* (session: Session.Info) {
   const sessions = yield* Session.Service
   let current = session
@@ -177,7 +162,6 @@ const rootThread = Effect.fnUntraced(function* (session: Session.Info) {
   return current
 })
 
-/** Runs `effect` with the folder's Location services, where the user's own terminals for it live. */
 const inDirectory = <A, E>(directory: string, effect: Effect.Effect<A, E, Pty.Service>) =>
   Effect.gen(function* () {
     const locations = yield* LocationServiceMap.Service
@@ -187,7 +171,6 @@ const inDirectory = <A, E>(directory: string, effect: Effect.Effect<A, E, Pty.Se
     )
   })
 
-/** Terminal output as the screen would read: escape sequences dropped, a carriage return overwriting its line. */
 export function plainText(output: string) {
   return output
     .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")
@@ -199,7 +182,6 @@ export function plainText(output: string) {
     .join("\n")
 }
 
-/** The last `count` lines of `text`, kept within the read cap from the end. */
 export function tail(text: string, count: number) {
   const lines = text.replace(/\n+$/, "").split("\n").slice(-count).join("\n")
   return lines.length > READ_CHARS ? lines.slice(-READ_CHARS) : lines

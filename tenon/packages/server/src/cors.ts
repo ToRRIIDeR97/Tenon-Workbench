@@ -9,7 +9,6 @@ export const CorsConfig = Context.Reference<CorsOptions | undefined>("@tenon/Ser
 export function isAllowedCorsOrigin(input: string | undefined, opts?: CorsOptions) {
   if (!input) return true
   if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(input)) return true
-  // The desktop renderer origin. Hosted opencode.ai and Tauri origins are no longer trusted.
   if (input === "oc://renderer") return true
   return opts?.cors?.includes(input) ?? false
 }

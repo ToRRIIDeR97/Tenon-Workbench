@@ -21,9 +21,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// Agent terminals: a long-running command runs in a terminal of the agent's own thread (its root thread for a
-// subagent), its output reads back as plain text, and no other thread can read or stop it.
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
   [
@@ -70,7 +67,6 @@ describe("AgentTerminalTools", () => {
           .pipe(provideInstanceEffect(test.directory))
         const other = yield* Session.use.create({ title: "other" }).pipe(provideInstanceEffect(test.directory))
 
-        // A subagent's terminal belongs to the thread the user has open.
         const started = yield* call(child.id, "terminal_start", { command: "echo tenon-terminal-ok", title: "Echo" })
         expect(started.isError).toBe(false)
         const terminal = started.value as { terminalId: string; title: string; folder: string }
@@ -84,7 +80,6 @@ describe("AgentTerminalTools", () => {
           for (let attempt = 0; attempt < 100; attempt++) {
             const read = await Effect.runPromise(call(thread.id, "terminal_read", { terminalId: terminal.terminalId }))
             const text = (read.value as { output?: string }).output ?? ""
-            // The typed command echoes too; the program's own line is the one on its own.
             if (text.split("\n").some((line) => line.trim() === "tenon-terminal-ok")) return text
             await Bun.sleep(100)
           }
@@ -93,7 +88,6 @@ describe("AgentTerminalTools", () => {
         expect(output).toContain("tenon-terminal-ok")
         expect(output).not.toContain("\u001b")
 
-        // Another thread neither sees nor stops it.
         expect(((yield* call(other.id, "terminal_read", {})).value as { terminals: unknown[] }).terminals).toEqual([])
         expect(yield* call(other.id, "terminal_read", { terminalId: terminal.terminalId })).toEqual({
           isError: true,

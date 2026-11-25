@@ -28,8 +28,6 @@ function providerMetadata(value: unknown): ProviderMetadata | undefined {
   return Schema.is(ProviderMetadata)(value) ? value : undefined
 }
 
-// Temporary AI SDK bridge: Copilot billing survives only in raw provider chunks here.
-// Move this extraction into @tenon/llm when Copilot is handled by the native runtime.
 function copilotTotalNanoAiu(value: unknown) {
   if (!value || typeof value !== "object") return
   const raw = value as Record<string, unknown>
@@ -120,8 +118,6 @@ export function toLLMEvents(
             providerMetadata: "providerMetadata" in event ? providerMetadata(event.providerMetadata) : undefined,
           }),
         ]
-        // Reset so the adapter can be reused for a follow-up stream without leaking
-        // counters or block IDs. adapterState() is the single source of truth for shape.
         Object.assign(state, adapterState())
         return events
       })

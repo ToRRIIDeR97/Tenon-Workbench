@@ -430,7 +430,6 @@ describe("CodeMode schema flexibility", () => {
       },
     ])
 
-    // JSON Schema is render-only: mistyped input passes through unvalidated.
     const result = await Effect.runPromise(runtime.execute(`return await tools.adapter.call({ id: 42 })`))
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value).toStrictEqual({ echoed: { id: 42 } })
@@ -520,11 +519,8 @@ describe("CodeMode public contract", () => {
     expect(runtime.instructions()).toContain(
       "  - tools.orders.lookup(input: {\n  id: string,\n}): Promise<{\n  id: string,\n  status: string,\n}> // Look up an order by ID",
     )
-    // A fully inlined catalog does not advertise search in the instructions...
     expect(runtime.instructions()).not.toMatch(/\$codemode/)
 
-    // ...but the search tool stays registered, so a speculative call still works with the
-    // same signature as the inline catalog.
     const result = await Effect.runPromise(runtime.execute(`return await tools.$codemode.search({ query: "order" })`))
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -597,7 +593,6 @@ describe("CodeMode public contract", () => {
   test("instructions use markdown sections with placeholder-only call forms", () => {
     const runtime = CodeMode.make({ tools })
     const instructions = runtime.instructions()
-    // Sections in order: workflow at the top, catalog at the bottom.
     expect(instructions).toContain("## Workflow")
     expect(instructions).toContain("## Rules")
     expect(instructions).toContain("## Language")
@@ -613,8 +608,6 @@ describe("CodeMode public contract", () => {
     expect(instructions).toContain("bracket notation and quotes are part of the path")
     expect(instructions).toContain("surrounding agent tools are not available")
     expect(instructions).toContain("Only Code Mode tools listed here and internal runtime tools")
-    // Placeholders use generic namespace/tool/field names only - no fabricated real tools
-    // and no real catalog tools cherry-picked into example lines.
     expect(instructions).toContain("`const result = await tools.<namespace>.<tool>(input)`")
     expect(instructions).toContain("Return only the fields you need from structured results")
     expect(instructions).toContain("check that it is a non-null object and not an array")
@@ -623,13 +616,10 @@ describe("CodeMode public contract", () => {
     expect(instructions).not.toContain("total_count")
     expect(instructions).not.toContain("list_issues")
     expect(instructions).not.toContain("tools.orders.lookup({")
-    // COMPLETE: step 1 picks from the inlined list; search is not advertised.
     expect(instructions).toContain("1. Pick a tool from the list under `## Available tools`")
     expect(instructions).not.toContain("Browse one namespace")
 
     const partial = CodeMode.make({ tools, discovery: { catalogBudget: 0 } }).instructions()
-    // PARTIAL: the workflow starts with search (with query-style guidance that is clearly
-    // a query string, never a tool name) and the browse-namespace rule appears.
     expect(partial).toContain(
       '1. If needed, discover tools: `return await tools.$codemode.search({ query: "<intent + key nouns>" })`.',
     )
@@ -815,7 +805,6 @@ describe("CodeMode public contract", () => {
       },
     })
 
-    // Empty query + namespace browses just that namespace, alphabetical by path.
     const browse = await Effect.runPromise(
       runtime.execute(`return await tools.$codemode.search({ query: "", namespace: "github" })`),
     )
@@ -829,7 +818,6 @@ describe("CodeMode public contract", () => {
       ])
     }
 
-    // A query + namespace ranks within that namespace only.
     const scoped = await Effect.runPromise(
       runtime.execute(`return await tools.$codemode.search({ query: "issues", namespace: "linear" })`),
     )
@@ -865,8 +853,6 @@ describe("CodeMode public contract", () => {
     })
     const runtime = CodeMode.make({ tools: { files: { upload, other } } })
 
-    // "attachment" appears in neither path nor description - only in the input schema's
-    // property names, which the searchable text includes.
     const byParameter = await Effect.runPromise(
       runtime.execute(`return await tools.$codemode.search({ query: "attachment" })`),
     )
@@ -877,7 +863,6 @@ describe("CodeMode public contract", () => {
       expect(value.items[0]?.path).toBe("tools.files.upload")
     }
 
-    // Substring matching: a partial word ("docum") still hits the description.
     const bySubstring = await Effect.runPromise(
       runtime.execute(`return await tools.$codemode.search({ query: "docum" })`),
     )
@@ -899,14 +884,12 @@ describe("CodeMode public contract", () => {
       })
     const runtime = CodeMode.make({
       tools: {
-        // Neither path nor description contains "issues" - only the singular "issue".
         tracker: { fetch_all: simple("Fetch every open issue in the project") },
         github: { list_issues: simple("List issues") },
         misc: { rename: simple("Rename the workspace") },
       },
     })
 
-    // "issues" still finds the singular-only tool (term OR singular(term) per field)...
     const plural = await Effect.runPromise(
       runtime.execute(`return await tools.$codemode.search({ query: "issues", namespace: "tracker" })`),
     )
@@ -917,7 +900,6 @@ describe("CodeMode public contract", () => {
       expect(value.items[0]?.path).toBe("tools.tracker.fetch_all")
     }
 
-    // ...while a true "issues" path match still outranks the singular-only description match.
     const ranked = await Effect.runPromise(runtime.execute(`return await tools.$codemode.search({ query: "issues" })`))
     expect(ranked.ok).toBe(true)
     if (ranked.ok) {
@@ -938,7 +920,6 @@ describe("CodeMode public contract", () => {
         output: Schema.String,
         run: () => Effect.succeed("ok"),
       })
-    // Deliberately declared out of alphabetical order.
     const runtime = CodeMode.make({
       tools: {
         zeta: { last: simple("Last") },
@@ -994,9 +975,6 @@ describe("CodeMode public contract", () => {
       output: Schema.String,
       run: () => Effect.succeed("ok"),
     })
-    // Round 1 places alpha.cheap (~17 estimated tokens) and beta.cheap (~17); in round 2
-    // alpha.expensive does not fit, which marks only alpha done - it must NOT prevent
-    // other namespaces from inlining (beta already got its line in the same round).
     const runtime = CodeMode.make({
       tools: { alpha: { cheap, expensive }, beta: { cheap } },
       discovery: { catalogBudget: 40 },
@@ -1009,7 +987,6 @@ describe("CodeMode public contract", () => {
     expect(instructions).toContain("- alpha (2 tools, 1 shown)")
     expect(instructions).toContain("  - tools.alpha.cheap(input: {\n  q: string,\n}): Promise<string> // Cheap")
     expect(instructions).not.toContain("tools.alpha.expensive(")
-    // Fully shown namespaces read cleanly (no "shown" annotation).
     expect(instructions).toContain("- beta (1 tool)")
     expect(instructions).toContain("  - tools.beta.cheap(input: {\n  q: string,\n}): Promise<string> // Cheap")
     expect(instructions).toMatch(/\$codemode\.search/)
@@ -1119,8 +1096,6 @@ describe("CodeMode public contract", () => {
   })
 
   test("timeoutMs and maxToolCalls have no defaults: absent means unlimited", async () => {
-    // 150 tool calls would have exceeded the old default cap of 100; with no limits
-    // provided, there is no cap and no timeout - budgets are host policy.
     const counter = Tool.make({
       description: "Count invocations",
       input: Schema.Struct({}),
@@ -1142,9 +1117,6 @@ describe("CodeMode public contract", () => {
   })
 
   test("the timeout interrupts a busy loop without any operation budget", async () => {
-    // Regression: timeout interruption must not depend on interpreter-side work accounting.
-    // The Effect fiber runtime auto-yields between interpreter steps, so a pure `while
-    // (true) {}` loop is interrupted by `timeoutMs` alone.
     const startedAt = Date.now()
     const result = await Effect.runPromise(CodeMode.execute({ code: "while (true) {}", limits: { timeoutMs: 200 } }))
     const elapsedMs = Date.now() - startedAt

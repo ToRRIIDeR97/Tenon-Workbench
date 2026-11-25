@@ -1,4 +1,3 @@
-/* Layered so utility classes (e.g. text-v2-icon-icon-accent) can set the color. */
 @layer components {
   [data-component="loader-v2"] {
     --_duration: 900ms;
@@ -7,7 +6,6 @@
     color: var(--v2-icon-icon-muted, #808080);
     animation: loader-v2-spin var(--_duration) linear infinite;
     transform-origin: center;
-    /* Runs the spin on the compositor; otherwise it costs main-thread time on every frame while a turn streams. */
     will-change: transform;
   }
 

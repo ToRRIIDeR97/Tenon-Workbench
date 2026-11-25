@@ -50,10 +50,6 @@ function textPartValue(parts: Part[]) {
   }, undefined)
 }
 
-/**
- * Extract prompt content from message parts for restoring into the prompt input.
- * This is used by undo to restore the original user prompt.
- */
 export function extractPromptFromParts(parts: Part[], opts?: { directory?: string; attachmentName?: string }): Prompt {
   const textPart = textPartValue(parts)
   const text = textPart?.text ?? ""
@@ -203,7 +199,6 @@ export function extractPromptFromParts(parts: Part[], opts?: { directory?: strin
   return [...result, ...images]
 }
 
-/** Adds `text` after a prompt's text (and before its images), separated by a space when needed. */
 export function appendPromptText(prompt: Prompt, text: string): Prompt {
   const images = prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
   const parts = prompt.filter((part) => part.type !== "image")

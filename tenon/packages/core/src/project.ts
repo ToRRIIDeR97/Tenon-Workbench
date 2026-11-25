@@ -37,15 +37,6 @@ export interface Resolved {
 export interface Interface {
   readonly directories: (input: DirectoriesInput) => Effect.Effect<Directories>
   readonly resolve: (input: AbsolutePath) => Effect.Effect<Resolved>
-  /**
-   * Temporary bridge method for writing the resolved project ID to the repo-local cache.
-   *
-   * This exists while the legacy project service and this core project
-   * service work together: core resolves the ID, while the old service still owns
-   * database migration and persistence. The old service should call this after it
-   * finishes migrating from `resolve().previous` to `resolve().id`; once project
-   * persistence moves into core, this separate bridge method can go away.
-   */
   readonly commit: (input: { store: AbsolutePath; id: ID }) => Effect.Effect<void>
 }
 
@@ -62,7 +53,6 @@ const layer = Layer.effect(
       return yield* projectDirectories.list(input.projectID)
     })
 
-    // The project ID file in the git directory; the pre-rename `opencode` file is still read.
     const readID = (file: string) =>
       fs.readFileString(file).pipe(
         Effect.map((value) => value.trim()),

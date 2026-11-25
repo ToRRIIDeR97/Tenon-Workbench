@@ -45,7 +45,6 @@ test("opens and searches project files inline", async ({ page }) => {
         time: { created: 1700000000000, updated: 1700000000000 },
       },
     ],
-    // Reported usage is what puts the context ring on the composer.
     pageMessages: () => ({
       items: [
         {
@@ -110,9 +109,7 @@ test("opens and searches project files inline", async ({ page }) => {
   const sidebar = panel.locator('[data-slot="session-review-v2-sidebar"]')
   const sidebarToggle = panel.getByRole("button", { name: "Toggle file tree" })
   const contextRing = page.locator('[data-action="context-ring"]')
-  // Sections switch from the rail beside the panel; the panel's strip holds file tabs only.
   const details = page.locator('[data-component="session-side-rail"]').getByRole("tab", { name: "Details" })
-  // The composer's context ring stays while the panel is hidden; its menu reopens the panel on Details.
   await panel.getByRole("button", { name: "Hide review" }).click()
   await contextRing.click()
   await page.getByRole("button", { name: "View context usage" }).click()
@@ -157,7 +154,6 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(sidebarToggle).toBeDisabled()
   await page.locator("#session-side-panel-review-tab").click()
   await expect(sidebarToggle).toBeEnabled()
-  // The rail button's tooltip opens to the left, over the panel header; leave the rail so it closes.
   await page.mouse.move(0, 0)
   await panel.getByRole("button", { name: "Open file" }).click()
   await page.keyboard.press("Control+w")

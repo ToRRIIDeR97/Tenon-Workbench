@@ -12,10 +12,6 @@ import { errorMessage } from "@/pages/layout/helpers"
 import { showToast } from "@/utils/toast"
 import { instructionsErrorKey } from "./instructions-error"
 
-/**
- * Edit a workspace's default AGENTS.md, or a project's own one. A project without its own file uses
- * the workspace default; "Use workspace default" deletes the project's file after a confirmation.
- */
 export function DialogInstructions(props: { workspaceDirectory: string; project?: SidebarProjectItem }) {
   const language = useLanguage()
   const platform = usePlatform()
@@ -65,7 +61,6 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
       .finally(() => setState("busy", false))
   }
 
-  // Reading a failed resource throws, so read through these and show the failure with a retry.
   const ownFile = () => (own.error ? undefined : own())
   const fallbackFile = () => (fallback.error ? undefined : fallback())
   const loadFailed = () => !!own.error || !!fallback.error
@@ -118,7 +113,6 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
         <Show
           when={state.editing || !props.project}
           fallback={
-            // Unread, the project's own file could still exist: customizing would overwrite it.
             <Show when={!fallback.error && !own.error}>
               <section class="flex flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01">
                 <header class="flex items-center justify-between gap-3 px-3 py-2">

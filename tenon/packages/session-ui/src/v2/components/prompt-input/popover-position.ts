@@ -1,18 +1,12 @@
 export type PromptPopoverPlacement = {
   left: number
   width: number
-  /** Distance from the viewport's bottom edge when the popover opens above the composer. */
   bottom?: number
-  /** Distance from the viewport's top edge when it opens below. */
   top?: number
   maxHeight: number
   side: "top" | "bottom"
 }
 
-/**
- * Places the @ and / popover against the composer in viewport coordinates. It opens above the composer
- * unless there is too little room there and more below, and it stays inside the viewport on every side.
- */
 export function placePromptPopover(
   anchor: { top: number; bottom: number; left: number; width: number },
   viewport: { width: number; height: number },

@@ -150,7 +150,6 @@ describe("reconnect resync", () => {
     const session = newSession()
     session.set("session_status", "ses_finished", { type: "busy" })
     const before = snapshotSessionStatuses(session)
-    // Events that arrive after the request: one run starts, another finishes.
     session.set("session_status", "ses_started", { type: "busy" })
     session.set("session_status", "ses_finished", reconcile({ type: "idle" }))
 

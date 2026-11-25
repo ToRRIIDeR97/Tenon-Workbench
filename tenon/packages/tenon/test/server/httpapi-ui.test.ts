@@ -78,7 +78,6 @@ function app(input?: { password?: string; username?: string }) {
   }
 }
 
-// Tests run without a generated UI bundle, so the fallback must answer locally.
 function uiApp(input?: { password?: string; username?: string; disableEmbeddedWebUi?: boolean }) {
   const handler = HttpRouter.toWebHandler(
     HttpRouter.use((router) =>
@@ -215,11 +214,6 @@ describe("HttpApi UI fallback", () => {
     }),
   )
 
-  // Regression for #25698 (Ope): the browser fetches the PWA manifest and
-  // its icons via flows that don't carry app-managed credentials (the
-  // `<link rel="manifest">` request is not under page-auth control), so the
-  // server returning 401 breaks PWA install. These specific public assets
-  // should bypass auth.
   it.live("serves the PWA manifest without auth even when a server password is set", () =>
     Effect.gen(function* () {
       for (const path of ["/site.webmanifest", "/web-app-manifest-192x192.png", "/web-app-manifest-512x512.png"]) {

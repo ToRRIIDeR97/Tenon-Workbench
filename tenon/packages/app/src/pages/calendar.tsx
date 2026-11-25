@@ -79,7 +79,6 @@ type CalendarState = {
   view: CalendarView
   projectFilter: string
   editing: boolean
-  /** The event id, or `task:<id>`, shown read-only in the side panel until Edit is chosen. */
   peek: string
   selectedTask: string
   draft: CalendarDraft
@@ -88,19 +87,16 @@ type CalendarState = {
   errorField: CalendarDraftField
   confirmingDelete: boolean
   googlePanel: boolean
-  /** Shows the sign-in form while accounts are connected, to add another account. */
   googleAdding: boolean
   googleClientId: string
   googleOwnClient: boolean
   googleClientSecret: string
   googleAccess: "read" | "write"
   googleBusy: boolean
-  // The browser consent is open; Connect stays clickable to reopen it (the user may have closed the tab).
   googleConnecting: boolean
   googleError: string
   googleConfirm: "" | "save" | "delete"
   googleWriteKey: string
-  /** Bumped by the header's New task; the tasks view opens a blank task on each change. */
   newTask: number
 }
 
@@ -126,10 +122,8 @@ export default function CalendarPage() {
     google?: string
     event?: string
     task?: string
-    /** YYYY-MM-DD to show, e.g. from an agent write's Open. */
     date?: string
   }>()
-  // Noon of `?date=`, so a time-zone shift never moves it to another day; undefined when absent or invalid.
   const linkedDay = () => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(search.date ?? "")
     if (!match) return undefined
@@ -167,12 +161,10 @@ export default function CalendarPage() {
     target: { directory },
   })
 
-  // The sidebar workspace switcher owns this choice; the page only follows it.
   const directory = () => layout.home.workspace() ?? ""
   createEffect(
     on(directory, () => setState({ editing: false, peek: "", selectedTask: "", draft: emptyDraft() }), { defer: true }),
   )
-  // Open on an agent write while this page is up only changes `?date=`.
   createEffect(
     on(
       () => search.date,
@@ -184,8 +176,6 @@ export default function CalendarPage() {
     ),
   )
 
-  // Cached per workspace: a launch or background sync updates the shown items in place. A failed load is
-  // shown inline with a retry.
   const events = createCalendarResource(() => directory() || undefined, client)
   const snapshot = events.snapshot
   const brainProjects = useBrainProjects()
@@ -203,7 +193,6 @@ export default function CalendarPage() {
     new Intl.DateTimeFormat(language.locale(), { month: "long", year: "numeric" }).format(state.cursor),
   )
   const range = createMemo(() => weekRange(state.cursor))
-  // The agenda starts today; a window left open overnight moves on when it next takes focus.
   const [today, setToday] = createSignal(localDateKey(new Date()))
   makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
   const viewTitle = createMemo(() => {
@@ -221,7 +210,6 @@ export default function CalendarPage() {
     if (state.view === "month") return monthTitle()
     return language.t("secondBrain.calendar.agenda")
   })
-  // One pass over the calendar for the visible grid, rather than filtering every item per day.
   const byDay = createMemo(() => {
     const grid = days()
     const first = grid[0]?.date ?? ""
@@ -250,7 +238,6 @@ export default function CalendarPage() {
     }
     return map
   })
-  // Day and Week can show a date outside the month grid; filter for those directly.
   const eventsFor = (date: string) =>
     byDay().get(date)?.events ??
     (snapshot()?.events ?? [])
@@ -286,7 +273,6 @@ export default function CalendarPage() {
 
   const schedule = createMemo<ScheduleItem[]>(() => {
     const bounds = scheduleBounds(state.view, localDateKey(state.cursor), range(), today())
-    // Open tasks that are overdue stay in view: on their own day in Day view, under today in the agenda.
     const overdueToStart = state.view === "today" || state.view === "agenda"
     const projectMatch = (projectId?: string) => !state.projectFilter || projectId === state.projectFilter
     const providerEvents = (snapshot()?.events ?? [])
@@ -329,7 +315,6 @@ export default function CalendarPage() {
         left.title.localeCompare(right.title),
     )
   })
-  // `schedule` is sorted by date, so consecutive items share a day.
   const scheduleDays = createMemo(() => {
     const today = localDateKey(new Date())
     const weekday = new Intl.DateTimeFormat(language.locale(), { weekday: "short" })
@@ -403,7 +388,6 @@ export default function CalendarPage() {
 
   const googleMessage = (error: unknown) => googleErrorMessage(error, language.t)
 
-  // Typed credentials are needed unless the build ships its own client and the user hasn't opted out of it.
   const googleTypedClient = () => !settled(googleConnection)?.builtInClient || state.googleOwnClient
 
   let connectAttempt = 0
@@ -415,7 +399,6 @@ export default function CalendarPage() {
       setState("googleError", language.t("secondBrain.calendar.google.error.credentials"))
       return
     }
-    // A newer Connect cancels the pending consent in the main process; only the latest attempt reports.
     const attempt = ++connectAttempt
     setState({ googleConnecting: true, googleError: "" })
     let connected = false
@@ -445,19 +428,16 @@ export default function CalendarPage() {
     setState({ googleBusy: true, googleError: "" })
     try {
       const result = await syncGoogleCalendar({ google, client: client(target), current: snapshot() })
-      // A sidebar workspace switch during the call leaves snapshot() pointing at another calendar.
       if (!result || directory() !== target) return
       events.mutate(result.saved)
       googleActions.mutate(result.connection)
     } catch (error) {
       setState("googleError", googleMessage(error))
-      // The service records an expired grant; refresh so the Reconnect action appears.
       void googleActions.refetch()
     } finally {
       setState("googleBusy", false)
     }
   }
-  // A background sync (Settings › Calendar) rewrote the calendar; show it.
   createEffect(
     on(
       calendarSync.version,
@@ -504,7 +484,6 @@ export default function CalendarPage() {
     setState({ saving: true, error: "" })
     try {
       const saved = await writeCalendar(client(workspace), next, snapshot()?.revision, snapshot()?.tasks)
-      // A workspace switch during the write leaves the view on another calendar; don't overwrite it.
       if (directory() !== workspace) return
       events.mutate(saved)
       setState({ editing: false, draft: emptyDraft() })
@@ -531,7 +510,6 @@ export default function CalendarPage() {
   const persistTasks = taskActions.persist
   const toggleTask = taskActions.toggle
 
-  // Takes the user's change off the outbox and the planner row off hold; the sync brings Google's copy in.
   const keepGoogleVersion = async (outboxKey: string) => {
     const google = platform.googleCalendar
     const target = directory()
@@ -569,7 +547,6 @@ export default function CalendarPage() {
   const projectName = (id?: string) =>
     id ? (brainProjects.list()?.find((project) => project.id === id)?.name ?? id) : undefined
 
-  // Day and Week: the shown days with timed events, all-day events and open tasks.
   const gridDays = createMemo<CalendarGridDay[]>(() => {
     const today = localDateKey(new Date())
     const first = state.view === "week" ? range().start : localDateKey(state.cursor)
@@ -585,7 +562,6 @@ export default function CalendarPage() {
         weekday: weekday.format(new Date(`${date}T12:00:00`)),
         timed: eventsFor(date).filter(timed),
         allDay: eventsFor(date).filter((event) => !timed(event)),
-        // Today's column also carries overdue tasks, as the list view did.
         tasks: (snapshot()?.tasks ?? []).filter((task) => {
           const due = task.scheduledDate ?? task.dueDate
           if (task.completedAt || !due || (state.projectFilter && task.projectId !== state.projectFilter)) return false
@@ -596,7 +572,6 @@ export default function CalendarPage() {
   })
 
   const panelOpen = () => state.googlePanel || state.editing || Boolean(peekView())
-  // Under 1100px the week can't share the page with both the Projects panel and this one.
   const narrow = createMediaQuery("(max-width: 1099px)")
   createEffect(on(panelOpen, (open) => open && narrow() && layout.sidebar.close(), { defer: true }))
   const panelView = () => (state.googlePanel ? "google" : state.editing ? "edit" : `peek:${state.peek}`)
@@ -752,7 +727,6 @@ export default function CalendarPage() {
     setState({ saving: true, error: "" })
     try {
       const deleting = state.googleConfirm === "delete"
-      // Saving an edit over a queued delete keeps the event; the outbox makes it a create again if it began as one.
       const operationKind: "create" | "update" | "delete" = deleting
         ? "delete"
         : state.draft.outboxKind === "delete"
@@ -834,7 +808,6 @@ export default function CalendarPage() {
         title={language.t("secondBrain.calendar.title")}
         actions={
           <Show when={directory()}>
-            {/* One slot for the primary action in every view, so it never moves when the view changes. */}
             <ButtonV2
               variant="contrast"
               icon="plus"
@@ -919,7 +892,6 @@ export default function CalendarPage() {
               {language.t("secondBrain.calendar.today")}
             </ButtonV2>
           </Show>
-          {/* The tasks filters take the date controls' place, so the view switcher stays put. */}
           <Show when={taskView()}>
             {(filter) => (
               <SegmentedControlV2 class="!w-fit" value={filter()}>
@@ -974,8 +946,6 @@ export default function CalendarPage() {
               </For>
             </SegmentedControlV2>
           </nav>
-          {/* Google sync and accounts. The accounts panel sits beside the calendar views, so the tasks view offers
-              only Sync now: opening the menu never changes the view. */}
           <MenuV2 gutter={4} placement="bottom-end">
             <MenuV2.Trigger
               as={IconButtonV2}
@@ -986,7 +956,6 @@ export default function CalendarPage() {
             <MenuV2.Portal>
               <MenuV2.Content>
                 <MenuV2.Group>
-                  {/* Unconnected, the status would repeat the Connect Google item below it. */}
                   <Show when={settled(googleConnection)?.connected || taskView()}>
                     <MenuV2.GroupLabel>{googleStatus()}</MenuV2.GroupLabel>
                   </Show>
@@ -1012,7 +981,6 @@ export default function CalendarPage() {
           </MenuV2>
         </div>
 
-        {/* Tasks and the calendar fade through; inside the calendar, month, day/week and agenda do. */}
         <ViewSwitch key={taskView() ? `tasks:${taskView()}` : "calendar"} class="flex flex-1 flex-col">
           <Show when={taskView()} keyed>
             {(filter) => (
@@ -1031,9 +999,7 @@ export default function CalendarPage() {
           </Show>
           <Show when={!taskView()}>
             <div class={sidePanelGridClass(panelOpen())}>
-              {/* Stretched to the row so month and the hour grid fill the page height. */}
               <div class="flex min-h-[560px] min-w-0 flex-col self-stretch">
-                {/* A failed refresh keeps the last snapshot on screen with an inline retry. */}
                 <Show when={events.error() && events.snapshot()}>
                   <div role="alert" class="flex items-center gap-2 pb-2 type-meta text-v2-text-text-critical">
                     <span class="min-w-0 flex-1">{language.t("secondBrain.calendar.loadFailed")}</span>
@@ -1082,7 +1048,6 @@ export default function CalendarPage() {
                           <Show
                             when={state.view === "today" || state.view === "week"}
                             fallback={
-                              // Lists keep a reading width on a wide window; week and month use all of it.
                               <div class="mx-auto flex w-full max-w-[760px] flex-col">
                                 <Show
                                   when={schedule().length > 0}
@@ -1131,7 +1096,6 @@ export default function CalendarPage() {
                               </div>
                             }
                           >
-                            {/* One day's column stays a readable width; the week spreads across the page. */}
                             <div
                               classList={{
                                 "flex min-h-0 flex-1 flex-col": true,
@@ -1168,7 +1132,6 @@ export default function CalendarPage() {
                 </Show>
               </div>
 
-              {/* The editor form handles its own Escape (it keeps the draft); Esc closes the peek or Google panel. */}
               <SidePanel
                 open={panelOpen()}
                 view={panelView()}

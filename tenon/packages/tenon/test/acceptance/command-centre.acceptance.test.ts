@@ -25,8 +25,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// P7 · Command Centre (implementations/notes-command-centre/implementation.md, AC-7.2, AC-7.5, AC-7.6)
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
   [
@@ -217,7 +215,6 @@ describe("Command Centre", () => {
       const { commandDirectory, command } = yield* setup
       const folder = path.join(commandDirectory, "memory")
       yield* Effect.promise(() => mkdir(folder, { recursive: true }))
-      // 450 summaries span three index inserts; the last one written is the only "zebra" match.
       yield* Effect.promise(() =>
         Promise.all(
           Array.from({ length: 450 }, (_, index) =>
@@ -268,20 +265,16 @@ describe("Command Centre", () => {
           yield* sessions.updatePart({ id: partID, sessionID: survey.id, messageID, type: "text", text })
         })
       yield* write("Count the kestrel nests by the quarry.")
-      // A thread written in the millisecond a search reads it is read again by the next search; step past it
-      // so the second search below can show an unchanged thread isn't.
       yield* Effect.sleep("2 millis")
 
       const first = yield* CommandMemory.search("kestrel").pipe(counted)
       expect(first.map((hit) => hit.sessionID)).toEqual([survey.id])
       expect(reads.toSorted()).toEqual([command.id, survey.id].toSorted())
 
-      // Nothing changed, so nothing is read again.
       reads.length = 0
       expect((yield* CommandMemory.search("kestrel").pipe(counted)).map((hit) => hit.sessionID)).toEqual([survey.id])
       expect(reads).toEqual([])
 
-      // An in-place edit and a rename: the new text matches, the old no longer does, and only that thread is read.
       yield* write("Count the osprey nests by the quarry.")
       yield* sessions.setTitle({ sessionID: survey.id, title: "Osprey survey" })
       expect(yield* CommandMemory.search("kestrel").pipe(counted)).toEqual([])
@@ -291,7 +284,6 @@ describe("Command Centre", () => {
       expect(osprey[0]).toMatchObject({ sessionID: survey.id })
       expect(osprey[0]?.text).toBe("Osprey survey\n\nCount the osprey nests by the quarry.")
 
-      // A removed thread no longer matches.
       yield* sessions.remove(survey.id)
       expect(yield* CommandMemory.search("osprey")).toEqual([])
       expect((yield* CommandMemory.search("billing")).map((hit) => hit.sessionID)).toEqual([command.id])
@@ -319,7 +311,6 @@ describe("Command Centre", () => {
           } as never)
           yield* sessions.updatePart({ id: partID, sessionID: thread.id, messageID, type: "text", text })
         })
-      // Every write and search below happens in one frozen millisecond.
       const now = Date.now()
       const clock = spyOn(Date, "now").mockReturnValue(now)
       yield* Effect.gen(function* () {
@@ -359,7 +350,6 @@ describe("Command Centre", () => {
       const result = yield* CommandMemory.compact({
         now: Date.now() + 50 * DAY,
         days: 45,
-        // A search that waited for the compaction to end would hang here.
         summarize: (thread) => CommandMemory.search("billing").pipe(Effect.as(`Summary: ${thread.title}`)),
       })
       expect(result).toMatchObject({ summarised: 1, deleted: 1 })
@@ -387,7 +377,6 @@ describe("Command Centre", () => {
         headers,
         body: JSON.stringify({ days: 45 }),
       }).pipe(Effect.flatMap(json<{ summarised: number; deleted: number }>))
-      // Nothing is older than 45 days yet.
       expect(compacted).toMatchObject({ summarised: 0, deleted: 0 })
     }),
   )
@@ -399,7 +388,6 @@ describe("Command Centre", () => {
       expect(commandTools).toContain("memory_search")
       expect(commandTools).toContain("project_setup")
       const projectTools = AgentAppTools.list({ sessionID: projectThread.id }).map((tool) => tool.name)
-      // Since 2026-11-19 any thread can set up a Project and start a thread in it; memory stays the Command Centre's.
       expect(projectTools).toContain("project_setup")
       expect(projectTools).not.toContain("memory_search")
       const write = (yield* AgentAppTools.call(
@@ -454,7 +442,6 @@ describe("Command Centre", () => {
         expect(refused.isError).toBe(true)
         expect(yield* Effect.promise(() => readdir(busy))).toEqual(["keep.txt"])
 
-        // A folder that can't be listed is refused, not treated as missing and later removed.
         const file = path.join(test.directory, "a-file")
         yield* Effect.promise(() => writeFile(file, "mine"))
         const unreadable = (yield* AgentAppTools.call(

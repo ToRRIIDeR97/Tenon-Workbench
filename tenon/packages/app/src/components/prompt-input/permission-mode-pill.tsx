@@ -18,10 +18,6 @@ const MODES = [
   { id: "full", label: "secondBrain.permissionMode.full", detail: "secondBrain.permissionMode.full.detail" },
 ] as const
 
-/**
- * Ask, Auto-edit or Full auto for the open thread, or for its folder before the thread exists. Every harness
- * routes its approvals through Tenon, so one switch covers the built-in agent, Claude Code, Codex and ACP agents.
- */
 export function PermissionModePill() {
   const permission = usePermission()
   const sdk = useSDK()
@@ -34,14 +30,9 @@ export function PermissionModePill() {
   )
 }
 
-/**
- * The mode menu on its own: the current mode as a pill that opens Ask, Auto-edit and Full auto. The caller owns
- * the state (`usePermission`), so the Command Centre can show one per Project folder.
- */
 export function PermissionModeControl(props: {
   mode: PermissionMode
   onPick: (mode: PermissionMode) => void
-  /** Names what the mode applies to; defaults to "Permissions". */
   label?: string
 }) {
   const language = useLanguage()

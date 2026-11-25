@@ -61,7 +61,6 @@ export function convertTool(mcpTool: MCPToolDef, client: Client, timeout?: numbe
           resetTimeoutOnProgress: true,
           signal: options.abortSignal,
           timeout,
-          // The MCP SDK only sends a progress token when this hook is present, enabling timeout resets.
           onprogress: () => {},
         },
       )
@@ -101,7 +100,6 @@ export function fetch<T extends { name: string }>(
     ),
     Effect.map((items) => {
       const sanitizedClient = sanitize(clientName)
-      // Escape both the separator and escape marker so `server:uri` keys remain unambiguous.
       const resourceClient = clientName.replaceAll("%", "%25").replaceAll(":", "%3A")
       return Object.fromEntries(
         items.map((item) => [

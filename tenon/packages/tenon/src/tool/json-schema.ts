@@ -10,7 +10,6 @@ export function fromSchema(schema: Schema.Top): JSONSchema7 {
   const cached = cache.get(schema)
   if (cached) return cached
 
-  // Effect 4.1 leaves object schemas open (additionalProperties: true) by default.
   const document = Schema.toJsonSchemaDocument(schema)
   const result = normalize(
     emptyStructsAsObjects({

@@ -8,7 +8,6 @@ export type ID = typeof ID.Type
 export const VariantID = Model.VariantID
 export type VariantID = typeof VariantID.Type
 
-// Grouping of models, eg claude opus, claude sonnet
 export const Family = Model.Family
 export type Family = Model.Family
 

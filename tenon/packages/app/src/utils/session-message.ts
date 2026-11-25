@@ -25,7 +25,6 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeToolInput(name: string, input: Record<string, unknown>) {
-  // ACP edits render with the edit view, which reads `filePath`.
   if (
     !["edit", "write", "acp_edit"].includes(name) ||
     typeof input.path !== "string" ||
@@ -50,7 +49,6 @@ function normalizeToolMetadata(name: string, metadata: Record<string, unknown>) 
   }
 }
 
-/** True for entries that start a turn: the normalized output from here on doesn't depend on earlier turns. */
 export function isTurnStart(message: SessionMessageInfo) {
   return (
     message.type === "user" ||
@@ -59,11 +57,6 @@ export function isTurnStart(message: SessionMessageInfo) {
   )
 }
 
-/**
- * `from`, when set, must be a turn start (see `isTurnStart`). Entries before it only carry the agent and
- * model forward, so streaming can normalize the active turn instead of the whole session.
- * `partsFor`, when set, limits the parts built to those messages; every entry is still walked.
- */
 export function normalizeSessionMessages(
   sessionID: string,
   source: readonly SessionMessageInfo[],
@@ -240,8 +233,6 @@ function userParts(sessionID: string, message: SessionMessageUser): Part[] {
   return [
     textPart(sessionID, message.id, 0, message.text),
     ...(message.files ?? []).map((file, index): FilePart => {
-      // Servers send either { uri, source: mention } or the older { source: { type: "uri" }, data, mention }.
-      // An attachment the server added (a referenced thread) has no mention at all.
       const raw = file as unknown as {
         uri?: string
         data?: string
@@ -292,7 +283,6 @@ function assistantMessage(
   parentID: string,
   message: SessionMessageAssistant,
 ): AssistantMessage & { harnessInstanceID: string; contextWindow?: number; contextUsed?: number } {
-  // Core's runner ends a stopped turn with an "unknown" error worded "Provider turn interrupted" (runner/llm.ts).
   const error = message.error
     ? message.error.type.toLowerCase().includes("abort") ||
       message.error.type.toLowerCase().includes("interrupt") ||
@@ -323,11 +313,6 @@ function assistantMessage(
   }
 }
 
-/**
- * An assistant part's ID. The stores order a message's parts by ID, so it leads with the part's place in the
- * message's content. A harness turn keeps reasoning, text and tool calls in one message, and their own IDs
- * (`acp-reasoning-1`, a tool call's UUID) don't sort in the order they happened. The tool's call ID stays `callID`.
- */
 export function assistantPartID(messageID: string, position: number) {
   return `${messageID}:${String(position).padStart(5, "0")}`
 }
@@ -373,7 +358,6 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
   const start = tool.time.ran ?? tool.time.created
   const state = (() => {
     if (tool.state.status === "streaming") {
-      // Input arrives a fragment at a time; heal it so a write's path and content show while they stream.
       const value = parsePartialJson(tool.state.input)
       const input = normalizeToolInput(tool.name, record(value) ? value : {})
       return { status: "pending" as const, input, raw: tool.state.input }
@@ -382,7 +366,6 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
       return {
         status: "running" as const,
         input: normalizeToolInput(tool.name, tool.state.input),
-        // metadata: normalizeToolMetadata(tool.name, tool.state.structured),
         metadata: normalizeToolMetadata(tool.name, tool.state.metadata ?? {}),
         time: { start },
       }
@@ -392,7 +375,6 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
         status: "error" as const,
         input: normalizeToolInput(tool.name, tool.state.input),
         error: tool.state.error.message,
-        // metadata: normalizeToolMetadata(tool.name, tool.state.structured),
         metadata: { ...normalizeToolMetadata(tool.name, tool.state.metadata ?? {}), ...tenonBlocked(tool) },
         time: { start, end: tool.time.completed ?? start },
       }
@@ -420,7 +402,6 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
         : normalizeToolInput(tool.name, tool.state.input),
       output: tool.state.content.flatMap((item) => (item.type === "text" ? [item.text] : [])).join("\n"),
       title: tool.name,
-      // metadata: normalizeToolMetadata(tool.name, tool.state.structured),
       metadata: edit
         ? {
             ...normalizeToolMetadata(tool.name, tool.state.metadata ?? {}),
@@ -448,7 +429,6 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
   }
 }
 
-/** The one diff an ACP edit reported, for the edit view; an edit of several files keeps the generic view. */
 function acpEdit(tool: SessionMessageAssistantTool) {
   if (tool.name !== "acp_edit") return undefined
   const diffs = acpPick(tool, (acp) => (Array.isArray(acp.diffs) ? acp.diffs.filter(record) : undefined))
@@ -461,12 +441,10 @@ function acpEdit(tool: SessionMessageAssistantTool) {
   }
 }
 
-/** Steps an ACP subagent ran: live checkpoints while it runs, the final list once it settles. */
 function acpSteps(tool: SessionMessageAssistantTool) {
   return acpPick(tool, (acp) => (Array.isArray(acp.steps) ? acp.steps : undefined))
 }
 
-/** An ACP subagent's conversation, usage and truncation flag, picked like its steps. */
 function acpSubagent(tool: SessionMessageAssistantTool) {
   return acpPick(tool, (acp) =>
     Array.isArray(acp.transcript)
@@ -479,10 +457,8 @@ function acpSubagent(tool: SessionMessageAssistantTool) {
   )
 }
 
-/** Reads the `acp` metadata from the settled result, else from the live checkpoint while the call runs. */
 function acpPick<T>(tool: SessionMessageAssistantTool, pick: (acp: Record<string, unknown>) => T | undefined) {
   const from = (value: unknown) => (record(value) && record(value.acp) ? pick(value.acp) : undefined)
-  // The vendored client types predate `provider` and `structured`, which the server does send.
   const loose: unknown = tool
   if (!record(loose)) return undefined
   return (
@@ -491,7 +467,6 @@ function acpPick<T>(tool: SessionMessageAssistantTool, pick: (acp: Record<string
   )
 }
 
-/** Tenon's note that it blocked a harness call without asking (core `markBlocked`), as the part's `blocked`. */
 function tenonBlocked(tool: SessionMessageAssistantTool) {
   const loose: unknown = tool
   const metadata = record(loose) && record(loose.provider) ? loose.provider.resultMetadata : undefined

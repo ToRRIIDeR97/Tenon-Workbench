@@ -110,13 +110,6 @@ function errorText(error: unknown) {
   return String(error)
 }
 
-/**
- * Makes one scoped, process-local registry. Entries are intentionally not
- * durable: process restart or owner-scope closure loses status and interrupts
- * live work. Persisted observation, restart recovery, and remote workers need a
- * separate durable ownership slice rather than pretending this registry has
- * those semantics.
- */
 export const make = Effect.gen(function* () {
   const state: State = {
     jobs: yield* SynchronizedRef.make(new Map()),

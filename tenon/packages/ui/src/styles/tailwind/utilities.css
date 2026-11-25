@@ -3,12 +3,11 @@
     display: none;
   }
   & {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
-/* Duration comes from --default-transition-duration (short) unless the caller sets duration-*. */
 @utility hover-reveal {
   @apply opacity-0 transition-opacity ease-standard;
 
@@ -17,9 +16,6 @@
   }
 }
 
-/* Enter: fade + 4px rise, medium + emphasized-decelerate. Exit: fade, short + ease-exit.
-   Under reduced motion both resolve to `animation: none`, so the end state shows at once and
-   presence-based unmounting (Kobalte, solid-presence) does not wait. */
 @utility animate-enter {
   animation: v2-motion-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
 
@@ -36,9 +32,6 @@
   }
 }
 
-/* Hand-rolled popups (a dropdown that is not a Kobalte menu): the MenuV2 motion. Enter scales up from .92
-   (short + emphasized-decelerate); exit fades and shrinks to .96 (exit-small + ease-exit). Set the transform
-   origin (`origin-top-left`) to where the popup opens from. */
 @utility animate-menu-enter {
   animation: v2-motion-menu-enter var(--v2-duration-short) var(--v2-ease-emphasized-decelerate) both;
 
@@ -100,8 +93,6 @@
   text-align: left;
 }
 
-/* Staggered text reveal (keyframes in animations.css): each child enters 100ms after the previous one,
-   medium + emphasized-decelerate. Under reduced motion the text shows at once. */
 @utility fade-up-text {
   animation: fadeUp var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) forwards;
   opacity: 0;
@@ -203,8 +194,6 @@
   }
 }
 
-/* Type roles (readability pass). Pair each with one text colour: section and row-title use text-base,
-   body and meta use text-muted; text-faint is for placeholders only. Nothing in the app goes below caption. */
 @utility type-display {
   font-size: 26px;
   line-height: 32px;

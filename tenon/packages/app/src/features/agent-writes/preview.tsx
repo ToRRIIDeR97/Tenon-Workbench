@@ -10,14 +10,8 @@ import {
   type TimelinePreview,
 } from "./store"
 
-/**
- * The shared preview of one agent write, used by the inline card, the pill and the step list. While
- * `typing` is set (a write in progress, motion allowed) note and email text appear as if typed; with
- * reduced motion the final content shows at once.
- */
 export function AgentWritePreview(props: { kind: Kind; preview: unknown; typing?: boolean }) {
   const language = useLanguage()
-  // Reduced motion never types: the final text is there from the first render.
   const reduced = prefersReducedMotion()
   const typing = () => Boolean(props.typing) && !reduced
   const value = () =>
@@ -29,7 +23,6 @@ export function AgentWritePreview(props: { kind: Kind; preview: unknown; typing?
           <NoteBody preview={value() as NotePreview} typing={typing()} />
         </Match>
         <Match when={props.kind === "tasks"}>
-          {/* A group of rows, not a list: the Command Centre's step list owns the list items around it. */}
           <div role="group" class="flex flex-col gap-1" aria-label={language.t("secondBrain.agentWrites.kind.tasks")}>
             <For each={(value() as TasksPreview).tasks ?? []}>
               {(task) => (
@@ -109,7 +102,6 @@ function EmailDraft(props: { preview: EmailPreview; typing?: boolean }) {
   )
 }
 
-/** One bar per item across the items' date range; items without dates span the whole row. */
 function TimelineBars(props: { preview: TimelinePreview }) {
   const items = () => props.preview.items ?? []
   const range = () => {
@@ -158,7 +150,6 @@ function TimelineBars(props: { preview: TimelinePreview }) {
   )
 }
 
-/** `text` revealed a few characters per frame while `typing` holds, in at most about a second. */
 function useTyped(text: () => string, typing: () => boolean | undefined) {
   const [shown, setShown] = createSignal(typing() ? "" : text())
   createEffect(

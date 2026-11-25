@@ -3,7 +3,6 @@ import { parsePartialJson } from "../../../../tenon/packages/app/src/utils/parti
 import { normalizeSessionMessages } from "../../../../tenon/packages/app/src/utils/session-message"
 import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 
-// AC-1: a tool's half-written JSON input heals into the fields seen so far.
 describe("AC-1 parsePartialJson", () => {
   test.each([
     ['{"path":"docs/a.md","content":"# Ti', { path: "docs/a.md", content: "# Ti" }],
@@ -26,7 +25,6 @@ describe("AC-1 parsePartialJson", () => {
   })
 })
 
-// AC-2: streaming write/edit tool parts expose their fields before the input is complete.
 describe("AC-2 streaming tool input in session parts", () => {
   const part = (name: string, raw: string) =>
     normalizeSessionMessages("ses_1", [

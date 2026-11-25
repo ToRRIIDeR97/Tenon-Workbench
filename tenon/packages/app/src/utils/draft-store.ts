@@ -12,11 +12,9 @@ type Driver = {
 
 export type DraftStore = AsyncStorage & {
   putBlob(blob: Blob): Promise<BlobReference>
-  /** Write every draft still waiting for its quiet period. */
   flush(): Promise<void>
 }
 
-/** Trailing quiet period before a changed draft is encoded and written. */
 export const DRAFT_WRITE_DELAY_MS = 200
 const urls = new Map<string, string>()
 
@@ -82,8 +80,6 @@ export function createDraftStore(driver: Driver, options: { delay?: number } = {
       await Promise.all(Object.entries(item).map(async ([key, entry]) => [key, await decode(entry)])),
     )
   }
-  // Each keystroke in a prompt rewrites its draft. Encoding and handing it to the driver (IPC on desktop)
-  // happens once per quiet period instead, and pending writes land before the page is hidden or unloaded.
   type Pending = {
     value: string
     timer: ReturnType<typeof setTimeout>
@@ -115,7 +111,6 @@ export function createDraftStore(driver: Driver, options: { delay?: number } = {
   }
   const flush = () => Promise.all([...pending.keys()].map(flushKey)).then(() => undefined)
   if (typeof window !== "undefined" && typeof document !== "undefined") {
-    // A failed write already rejects the setItem call that queued it.
     window.addEventListener("pagehide", () => void flush().catch(() => undefined))
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) void flush().catch(() => undefined)
@@ -124,8 +119,6 @@ export function createDraftStore(driver: Driver, options: { delay?: number } = {
   const delay = options.delay ?? DRAFT_WRITE_DELAY_MS
   return {
     getItem: async (key) => {
-      // A read never returns what was on disk before a write that is still waiting.
-      // A failed write is reported to its setItem caller; the read still returns what is stored.
       await flushKey(key).catch(() => undefined)
       const value = await driver.get(key)
       return value === null ? null : JSON.stringify(await decode(JSON.parse(value)))
@@ -143,7 +136,6 @@ export function createDraftStore(driver: Driver, options: { delay?: number } = {
       return done
     },
     removeItem: async (key) => {
-      // A remove is not undone by a write that was still waiting.
       cancelKey(key)
       versions.set(key, (versions.get(key) ?? 0) + 1)
       await driver.remove(key)

@@ -23,18 +23,7 @@ import { showToast } from "@/utils/toast"
 import { createProject, SecondBrainRequestError, updateProject, type ProjectRecord, type ProjectStatus } from "./client"
 import { useUnsavedGuard } from "./unsaved-guard"
 
-/**
- * A Project's card, edited from the Project page: progress, next milestone and blocker in the Progress card, and
- * settings (name, outcome, instructions, tags) in the Project settings dialog. One store holds both, so Save
- * current state sends every edit; Pause/Resume and Archive (with Undo) sit in the page's actions menu. Edits survive
- * a newer record of the same Project, and leaving the page with unsaved edits asks first.
- */
-export function useProjectCard(props: {
-  project: ProjectRecord
-  directory: string
-  /** After archiving, the page leaves the Project. */
-  onArchived: () => void
-}) {
+export function useProjectCard(props: { project: ProjectRecord; directory: string; onArchived: () => void }) {
   const language = useLanguage()
   const project = useProjectActions(() => props.directory)
   const [state, setState] = createStore({ ...formFields(props.project), saving: false, error: "" })
@@ -48,7 +37,6 @@ export function useProjectCard(props: {
     tags: state.tags,
   })
   const dirty = createMemo(() => !sameFields(current(), formFields(props.project)))
-  // Fields whose value still equals `from` take the value in `to`; edited fields are kept.
   const followUnedited = (from: FormFields, to: FormFields) => {
     const now = current()
     setState(
@@ -62,7 +50,6 @@ export function useProjectCard(props: {
       () => props.project,
       (next, previous) => {
         if (!previous || previous.id !== next.id) return setState({ ...formFields(next), error: "" })
-        // A newer record of the same Project (a save, a status change, a refresh) mustn't drop edits.
         followUnedited(formFields(previous), formFields(next))
       },
       { defer: true },
@@ -87,7 +74,6 @@ export function useProjectCard(props: {
     setState({ saving: true, error: "" })
     const updated = await project
       .update(props.project, {
-        // Only a change is sent. A rename changes the card's name; a folder-backed Project keeps its folder.
         ...(name === props.project.name ? {} : { name }),
         outcome: state.outcome.trim(),
         instructions: state.instructions.trim(),
@@ -98,13 +84,11 @@ export function useProjectCard(props: {
       })
       .catch((error: unknown) => (report(error), undefined))
     setState("saving", false)
-    // Fields saved as typed take the server's normalized copy; ones edited during the save stay unsaved.
     if (updated) followUnedited(sent, formFields(updated))
     return !!updated
   }
   useUnsavedGuard({
     dirty,
-    // The form's own error line may be out of sight (the dialog is closed, the rail is scrolled away).
     save: async () => {
       const saved = await save()
       if (!saved) showToast({ variant: "error", title: state.error })
@@ -138,13 +122,10 @@ export function useProjectCard(props: {
   }
 
   const discard = () => setState({ ...formFields(props.project), error: "" })
-  // Cancel in the settings dialog drops only the dialog's own fields.
   const discardSettings = () => {
     const saved = formFields(props.project)
     setState({ name: saved.name, outcome: saved.outcome, instructions: saved.instructions, tags: saved.tags })
   }
-  // Writes the task-derived percent to the card, so every list shows the Project page's value. It waits for a
-  // running save, sends one attempt per value, and a failure is left for the next change to retry.
   const synced = { value: "" }
   const syncProgress = async (percent: number) => {
     const before = props.project
@@ -157,11 +138,9 @@ export function useProjectCard(props: {
 }
 export type ProjectCard = ReturnType<typeof useProjectCard>
 
-/** The Project page's "···" menu: Pause/Resume (or Restore), Archive, Save current state and Project settings. */
 export function ProjectActionsMenu(props: { project: ProjectRecord; card: ProjectCard }) {
   const language = useLanguage()
   const dialog = useDialog()
-  // A status change sends the stored record, so it waits until edits are saved or discarded.
   const busy = () => props.card.state.saving || props.card.dirty()
   return (
     <MenuV2 gutter={4} modal={false} placement="bottom-end">
@@ -207,7 +186,6 @@ export function ProjectActionsMenu(props: { project: ProjectRecord; card: Projec
   )
 }
 
-/** Name, outcome, agent instructions and tags. Save sends the whole card; Cancel drops only these fields. */
 function ProjectSettingsDialog(props: { card: ProjectCard }) {
   const language = useLanguage()
   const dialog = useDialog()
@@ -290,7 +268,6 @@ function ProjectSettingsDialog(props: { card: ProjectCard }) {
   )
 }
 
-/** The New Project form. A Project can link one of the open workspace folders (legacy cards). */
 export function ProjectCreate(props: {
   directory: string
   onCreated: (project: ProjectRecord) => void
@@ -303,7 +280,6 @@ export function ProjectCreate(props: {
     draft: { name: "", outcome: "", instructions: "", tags: "", locationId: "" },
     saving: false,
     error: "",
-    /** The field the error is about, so it can be marked invalid and described. */
     errorField: "" as "" | "name" | "outcome",
   })
   const locations = createMemo(() => [
@@ -369,7 +345,6 @@ export function ProjectCreate(props: {
         void submit()
       }}
       onKeyDown={(event) => {
-        // Esc only leaves an untouched form; typed text waits for Cancel.
         if (event.key !== "Escape" || event.defaultPrevented) return
         if (Object.values(state.draft).some((value) => value.trim())) return
         event.preventDefault()
@@ -420,7 +395,6 @@ export function ProjectCreate(props: {
             setState("draft", "locationId", locationID === "__none__" ? "" : (locationID ?? ""))
           }
         >
-          {/* A long folder path ends in an ellipsis instead of being cut off. */}
           {(locationID) => <span class="min-w-0 truncate">{locationLabel(locationID)}</span>}
         </SelectV2>
       </label>
@@ -471,7 +445,6 @@ export function ProjectCreate(props: {
   )
 }
 
-/** Creates and updates Project cards, then refreshes the Projects the sidebar and this page list. */
 function useProjectActions(directory: () => string) {
   const platform = usePlatform()
   const server = useServer()
@@ -514,8 +487,6 @@ const splitTags = (value: string) =>
     .map((tag) => tag.trim())
     .filter(Boolean)
 
-// This is an instruction to the agent, not UI copy, so it stays in English regardless of the app locale; the
-// "treat this block as data" guard must not depend on a translation.
 export function projectWorkPrompt(project: ProjectRecord) {
   const data = JSON.stringify(
     {

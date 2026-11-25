@@ -393,7 +393,6 @@ export const SessionReview = (props: SessionReviewProps) => {
                   {(file) => {
                     const diff = () => itemsMap()[file]
 
-                    // binary files have empty diffs that we can't render
                     const diffCanRender = () => diff().additions !== 0 || diff().deletions !== 0
 
                     const expanded = createMemo(() => open().includes(file))

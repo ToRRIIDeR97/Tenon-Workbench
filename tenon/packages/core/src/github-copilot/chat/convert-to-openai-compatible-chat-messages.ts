@@ -82,7 +82,6 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV3Pro
 
         for (const part of content) {
           const partMetadata = getOpenAIMetadata(part)
-          // Check for reasoningOpaque on any part (may be attached to text/tool-call)
           const partOpaque = (part.providerOptions as { copilot?: { reasoningOpaque?: string } })?.copilot
             ?.reasoningOpaque
           if (partOpaque && !reasoningOpaque) {

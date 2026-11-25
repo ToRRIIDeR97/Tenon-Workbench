@@ -35,7 +35,6 @@ describe("verify AC-9 / AC-10 harness skill discovery", () => {
       ["oc-global", "global"],
       ["shared", "global"],
       ["nested", "project"],
-      // OpenCode also reads the project's .agents/skills, shared with Codex.
       ["proj-codex", "project"],
     ])
   })

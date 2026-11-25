@@ -10,7 +10,6 @@ const parentID = "ses_subagent_parent"
 const childID = "ses_subagent_child"
 const parentTitle = "Parent session"
 const childTitle = "Subagent child session"
-// Child session pages derive their heading from the task part that spawned them.
 const taskDescription = "Inspect child navigation"
 
 type EventPayload = { directory: string; payload: Record<string, unknown> }
@@ -73,8 +72,6 @@ async function setup(page: Page, events?: () => EventPayload[]) {
     events,
     eventRetry: events ? 16 : undefined,
   })
-  // The child session resolves by ID but is absent from the session list,
-  // matching a subagent session that has not been loaded into the list cache yet.
   await page.route(
     (url) => url.pathname === "/api/session" && url.port === (process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"),
     (route) =>
@@ -96,7 +93,6 @@ async function openChildFromParent(page: Page) {
   await expectSessionTitle(page, parentTitle)
   await expandTurnSteps(page)
 
-  // The side panel's Agents section lists the subagent; its child thread opens from the agent's detail.
   await page.locator('[data-component="session-side-rail"]').getByRole("tab", { name: "Agents" }).click()
   const panel = page.locator("#review-panel")
   await panel.getByRole("button", { name: new RegExp(taskDescription) }).click()

@@ -11,13 +11,6 @@ import { SessionID, MessageID, PartID } from "../../src/session/schema"
 import { ProjectV2 } from "@tenon/core/project"
 import { WorkspaceV2 } from "@tenon/core/workspace"
 
-// Covers the session-domain Effect Schema migration. For each migrated
-// schema we assert:
-//   1. The Effect decoder (`Schema.decodeUnknownSync`) accepts valid input.
-//   2. Clearly-invalid input is rejected.
-
-// Representative valid IDs — the branded schemas require the right prefix
-// (see src/id/id.ts).
 const sessionID = Schema.decodeUnknownSync(SessionID)("ses_01J5Y5H0AH4Q4NXJ6P4C3P5V2K")
 const sessionIDChild = Schema.decodeUnknownSync(SessionID)("ses_01J5Y5H0AH4Q4NXJ6P4C3P5V2L")
 const messageID = Schema.decodeUnknownSync(MessageID)("msg_01J5Y5H0AH4Q4NXJ6P4C3P5V2M")
@@ -169,7 +162,6 @@ describe("Session input schemas", () => {
     const decode = decodeUnknown(Session.ForkInput)
     const input = { sessionID, messageID }
     expect(decode(input)).toEqual(input)
-    // messageID is optional
     const bare = { sessionID }
     expect(decode(bare)).toEqual(bare)
   })

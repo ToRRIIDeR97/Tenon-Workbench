@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { openApp } from "./open-app"
 
-// P9 · Routines, AC-9.5 (implementations/notes-command-centre/implementation.md)
-
 const routines = [
   {
     id: "r_brief",

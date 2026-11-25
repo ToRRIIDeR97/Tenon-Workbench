@@ -10,8 +10,6 @@ afterEach(async () => {
   await resetDatabase()
 })
 
-// Reads the SSE stream until a marker event appears, emitting a sync copy
-// before each marker.
 async function readUntilMarker(headers: Record<string, string>) {
   const controller = new AbortController()
   const response = await Server.Default().app.request("/global/event", { headers, signal: controller.signal })
@@ -19,8 +17,6 @@ async function readUntilMarker(headers: Record<string, string>) {
   const reader = response.body!.getReader()
   const decoder = new TextDecoder()
   let text = ""
-  // `server.connected` is written before the bus subscription starts, so keep
-  // emitting until the marker comes back.
   const emit = () => {
     GlobalBus.emit("event", {
       directory: "global",

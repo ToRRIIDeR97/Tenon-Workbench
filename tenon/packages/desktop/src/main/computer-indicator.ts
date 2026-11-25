@@ -4,11 +4,6 @@ import { glowPage, indicatorPage, notifyStop } from "./computer-indicator-page"
 
 export { watch } from "./computer-indicator-page"
 
-// The on-screen sign that an agent is using the computer (#333): a small always-on-top pill at the bottom of the
-// display under the cursor with Stop, shown while Cua Driver actions run and gone a few quiet seconds after the last. Stop reaches the
-// server through `computer_watch`, which the server holds open while computer use is active. A Tenon-blue glow frames
-// the same display meanwhile; it lets every click through, so it never gets in the agent's or the user's way.
-
 const QUIET_MS = 5_000
 const state = {
   window: undefined as BrowserWindow | undefined,
@@ -32,7 +27,6 @@ function ensure() {
     show: false,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true },
   })
-  // Over full-screen apps too, so Stop is reachable from whatever the agent is driving.
   window.setAlwaysOnTop(true, "screen-saver")
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   window.webContents.on("page-title-updated", (event, title) => {
@@ -75,10 +69,6 @@ function hide() {
   if (state.glow && !state.glow.isDestroyed()) state.glow.hide()
 }
 
-/**
- * `computer_indicator`: an action started (show the pill and keep it), the last action ended (`idle`: hide after a
- * quiet moment), or computer use stopped (hide now). The pill opens on the display under the cursor.
- */
 export function indicate(args: Record<string, unknown>, dark: boolean) {
   clearTimeout(state.timer)
   if (args.active !== true) {
@@ -95,7 +85,6 @@ export function indicate(args: Record<string, unknown>, dark: boolean) {
     state.harness = harness
     const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
     const area = display.workArea
-    // The glow goes up first, so the pill (and its Stop) stays above it.
     const glow = ensureGlow()
     glow.setBounds(display.bounds)
     glow.showInactive()

@@ -118,7 +118,6 @@ export function addCommandRegistration(registrations: CommandRegistration[], ent
   return [entry, ...registrations]
 }
 
-/** Every active command, one per ID. The newest registration of an ID wins, so a page shadows the sidebar's default. */
 export function resolveCommandOptions(registrations: CommandRegistration[], onDuplicate?: (id: string) => void) {
   const seen = new Set<string>()
   return activeCommandRegistrations(registrations)
@@ -260,7 +259,6 @@ export function formatKeybind(config: string, t?: (key: KeyLabel) => string): st
   return IS_MAC ? parts.join("") : parts.join("+")
 }
 
-// KeybindV2 takes an array instead of a string
 export function formatKeybindKeys(config: string, t?: (key: KeyLabel) => string): string[] {
   return formatKeybindParts(config, t)
 }
@@ -273,7 +271,6 @@ function isEditableTarget(target: EventTarget | null) {
   return false
 }
 
-/** `when` guard for global shortcuts that must not override a text field's own handling (e.g. mod+z). */
 export const outsideEditable = (event: KeyboardEvent) => !isEditableTarget(event.target)
 
 export const { use: useCommand, provider: CommandProvider } = createSimpleContext({
@@ -303,7 +300,6 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
 
     const registered = createMemo(() =>
       resolveCommandOptions(store.registrations, (id) => {
-        // Pages shadow the sidebar's default palette on purpose.
         if (!import.meta.env.DEV || id === PALETTE_ID || warnedDuplicates.has(id)) return
         warnedDuplicates.add(id)
         console.warn(`[command] duplicate command id "${id}" registered; keeping first entry`)

@@ -39,7 +39,6 @@ describe("tracked edits", () => {
     expect(new Set(keys).size).toBe(2)
     const undone = revertHunk(after, hunks[0])
     expect(hunkKeys(trackedHunks(base, undone))).toEqual([keys[1]])
-    // A change that adds lines moves the ones below it in the new text but not in the base.
     const grown = "x\nA\nA2\ny\nA\nz"
     const [, second] = hunkKeys(trackedHunks(base, grown))
     expect(second).toBe(keys[1])

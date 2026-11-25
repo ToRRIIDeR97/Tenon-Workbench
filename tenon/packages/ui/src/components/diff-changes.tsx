@@ -56,7 +56,6 @@ export function DiffChanges(props: {
     let added = adds > 0 ? Math.max(1, Math.round(added_raw)) : 0
     let deleted = dels > 0 ? Math.max(1, Math.round(deleted_raw)) : 0
 
-    // Cap bars based on actual change magnitude
     if (adds > 0 && adds <= 5) added = Math.min(added, 1)
     if (adds > 5 && adds <= 10) added = Math.min(added, 2)
     if (dels > 0 && dels <= 5) deleted = Math.min(deleted, 1)
@@ -105,7 +104,6 @@ export function DiffChanges(props: {
             </svg>
           </Match>
           <Match when={variant() === "default"}>
-            {/* A side with nothing changed says nothing. */}
             <Show when={additions() > 0}>
               <span data-slot="diff-changes-additions">{`+${additions()}`}</span>
             </Show>

@@ -20,7 +20,6 @@ export type Scope = {
 export interface Interface {
   issue(input: Scope): Effect.Effect<typeof ConnectToken.Type>
   consume(input: Scope & { readonly ticket: string }): Effect.Effect<boolean>
-  /** Whether an unexpired ticket exists for this PTY, without consuming it. Auth checks it before routing. */
   check(input: { readonly ticket: string; readonly ptyID: string }): Effect.Effect<boolean>
 }
 
@@ -32,11 +31,8 @@ function matches(record: Scope, input: Scope) {
   )
 }
 
-// Tickets are inserted via Cache.set and removed atomically via invalidateWhen. The lookup is
-// never invoked; it dies if it ever is, which would signal a misuse of the Service interface.
 const noLookup = () => Effect.die("PtyTicket cache must be used via set/invalidateWhen, never get")
 
-// Visible for tests so the TTL can be shortened. Production uses `layer` with the default TTL.
 export const make = (ttl: Duration.Input = DEFAULT_TTL) =>
   Effect.gen(function* () {
     const cache = yield* Cache.make<string, Scope>({ capacity: CAPACITY, lookup: noLookup, timeToLive: ttl })

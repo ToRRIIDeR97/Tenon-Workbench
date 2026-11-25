@@ -1,5 +1,3 @@
-// P2 · Dictation, AC-2.1 (implementations/notes-command-centre/implementation.md).
-// Drives the real binary over stdio; needs no microphone and no model.
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -32,7 +30,6 @@ fn unknown_requests_get_bad_request_and_the_engine_keeps_running() {
     assert_eq!(error["code"], "bad_request");
     assert_eq!(error["id"], "1");
 
-    // Still alive: a stop without a recording is answered, not a crash.
     writeln!(stdin, r#"{{"id":"2","type":"stop"}}"#).unwrap();
     let answer = read_event(&mut lines, "error");
     assert_eq!(answer["id"], "2");

@@ -23,12 +23,6 @@ export const MAX_NUM_RESULTS = 20
 export const MAX_CONTEXT_CHARACTERS = 50_000
 export const MAX_RESPONSE_BYTES = 256 * 1024
 
-/**
- * Provider-independent local web search retained in V2 core for launch parity.
- * This invokes the legacy Exa/Parallel product backends itself. It is distinct
- * from provider-hosted web search tools, which remain route-owned and execute
- * at the model provider. Ownership of this compromise can be revisited later.
- */
 export const description = `Search the web using the session's local web search provider. Use this for current information beyond knowledge cutoff.
 
 This is a provider-independent local tool backed by Exa or Parallel. Provider-hosted web search tools are separate and execute at the model provider.
@@ -69,7 +63,6 @@ export interface Config {
 
 export class ConfigService extends Context.Service<ConfigService, Config>()("@tenon/v2/WebSearchConfig") {}
 
-/** Isolates the retained product environment contract from the generic tool implementation. */
 export const defaultConfigLayer = Layer.sync(ConfigService, () =>
   ConfigService.of({
     provider:
@@ -234,7 +227,6 @@ const layer = Layer.effectDiscard(
                         objective: input.query,
                         search_queries: [input.query],
                         session_id: context.sessionID,
-                        // V2 invocation context does not safely expose the model yet.
                       },
                       {
                         "User-Agent": `opencode/${InstallationVersion}`,

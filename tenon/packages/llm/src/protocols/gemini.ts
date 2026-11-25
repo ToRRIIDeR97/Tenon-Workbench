@@ -26,9 +26,6 @@ const ADAPTER = "gemini"
 const MEDIA_MIMES = new Set<string>(ProviderShared.MEDIA_MIMES)
 export const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-// =============================================================================
-// Request Body Schema
-// =============================================================================
 const GeminiTextPart = Schema.Struct({
   text: Schema.String,
   thought: Schema.optional(Schema.Boolean),
@@ -144,30 +141,6 @@ interface ParserState {
   readonly reasoningSignature?: string
 }
 
-// =============================================================================
-// Tool Schema Conversion
-// =============================================================================
-// Tool-schema conversion has two distinct concerns:
-//
-// 1. Sanitize — fix common authoring mistakes Gemini rejects: integer/number
-//    enums (must be strings), `required` entries that don't match a property,
-//    untyped arrays (`items` must be present), and `properties`/`required`
-//    keys on non-object scalars. Mirrors OpenCode's historical Gemini rules.
-//
-// 2. Project — lossy mapping from JSON Schema to Gemini's schema dialect:
-//    drop empty objects, derive `nullable: true` from `type: [..., "null"]`,
-//    coerce `const` to `[const]` enum, recurse properties/items, propagate
-//    only an allowlisted set of keys (description, required, format, type,
-//    properties, items, allOf, anyOf, oneOf, minLength). Anything outside the
-//    allowlist (e.g. `additionalProperties`, `$ref`) is silently dropped.
-//
-// Sanitize runs first, then project. The implementation lives in
-// `utils/gemini-tool-schema` so this protocol keeps the same shape as the other
-// provider protocols.
-
-// =============================================================================
-// Request Lowering
-// =============================================================================
 const lowerTool = (tool: ToolDefinition, inputSchema: JsonSchema) => ({
   name: tool.name,
   description: tool.description,
@@ -332,21 +305,10 @@ const fromRequest = Effect.fn("Gemini.fromRequest")(function* (request: LLMReque
   }
 })
 
-// =============================================================================
-// Stream Parsing
-// =============================================================================
-// Gemini reports `promptTokenCount` (inclusive total) with a
-// `cachedContentTokenCount` subset. `candidatesTokenCount` is *exclusive*
-// of `thoughtsTokenCount` — visible-only, not a total — so we sum the two
-// to produce the inclusive `outputTokens` the rest of the contract expects.
 const mapUsage = (usage: GeminiUsage | undefined) => {
   if (!usage) return undefined
   const cached = usage.cachedContentTokenCount
   const nonCached = ProviderShared.subtractTokens(usage.promptTokenCount, cached)
-  // `candidatesTokenCount` is visible-only; sum with thoughts to produce the
-  // inclusive `outputTokens` the contract expects. Only compute the total
-  // when the visible component is reported — otherwise we'd fabricate an
-  // inclusive number from a partial breakdown.
   const outputTokens =
     usage.candidatesTokenCount !== undefined ? usage.candidatesTokenCount + (usage.thoughtsTokenCount ?? 0) : undefined
   return new Usage({
@@ -475,14 +437,6 @@ const step = (state: ParserState, event: GeminiEvent) => {
   ] as const)
 }
 
-// =============================================================================
-// Protocol And Gemini Route
-// =============================================================================
-/**
- * The Gemini protocol — request body construction, body schema, and the
- * streaming-event state machine. Used by Google AI Studio Gemini and (once
- * registered) Vertex Gemini.
- */
 export const protocol = Protocol.make({
   id: ADAPTER,
   body: {
@@ -501,7 +455,6 @@ export const route = Route.make({
   id: ADAPTER,
   provider: "google",
   protocol,
-  // Gemini's path embeds the model id and pins SSE framing at the URL level.
   endpoint: Endpoint.path(({ request }) => `/models/${request.model.id}:streamGenerateContent?alt=sse`, {
     baseURL: DEFAULT_BASE_URL,
   }),

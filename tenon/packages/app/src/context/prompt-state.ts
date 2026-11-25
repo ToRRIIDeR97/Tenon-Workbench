@@ -62,11 +62,9 @@ export type FileContextItem = {
   preview?: string
 }
 
-/** A passage the user selected in an assistant reply to answer. */
 export type QuoteContextItem = {
   type: "quote"
   text: string
-  /** The user's reply to this passage, written in its reply card. */
   comment?: string
   messageID?: string
 }
@@ -150,7 +148,6 @@ function clonePrompt(prompt: Prompt): Prompt {
 
 function contextItemKey(item: ContextItem) {
   if (item.type === "quote") {
-    // A passage with a reply is its own item, so two replies to the same passage both stay.
     const content = item.comment?.trim()
       ? `${item.text}
 ${item.comment.trim()}`

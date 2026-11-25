@@ -42,7 +42,6 @@ export function schema<S extends EffectSchema.Decoder<unknown, never>>(
     errors: "all",
     onExcessProperty: "ignore",
   })
-  // Keep the user's key order: permission rules are ordered by precedence.
   if (Exit.isSuccess(decoded)) return withInputOrder(data, decoded.value) as DeepMutable<S["Type"]>
   const error = Cause.squash(decoded.cause)
 

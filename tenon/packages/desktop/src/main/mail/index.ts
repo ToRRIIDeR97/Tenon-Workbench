@@ -1,10 +1,3 @@
-/**
- * Mail providers for the Command Centre's mail tools: Gmail, Microsoft Graph (Outlook) and IMAP.
- * Each can search, read a thread and save a draft. None of them sends: there is no call to Gmail
- * `messages/send` or `drafts/send`, Graph `/send` or `sendMail`, or SMTP anywhere in this folder.
- * This module is pure (no Electron), so the parsing is tested with a fake fetch.
- */
-
 export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.compose",
@@ -28,9 +21,6 @@ type Token = () => Promise<string>
 
 const resultLimit = 20
 const textLimit = 50_000
-
-// ---------------------------------------------------------------------------------------------
-// Gmail
 
 const gmailBase = "https://gmail.googleapis.com/gmail/v1/users/me"
 
@@ -111,7 +101,6 @@ function header(headers: GmailHeader[], name: string) {
   return headers.find((item) => item.name?.toLowerCase() === name.toLowerCase())?.value ?? ""
 }
 
-/** The plain text of a Gmail payload: its text/plain part, else its HTML reduced to text. */
 function gmailText(part: GmailPart | undefined): string {
   if (!part) return ""
   const parts = flatten(part)
@@ -125,9 +114,6 @@ function gmailText(part: GmailPart | undefined): string {
 function flatten(part: GmailPart): GmailPart[] {
   return [part, ...(part.parts ?? []).flatMap(flatten)]
 }
-
-// ---------------------------------------------------------------------------------------------
-// Microsoft Graph
 
 const graphBase = "https://graph.microsoft.com/v1.0/me"
 
@@ -147,14 +133,12 @@ export function createGraphProvider(input: { fetch: Fetch; accessToken: Token })
   const call = async <T>(url: string, init?: RequestInit) => {
     const headers = new Headers(init?.headers)
     headers.set("Authorization", `Bearer ${await input.accessToken()}`)
-    // Plain-text bodies keep HTML out of the agent's context where Outlook can convert them.
     headers.set("Prefer", 'outlook.body-content-type="text"')
     if (init?.body) headers.set("Content-Type", "application/json")
     const response = await input.fetch(url, { ...init, headers, signal: AbortSignal.timeout(30_000) })
     if (!response.ok) throw new Error(`graph_request_failed_${response.status}`)
     return (await response.json()) as T
   }
-  // A conversation's messages, oldest first ($orderby with this $filter is refused by Graph).
   const conversation = async (id: string) => {
     const params = new URLSearchParams({
       $filter: `conversationId eq '${id.replaceAll("'", "''")}'`,
@@ -207,7 +191,6 @@ export function createGraphProvider(input: { fetch: Fetch; accessToken: Token })
       }
     },
     async createDraft(draft) {
-      // Both calls save a draft in Drafts (createReply makes a reply draft); nothing here calls /send.
       const latest = draft.replyTo ? await latestMessage(draft.replyTo) : undefined
       const created = await call<{ id?: string }>(
         latest ? `${graphBase}/messages/${encodeURIComponent(latest)}/createReply` : `${graphBase}/messages`,
@@ -236,10 +219,6 @@ function address(value: GraphAddress | undefined) {
   return email.name && email.address ? `${email.name} <${email.address}>` : (email.address ?? email.name ?? "")
 }
 
-// ---------------------------------------------------------------------------------------------
-// IMAP
-
-/** The few IMAP operations the provider needs; `createImapClient` implements them with imapflow. */
 export interface ImapClient {
   search(query: string): Promise<MailSummary[]>
   fetchThread(id: string): Promise<MailThread>
@@ -251,7 +230,6 @@ export function createImapProvider(input: { client: ImapClient }): MailProvider 
     search: (query) => input.client.search(query),
     readThread: (id) => input.client.fetchThread(id),
     async createDraft(draft) {
-      // The client maps "Drafts" to the account's \Drafts special-use mailbox.
       const appended = await input.client.append("Drafts", rfc822(draft), ["\\Draft"])
       if (appended.uid === undefined) throw new Error("imap_draft_failed")
       return { id: String(appended.uid) }
@@ -264,7 +242,6 @@ type SafeStorage = {
   encryptStringAsync(value: string): Promise<Buffer>
 }
 
-/** Store an IMAP app password, encrypted with the OS keychain (Electron safeStorage); never in plain text. */
 export async function saveImapPassword(
   deps: { safeStorage: SafeStorage; write: (key: string, value: string) => Promise<void> | void },
   accountId: string,
@@ -277,10 +254,6 @@ export async function saveImapPassword(
   )
 }
 
-// ---------------------------------------------------------------------------------------------
-// Shared
-
-/** A plain-text RFC 822 message for a draft. Header values lose line breaks so they can't add headers. */
 export function rfc822(draft: DraftInput) {
   const line = (value: string) => value.replace(/[\r\n]+/g, " ").trim()
   return [
@@ -296,7 +269,6 @@ export function rfc822(draft: DraftInput) {
 }
 
 function encodeHeader(value: string) {
-  // RFC 2047 for anything outside printable ASCII.
   return /^[\x20-\x7e]*$/.test(value) ? value : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`
 }
 
@@ -311,7 +283,6 @@ function clip(text: string) {
   return text.length > textLimit ? `${text.slice(0, textLimit)}…` : text
 }
 
-/** HTML reduced to readable text: scripts and styles dropped, blocks become lines, tags removed. */
 export function htmlToText(html: string) {
   return decodeEntities(
     html

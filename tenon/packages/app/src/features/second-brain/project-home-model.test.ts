@@ -47,7 +47,6 @@ describe("milestoneRoad", () => {
       ["four", "ahead"],
     ])
     expect(road.positions).toEqual([0.25, 0.5, 0.75, 1])
-    // Two finished stops, plus a quarter of the way to "three" (1 of its 4 tasks done).
     expect(road.fill).toBeCloseTo((2 + 0.25) / 4)
     expect(road.current?.id).toBe("three")
     expect(road.stops[0]?.date).toBe("2026-11-14")
@@ -94,7 +93,6 @@ describe("projectNumbers", () => {
 })
 
 describe("projectStory", () => {
-  // Noon local time keeps the day boundaries clear of any time zone.
   const now = new Date(2026, 10, 23, 12, 0).getTime()
   const hours = (count: number) => now - count * 3_600_000
   const log = (at: number, text: string): LogEntry => ({
@@ -146,7 +144,6 @@ describe("projectStory", () => {
     const before = keys(first)
     const after = keys([log(hours(1), "Newest"), ...first, log(hours(4), "Oldest")])
     expect(before.every((key) => after.includes(key))).toBe(true)
-    // Two entries with the same time, author and text still get distinct keys.
     const twice = keys([log(hours(1), "Same"), log(hours(1), "Same")])
     expect(new Set(twice).size).toBe(2)
   })
@@ -187,8 +184,6 @@ describe("projectStory", () => {
   })
 
   test("counts calendar days across a daylight-saving change", () => {
-    // 8 March 2026 starts daylight saving in North America; in a zone without it this is a plain five-day span, so
-    // the check is best-effort and depends on the machine's zone.
     const march = new Date(2026, 2, 10, 12).getTime()
     const days = projectStory([], [log(new Date(2026, 2, 5, 12).getTime(), "Before")], march)
     expect(days[0]?.daysAgo).toBe(5)

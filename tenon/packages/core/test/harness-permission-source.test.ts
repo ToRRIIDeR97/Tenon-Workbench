@@ -53,8 +53,6 @@ describe("harness approvals", () => {
     expect(asked[0]).toMatchObject({ header: "Pick", question: "Which?" })
   })
 
-  // Codex 0.164 asks the client to approve each MCP tool call with `mcpServer/elicitation/request`; an
-  // unanswered method reads as "user rejected MCP tool call", so a forwarded server could never run.
   test("approve a Codex MCP tool call through the approval card", async () => {
     const asserted: PermissionV2.AssertInput[] = []
     const run = (allow: boolean) =>
@@ -156,7 +154,6 @@ describe("harness approvals blocked without asking", () => {
       allowed: false,
       blocked: [{ reason: "error", action: "bash" }],
     })
-    // The user's Reject arrives as a defect (assert dies on DeclinedError) or, with feedback, as CorrectedError.
     expect(await outcome(Effect.die(new PermissionV2.DeclinedError()))).toEqual({ allowed: false, blocked: [] })
     expect(await outcome(Effect.fail(new PermissionV2.CorrectedError({ feedback: "no" })))).toEqual({
       allowed: false,
@@ -178,14 +175,12 @@ describe("harness approvals blocked without asking", () => {
       result: { type: "error", value: "Blocked by permission rules: bash" },
       providerMetadata: { tenon: { blocked: { reason: "rules", action: "bash" } } },
     })
-    // A call the user declined keeps the agent's wording.
     expect(markBlocked(failed("call_2"), blocked)).toEqual(failed("call_2"))
   })
 })
 
 describe("turn gate", () => {
   const ask = (gate: ReturnType<typeof turnGate>, between?: () => boolean) =>
-    // An approval waits for a person, so the test request takes a moment too.
     Effect.runPromise(gate.guard(Effect.sleep("20 millis").pipe(Effect.as(true)), false, between))
 
   test("a request after the turn ended is refused when nothing works in the background", async () => {
@@ -197,8 +192,6 @@ describe("turn gate", () => {
     expect(await ask(gate, () => false)).toBe(false)
   })
 
-  // OpenCode keeps background subagents running after the turn that launched them; refusing their requests
-  // unseen made OpenCode cancel them.
   test("a request between turns is asked while background subagents are still working", async () => {
     const gate = turnGate()
     gate.begin()

@@ -15,7 +15,6 @@ async function convertReadableStreamToArray<T>(stream: ReadableStream<T>): Promi
 
 const TEST_PROMPT: LanguageModelV3Prompt = [{ role: "user", content: [{ type: "text", text: "Hello" }] }]
 
-// Fixtures from copilot_test.exs
 const FIXTURES = {
   basicText: [
     `data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1677652288,"model":"gemini-2.0-flash-001","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}`,
@@ -40,7 +39,6 @@ const FIXTURES = {
     `data: [DONE]`,
   ],
 
-  // Case where reasoning_opaque and content come in the SAME chunk
   reasoningWithOpaqueAndContentSameChunk: [
     `data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","reasoning_text":"**Understanding the Query's Nature**\\n\\nI'm currently grappling with the user's philosophical query.\\n\\n"}}],"created":1766062103,"id":"FPhDacixL9zrlOoPqLSuyQ4","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-2.5-pro"}`,
     `data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","reasoning_text":"**Framing the Response's Core**\\n\\nNow, I'm structuring my response.\\n\\n"}}],"created":1766062103,"id":"FPhDacixL9zrlOoPqLSuyQ4","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-2.5-pro"}`,
@@ -49,7 +47,6 @@ const FIXTURES = {
     `data: [DONE]`,
   ],
 
-  // Case where reasoning_opaque and content come in same chunk, followed by tool calls
   reasoningWithOpaqueContentAndToolCalls: [
     `data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","reasoning_text":"**Analyzing the Structure**\\n\\nI'm currently trying to get a handle on the project's layout. My initial focus is on the file structure itself, specifically the directory organization. I'm hoping this will illuminate how different components interact. I'll need to identify the key modules and their dependencies.\\n\\n\\n"}}],"created":1766066995,"id":"MQtEafqbFYTZsbwPwuCVoAg","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-2.5-pro"}`,
     `data: {"choices":[{"index":0,"delta":{"content":"Okay, I need to check out the project's file structure.","role":"assistant","reasoning_opaque":"WHOd3dYFnxEBOsKUXjbX6c2rJa0fS214FHbsj+A3Q+i63SFo7H/92RsownAzyo0h2qEy3cOcrvAatsMx51eCKiMSqt4dYWZhd5YVSgF0CehkpDbWBP/SoRqLU1dhCmUJV/6b5uYFBOzKLBGNadyhI7T1gWFlXntwc6SNjH6DujnFPeVr+L8DdOoUJGJrw2aOfm9NtkXA6wZh9t7dt+831yIIImjD9MHczuXoXj8K7tyLpIJ9KlVXMhnO4IKSYNdKRtoHlGTmudAp5MgH/vLWb6oSsL+ZJl/OdF3WBOeanGhYNoByCRDSvR7anAR/9m5zf9yUax+u/nFg+gzmhFacnzZGtSmcvJ4/4HWKNtUkRASTKeN94DXB8j1ptB/i6ldaMAz2ZyU+sbjPWI8aI4fKJ2MuO01u3uE87xVwpWiM+0rahIzJsllI5edwOaOFtF4tnlCTQafbxHwCZR62uON2E+IjGzW80MzyfYrbLBJKS5zTeHCgPYQSNaKzPfpzkQvdwo3JUnJYcEHgGeKzkq5sbvS5qitCYI7Xue0V98S6/KnUSPnDQBjNnas2i6BqJV2vuCEU/Y3ucrlKVbuRIFCZXCyLzrsGeRLRKlrf5S/HDAQ04IOPQVQhBPvhX0nDjhZB"}}],"created":1766066995,"id":"MQtEafqbFYTZsbwPwuCVoAg","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-2.5-pro"}`,
@@ -57,8 +54,6 @@ const FIXTURES = {
     `data: [DONE]`,
   ],
 
-  // Case where reasoning goes directly to tool_calls with NO content
-  // reasoning_opaque and tool_calls come in the same chunk
   reasoningDirectlyToToolCalls: [
     `data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","reasoning_text":"**Executing and Analyzing HTML**\\n\\nI've successfully captured the HTML snapshot using the \`browser_eval\` tool, giving me a solid understanding of the page structure. Now, I'm shifting focus to Elixir code execution with \`project_eval\` to assess my ability to work within the project's environment.\\n\\n\\n"}}],"created":1766068643,"id":"oBFEaafzD9DVlOoPkY3l4Qs","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-3-pro-preview"}`,
     `data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","reasoning_text":"**Testing Project Contexts**\\n\\nI've got the HTML body snapshot from \`browser_eval\`, which is a helpful reference. Next, I'm testing my ability to run Elixir code in the project with \`project_eval\`. I'm starting with a simple sum: \`1 + 1\`. This will confirm I'm set up to interact with the project's codebase.\\n\\n\\n"}}],"created":1766068644,"id":"oBFEaafzD9DVlOoPkY3l4Qs","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0,"reasoning_tokens":0},"model":"gemini-3-pro-preview"}`,
@@ -112,7 +107,6 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // Filter to just the key events
     const textParts = parts.filter(
       (p) => p.type === "text-start" || p.type === "text-delta" || p.type === "text-end" || p.type === "finish",
     )
@@ -138,7 +132,6 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // Check reasoning parts
     const reasoningParts = parts.filter(
       (p) => p.type === "reasoning-start" || p.type === "reasoning-delta" || p.type === "reasoning-end",
     )
@@ -160,7 +153,6 @@ describe("doStream", () => {
     })
     expect((reasoningParts[2] as { delta: string }).delta).toContain("**Assessing Dayzee's Functionality**")
 
-    // reasoning_opaque should be in reasoning-end providerMetadata
     const reasoningEnd = reasoningParts.find((p) => p.type === "reasoning-end")
     expect(reasoningEnd).toMatchObject({
       type: "reasoning-end",
@@ -172,7 +164,6 @@ describe("doStream", () => {
       },
     })
 
-    // Check tool calls
     const toolParts = parts.filter(
       (p) => p.type === "tool-input-start" || p.type === "tool-call" || p.type === "tool-input-end",
     )
@@ -197,7 +188,6 @@ describe("doStream", () => {
       toolName: "read_file",
     })
 
-    // Check finish
     const finish = parts.find((p) => p.type === "finish")
     expect(finish).toMatchObject({
       type: "finish",
@@ -220,39 +210,31 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // Check that reasoning comes first
     const reasoningStart = parts.findIndex((p) => p.type === "reasoning-start")
     const textStart = parts.findIndex((p) => p.type === "text-start")
     expect(reasoningStart).toBeLessThan(textStart)
 
-    // Check reasoning deltas
     const reasoningDeltas = parts.filter((p) => p.type === "reasoning-delta")
     expect(reasoningDeltas).toHaveLength(2)
     expect((reasoningDeltas[0] as { delta: string }).delta).toContain("**Analyzing the Inquiry's Nature**")
     expect((reasoningDeltas[1] as { delta: string }).delta).toContain("**Reconciling User's Input**")
 
-    // Check text deltas
     const textDeltas = parts.filter((p) => p.type === "text-delta")
     expect(textDeltas).toHaveLength(2)
     expect((textDeltas[0] as { delta: string }).delta).toContain("I am Tidewave")
     expect((textDeltas[1] as { delta: string }).delta).toContain("How can I help you?")
 
-    // reasoning-end should be emitted before text-start
     const reasoningEndIndex = parts.findIndex((p) => p.type === "reasoning-end")
     const textStartIndex = parts.findIndex((p) => p.type === "text-start")
     expect(reasoningEndIndex).toBeGreaterThan(-1)
     expect(reasoningEndIndex).toBeLessThan(textStartIndex)
 
-    // In this fixture, reasoning_opaque comes AFTER content has started (in chunk 4)
-    // So it arrives too late to be attached to reasoning-end. But it should still
-    // be captured and included in the finish event's providerMetadata.
     const reasoningEnd = parts.find((p) => p.type === "reasoning-end")
     expect(reasoningEnd).toMatchObject({
       type: "reasoning-end",
       id: "reasoning-0",
     })
 
-    // reasoning_opaque should be in the finish event's providerMetadata
     const finish = parts.find((p) => p.type === "finish")
     expect(finish).toMatchObject({
       type: "finish",
@@ -280,20 +262,17 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // The critical test: reasoning-end should come BEFORE text-start
     const reasoningEndIndex = parts.findIndex((p) => p.type === "reasoning-end")
     const textStartIndex = parts.findIndex((p) => p.type === "text-start")
     expect(reasoningEndIndex).toBeGreaterThan(-1)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(reasoningEndIndex).toBeLessThan(textStartIndex)
 
-    // Check reasoning deltas
     const reasoningDeltas = parts.filter((p) => p.type === "reasoning-delta")
     expect(reasoningDeltas).toHaveLength(2)
     expect((reasoningDeltas[0] as { delta: string }).delta).toContain("**Understanding the Query's Nature**")
     expect((reasoningDeltas[1] as { delta: string }).delta).toContain("**Framing the Response's Core**")
 
-    // reasoning_opaque should be in reasoning-end even though it came with content
     const reasoningEnd = parts.find((p) => p.type === "reasoning-end")
     expect(reasoningEnd).toMatchObject({
       type: "reasoning-end",
@@ -305,13 +284,11 @@ describe("doStream", () => {
       },
     })
 
-    // Check text deltas
     const textDeltas = parts.filter((p) => p.type === "text-delta")
     expect(textDeltas).toHaveLength(2)
     expect((textDeltas[0] as { delta: string }).delta).toContain("Of course. I'm thinking right now.")
     expect((textDeltas[1] as { delta: string }).delta).toContain("What's on your mind?")
 
-    // Check finish
     const finish = parts.find((p) => p.type === "finish")
     expect(finish).toMatchObject({
       type: "finish",
@@ -330,7 +307,6 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // Check that reasoning comes first, then text, then tool calls
     const reasoningEndIndex = parts.findIndex((p) => p.type === "reasoning-end")
     const textStartIndex = parts.findIndex((p) => p.type === "text-start")
     const toolStartIndex = parts.findIndex((p) => p.type === "tool-input-start")
@@ -341,12 +317,10 @@ describe("doStream", () => {
     expect(reasoningEndIndex).toBeLessThan(textStartIndex)
     expect(textStartIndex).toBeLessThan(toolStartIndex)
 
-    // Check reasoning content
     const reasoningDeltas = parts.filter((p) => p.type === "reasoning-delta")
     expect(reasoningDeltas).toHaveLength(1)
     expect((reasoningDeltas[0] as { delta: string }).delta).toContain("**Analyzing the Structure**")
 
-    // reasoning_opaque should be in reasoning-end (comes with content in same chunk)
     const reasoningEnd = parts.find((p) => p.type === "reasoning-end")
     expect(reasoningEnd).toMatchObject({
       type: "reasoning-end",
@@ -358,14 +332,12 @@ describe("doStream", () => {
       },
     })
 
-    // Check text content
     const textDeltas = parts.filter((p) => p.type === "text-delta")
     expect(textDeltas).toHaveLength(1)
     expect((textDeltas[0] as { delta: string }).delta).toContain(
       "Okay, I need to check out the project's file structure.",
     )
 
-    // Check tool call
     const toolParts = parts.filter(
       (p) => p.type === "tool-input-start" || p.type === "tool-call" || p.type === "tool-input-end",
     )
@@ -384,7 +356,6 @@ describe("doStream", () => {
       }),
     )
 
-    // Check finish
     const finish = parts.find((p) => p.type === "finish")
     expect(finish).toMatchObject({
       type: "finish",
@@ -407,7 +378,6 @@ describe("doStream", () => {
 
     const parts = await convertReadableStreamToArray(stream)
 
-    // Critical check: reasoning-end MUST come before tool-input-start
     const reasoningEndIndex = parts.findIndex((p) => p.type === "reasoning-end")
     const toolStartIndex = parts.findIndex((p) => p.type === "tool-input-start")
 
@@ -415,13 +385,11 @@ describe("doStream", () => {
     expect(toolStartIndex).toBeGreaterThan(-1)
     expect(reasoningEndIndex).toBeLessThan(toolStartIndex)
 
-    // Check reasoning parts
     const reasoningDeltas = parts.filter((p) => p.type === "reasoning-delta")
     expect(reasoningDeltas).toHaveLength(2)
     expect((reasoningDeltas[0] as { delta: string }).delta).toContain("**Executing and Analyzing HTML**")
     expect((reasoningDeltas[1] as { delta: string }).delta).toContain("**Testing Project Contexts**")
 
-    // reasoning_opaque should be in reasoning-end providerMetadata
     const reasoningEnd = parts.find((p) => p.type === "reasoning-end")
     expect(reasoningEnd).toMatchObject({
       type: "reasoning-end",
@@ -433,11 +401,9 @@ describe("doStream", () => {
       },
     })
 
-    // No text parts should exist
     const textParts = parts.filter((p) => p.type === "text-start" || p.type === "text-delta" || p.type === "text-end")
     expect(textParts).toHaveLength(0)
 
-    // Check tool call
     const toolCall = parts.find((p) => p.type === "tool-call")
     expect(toolCall).toMatchObject({
       type: "tool-call",
@@ -445,7 +411,6 @@ describe("doStream", () => {
       toolName: "project_eval",
     })
 
-    // Check finish
     const finish = parts.find((p) => p.type === "finish")
     expect(finish).toMatchObject({
       type: "finish",

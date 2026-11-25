@@ -5,9 +5,7 @@ import { stepOf } from "@tenon/session-ui/step-kind"
 
 export interface ThreadSubagent {
   readonly part: ToolPart
-  /** The harness instance that ran the assistant message holding the part. */
   readonly harness?: string
-  /** The model and reasoning level of the assistant message that started it; a subagent inherits them by default. */
   readonly parent?: SubagentModel
 }
 
@@ -18,10 +16,6 @@ export interface SubagentModel {
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
 
-/**
- * The model a subagent runs on and its reasoning level, for its row: the model its call asked for (Claude Code's
- * Agent `model`, Codex's spawn), else its own child session's latest reply, else the parent's, which it inherits.
- */
 export function subagentModel(
   item: ThreadSubagent,
   child?: { readonly modelID?: string; readonly variant?: string },
@@ -36,7 +30,6 @@ export function subagentModel(
   return item.parent ? { id: item.parent.id, reasoning: reasoning ?? item.parent.reasoning } : undefined
 }
 
-/** `deepseek-v4.1-flash · max`: the model without its provider prefix, then the reasoning level. */
 export function subagentModelLabel(model: SubagentModel | undefined) {
   if (!model) return undefined
   const id = model.id.split("/").at(-1) || model.id
@@ -44,7 +37,6 @@ export function subagentModelLabel(model: SubagentModel | undefined) {
 }
 
 export interface SubagentGroup {
-  /** 1-based position of the user turn that started these subagents. */
   readonly turn: number
   readonly userMessageID: string
   readonly createdAt?: number
@@ -61,10 +53,6 @@ export function matchesFilter(part: ToolPart, filter: SubagentFilter) {
   return true
 }
 
-/**
- * Every subagent call in the thread (built-in `task` and harness `acp_subagent`), grouped by the user turn that
- * started it, newest turn first. Turns without subagents are left out.
- */
 export function threadSubagents(
   messages: readonly Message[],
   parts: (messageID: string) => readonly Part[] | undefined,
@@ -92,7 +80,6 @@ export function threadSubagents(
   return groups.filter((group) => group.items.length > 0).reverse()
 }
 
-/** How many subagents match each filter, for the filter pills and the tab's running badge. */
 export function subagentCounts(groups: readonly SubagentGroup[]) {
   const all = groups.flatMap((group) => group.items)
   return {
@@ -111,7 +98,6 @@ export function findSubagent(groups: readonly SubagentGroup[], partID: string | 
   return undefined
 }
 
-/** A `task` agent's child session as transcript entries: its text, reasoning and tool calls in order. */
 export function childTranscript(
   messages: readonly Message[],
   parts: (messageID: string) => readonly Part[] | undefined,
@@ -137,16 +123,11 @@ export function childTranscript(
     })
 }
 
-/** The text a `task` tool returned, without the `<task>` wrapper the tool adds for the parent agent. */
 export function taskResult(output: string) {
   const match = output.match(/<task_(?:result|error)>\n?([\s\S]*?)\n?<\/task_(?:result|error)>/)
   return (match ? match[1] : output).trim() || undefined
 }
 
-/**
- * Splits a finished agent's transcript into its steps and its final message: the last text entry when the agent
- * ended on one. A running agent's text is still in progress, so it stays a step.
- */
 export function splitResult(entries: readonly SubagentTranscriptEntry[], finished: boolean) {
   const last = entries.at(-1)
   if (!finished || last?.type !== "text") return { steps: [...entries], result: undefined }

@@ -6,9 +6,6 @@ import path from "path"
 
 export type Scope = "global" | "local"
 
-// Origin keeps the original config provenance attached to a spec.
-// After multiple config files are merged, callers still need to know which file declared the plugin
-// and whether it should behave like a global or project-local plugin.
 export type Origin = {
   spec: ConfigPluginV1.Spec
   source: string
@@ -37,8 +34,6 @@ export function pluginOptions(plugin: ConfigPluginV1.Spec): ConfigPluginV1.Optio
   return Array.isArray(plugin) ? plugin[1] : undefined
 }
 
-// Path-like specs are resolved relative to the config file that declared them so merges later on do not
-// accidentally reinterpret `./plugin.ts` relative to some other directory.
 export async function resolvePluginSpec(
   plugin: ConfigPluginV1.Spec,
   configFilepath: string,
@@ -59,8 +54,6 @@ export async function resolvePluginSpec(
   return resolved
 }
 
-// Dedupe on the load identity (package name for npm specs, exact file URL for local specs), but keep the
-// full Origin so downstream code still knows which config file won and where follow-up writes should go.
 export function deduplicatePluginOrigins(plugins: Origin[]): Origin[] {
   const seen = new Set<string>()
   const list: Origin[] = []

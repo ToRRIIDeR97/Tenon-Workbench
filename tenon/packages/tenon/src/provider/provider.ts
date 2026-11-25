@@ -95,7 +95,6 @@ function timeoutController(ms: number) {
 function googleVertexAnthropicBaseURL(project: string | undefined, location: string | undefined) {
   if (!project) return
   if (location !== "eu" && location !== "us") return
-  // Continental multi-regions require Regional Endpoint Platform domains.
   return `https://aiplatform.${location}.rep.googleapis.com/v1/projects/${project}/locations/${location}/publishers/anthropic/models`
 }
 
@@ -300,12 +299,10 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       const auth = yield* dep.auth("amazon-bedrock")
       const env = yield* dep.env()
 
-      // Region precedence: 1) config file, 2) env var, 3) default
       const configRegion = providerConfig?.options?.region
       const envRegion = env["AWS_REGION"]
       const defaultRegion = configRegion ?? envRegion ?? "us-east-1"
 
-      // Profile: config file takes precedence over env var
       const configProfile = providerConfig?.options?.profile
       const envProfile = env["AWS_PROFILE"]
       const profile = configProfile ?? envProfile
@@ -313,8 +310,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       const awsAccessKeyId = env["AWS_ACCESS_KEY_ID"]
       const configApiKey = providerConfig?.options?.apiKey
 
-      // TODO: Using process.env directly because Env.set only updates a process.env shallow copy,
-      // until the scope of the Env API is clarified (test only or runtime?)
       const awsBearerToken = iife(() => {
         const envToken = process.env.AWS_BEARER_TOKEN_BEDROCK
         if (envToken) return envToken
@@ -347,16 +342,12 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         region: defaultRegion,
       }
 
-      // Only use credential chain if no bearer token exists
-      // Bearer token takes precedence over credential chain (profiles, access keys, IAM roles, web identity tokens)
       if (!awsBearerToken && !configApiKey) {
-        // Build credential provider options (only pass profile if specified)
         const credentialProviderOptions = profile ? { profile } : {}
 
         providerOptions.credentialProvider = fromNodeProviderChain(credentialProviderOptions)
       }
 
-      // Add custom endpoint if specified (endpoint takes precedence over baseURL)
       const endpoint = providerConfig?.options?.endpoint ?? providerConfig?.options?.baseURL
       if (endpoint) {
         providerOptions.baseURL = endpoint
@@ -371,17 +362,11 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         async getModel(sdk: any, modelID: string, options?: Record<string, any>, model?: Model) {
           if (model?.api.npm === "@ai-sdk/amazon-bedrock/mantle") return selectBedrockMantleLanguageModel(sdk, modelID)
 
-          // Skip region prefixing if model already has a cross-region inference profile prefix
-          // Models from models.dev may already include prefixes like us., eu., global., etc.
           const crossRegionPrefixes = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
           if (crossRegionPrefixes.some((prefix) => modelID.startsWith(prefix))) {
             return sdk.languageModel(modelID)
           }
 
-          // Region resolution precedence (highest to lowest):
-          // 1. options.region from tenon.json provider config
-          // 2. defaultRegion from AWS_REGION environment variable
-          // 3. Default "us-east-1" (baked into defaultRegion)
           const region = options?.region ?? defaultRegion
 
           let regionPrefix = region.split("-")[0]
@@ -431,7 +416,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                 regionPrefix = "au"
                 modelID = `${regionPrefix}.${modelID}`
               } else if (isTokyoRegion) {
-                // Tokyo region uses jp. prefix for cross-region inference
                 const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "nova-pro"].some((m) =>
                   modelID.includes(m),
                 )
@@ -440,7 +424,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
                   modelID = `${regionPrefix}.${modelID}`
                 }
               } else {
-                // Other APAC regions use apac. prefix
                 const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "nova-pro"].some((m) =>
                   modelID.includes(m),
                 )
@@ -497,8 +480,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       }),
     "google-vertex": Effect.fnUntraced(function* (provider: Info) {
       const env = yield* dep.env()
-      // models.dev advertises GOOGLE_VERTEX_PROJECT for Vertex; keep the wider
-      // Google Cloud project env names as fallbacks for existing ADC setups.
       const project =
         provider.options?.project ??
         env["GOOGLE_VERTEX_PROJECT"] ??
@@ -568,8 +549,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
     }),
     "sap-ai-core": Effect.fnUntraced(function* () {
       const auth = yield* dep.auth("sap-ai-core")
-      // TODO: Using process.env directly because Env.set only updates a shallow copy (not process.env),
-      // until the scope of the Env API is clarified (test only or runtime?)
       const envServiceKey = iife(() => {
         const envAICoreServiceKey = process.env.AICORE_SERVICE_KEY
         if (envAICoreServiceKey) return envAICoreServiceKey
@@ -600,8 +579,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         },
       }),
     "cloudflare-workers-ai": Effect.fnUntraced(function* (input: Info) {
-      // When baseURL is already configured (e.g. corporate config routing through a proxy/gateway),
-      // skip the account ID check because the URL is already fully specified.
       if (input.options?.baseURL) return { autoload: false }
 
       const auth = yield* dep.auth(input.id)
@@ -638,13 +615,11 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       }
     }),
     "cloudflare-ai-gateway": Effect.fnUntraced(function* (input: Info) {
-      // When baseURL is already configured (e.g. corporate config), skip the ID checks.
       if (input.options?.baseURL) return { autoload: false }
 
       const auth = yield* dep.auth(input.id)
       const env = yield* dep.env()
       const accountId = env["CLOUDFLARE_ACCOUNT_ID"] || (auth?.type === "api" ? auth.metadata?.accountId : undefined)
-      // The Cloudflare auth prompt stores this value as gatewayId metadata.
       const gateway = env["CLOUDFLARE_GATEWAY_ID"] || (auth?.type === "api" ? auth.metadata?.gatewayId : undefined)
 
       if (!accountId || !gateway) {
@@ -662,7 +637,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
         }
       }
 
-      // Get API token from env or auth - required for authenticated gateways
       const apiToken =
         env["CLOUDFLARE_API_TOKEN"] || env["CF_AIG_TOKEN"] || (auth?.type === "api" ? auth.key : undefined)
 
@@ -706,18 +680,8 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       return {
         autoload: true,
         async getModel(_sdk: any, modelID: string, _options?: Record<string, any>) {
-          // Model IDs use Unified API format: provider/model (e.g., "anthropic/claude-sonnet-4-5").
-          // OpenAI and Anthropic ride their native passthrough routes so agents get the Responses
-          // and Messages APIs; new OpenAI models reject tools+reasoning_effort on chat completions.
-          // The passthrough wrappers inject a CF_TEMP_TOKEN sentinel that the gateway strips before
-          // dispatch, so upstream billing stays on the gateway (Unified Billing / stored BYOK).
           if (modelID.startsWith("openai/")) return aigateway(createOpenAI()(modelID.slice("openai/".length)))
           if (modelID.startsWith("anthropic/")) return aigateway(createAnthropic()(modelID.slice("anthropic/".length)))
-          // Workers AI is the only first-party provider whose upstream is Cloudflare itself, so it is
-          // the only one that should receive the Cloudflare token as its upstream Authorization header.
-          // The Unified API addresses Workers AI both with the explicit "workers-ai/" prefix and as
-          // bare "@cf/..." ids. Third-party providers must not receive the token; they rely on the
-          // gateway's stored/BYOK keys instead.
           const isWorkersAi = modelID.startsWith("workers-ai/") || modelID.startsWith("@cf/")
           const unified = createUnified(isWorkersAi ? { apiKey: apiToken } : {})
           return aigateway(unified(modelID))
@@ -776,11 +740,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
 
       const options: Record<string, any> = { baseURL, apiKey: token }
 
-      // Only skip provider-level fetch when the token is from OAuth with no override.
-      // For OAuth tokens, the plugin auth loader's combined fetch handles
-      // OAuth refresh + snowflake transformations in one place.
-      // For env/config/API-key tokens, the provider fetch applies snowflake
-      // transformations directly.
       const useOAuthHandler =
         oauthToken !== undefined && envToken === undefined && apiKeyToken === undefined && configToken === undefined
       if (!useOAuthHandler) {
@@ -976,10 +935,6 @@ export function toPublicInfo(provider: Info): Info {
   )
 }
 
-/**
- * The copy of a provider sent to the renderer: `toPublicInfo` without the key, and without token or
- * header values in its options or its models. Internal callers keep using `toPublicInfo`.
- */
 export function toRendererInfo(provider: Info): Info {
   const info = toPublicInfo(provider)
   const { key: _key, ...rest } = info
@@ -1112,10 +1067,6 @@ function cost(c: ModelsDev.Model["cost"]): Model["cost"] {
   return result
 }
 
-// Cloudflare AI Gateway routes OpenAI and Anthropic models through their native
-// passthrough SDKs (Responses / Messages APIs). Resolving the native npm before
-// variants are computed makes reasoning variants produce payloads the native
-// SDKs understand (e.g. anthropic `effort` instead of compat `reasoningEffort`).
 function cloudflareGatewayNpm(providerID: string, modelID: string) {
   if (providerID !== "cloudflare-ai-gateway") return undefined
   if (modelID.startsWith("openai/")) return "@ai-sdk/openai"
@@ -1208,15 +1159,10 @@ export function fromModelsDevProvider(provider: ModelsDev.Provider): Info {
 }
 
 export type ModelsDevCatalog = {
-  /** fromModelsDevProvider output per provider. */
   readonly catalog: Readonly<Record<string, Info>>
-  /** toPublicInfo of each catalog entry. */
   readonly database: Readonly<Record<string, Info>>
 }
 
-// The conversion depends only on the models.dev snapshot, not on the directory. ModelsDev replaces the
-// snapshot object on refresh instead of mutating it, so its identity versions this cache. Callers must
-// treat the result as read-only and copy anything they mutate.
 const modelsDevCatalogs = new WeakMap<Record<string, ModelsDev.Provider>, ModelsDevCatalog>()
 
 export function fromModelsDev(modelsDev: Record<string, ModelsDev.Provider>): ModelsDevCatalog {
@@ -1286,8 +1232,6 @@ const layer = Layer.effect(
         const modelsDev = yield* modelsDevSvc.get()
         const shared = fromModelsDev(modelsDev)
         const catalog = shared.catalog as Record<string, Info>
-        // This state mutates its database (plugin models, config, env and auth merges), so it needs its own
-        // copy. The entries are plain JSON values, so structuredClone matches toPublicInfo's JSON round trip.
         const database = structuredClone(shared.database) as Record<string, Info>
 
         const providers: Record<ProviderV2.ID, Info> = {} as Record<ProviderV2.ID, Info>
@@ -1319,10 +1263,8 @@ const layer = Layer.effect(
           providers[providerID] = mergeDeep(match, provider)
         }
 
-        // load plugins first so config() hook runs before reading cfg.provider
         const plugins = yield* plugin.list()
 
-        // now read config providers - includes any modifications from plugin config() hook
         const configProviders = Object.entries(cfg.provider ?? {})
         const disabled = new Set(cfg.disabled_providers ?? [])
         const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
@@ -1360,7 +1302,6 @@ const layer = Layer.effect(
           })
         }
 
-        // extend database from config
         for (const [providerID, provider] of configProviders) {
           const existing = database[providerID]
           const parsed: Info = {
@@ -1379,8 +1320,6 @@ const layer = Layer.effect(
               model.provider?.npm ??
               provider.npm ??
               existingModel?.api.npm ??
-              // Config-defined gateway models bypass fromModelsDevModel, so resolve the
-              // native passthrough npm here before falling back to the catalog default.
               cloudflareGatewayNpm(providerID, apiID) ??
               modelsDev[providerID]?.npm ??
               "@ai-sdk/openai-compatible"
@@ -1461,7 +1400,6 @@ const layer = Layer.effect(
           database[providerID] = parsed
         }
 
-        // load env
         const envs = yield* env.all()
         for (const [id, provider] of Object.entries(database)) {
           const providerID = ProviderV2.ID.make(id)
@@ -1474,7 +1412,6 @@ const layer = Layer.effect(
           })
         }
 
-        // load apikeys
         const auths = yield* auth.all().pipe(Effect.orDie)
         for (const [id, provider] of Object.entries(auths)) {
           const providerID = ProviderV2.ID.make(id)
@@ -1487,7 +1424,6 @@ const layer = Layer.effect(
           }
         }
 
-        // plugin auth loader - database now has entries for config providers
         for (const plugin of plugins) {
           if (!plugin.auth) continue
           const providerID = ProviderV2.ID.make(plugin.auth.provider)
@@ -1525,7 +1461,6 @@ const layer = Layer.effect(
           }
         }
 
-        // load config - re-apply with updated data
         for (const [id, provider] of configProviders) {
           const providerID = ProviderV2.ID.make(id)
           const partial: Partial<Info> = { source: "config" }
@@ -1548,8 +1483,6 @@ const layer = Layer.effect(
             model.api.id = model.api.id ?? model.id ?? modelID
 
             if (
-              // These chat aliases are invalid for the special handling in the
-              // built-in providers below, but custom providers may support them.
               (modelID === "gpt-5-chat-latest" &&
                 (providerID === ProviderV2.ID.openai ||
                   providerID === ProviderV2.ID.githubCopilot ||
@@ -1715,8 +1648,6 @@ const layer = Layer.effect(
           return item.entrypoint
         })()
 
-        // `installedPath` is a local entry path or an existing `file://` URL. Normalize
-        // only path inputs so Node on Windows accepts the dynamic import.
         const importSpec = installedPath.startsWith("file://") ? installedPath : pathToFileURL(installedPath).href
         const mod = await import(importSpec)
 
@@ -1830,7 +1761,6 @@ const layer = Layer.effect(
         }
       }
 
-      // TODO: Remove these provider-specific assumptions once model syncing reliably reports available deployments.
       if (providerID === ProviderV2.ID.azure || providerID === ProviderV2.ID.make("azure-cognitive-services")) {
         return undefined
       }

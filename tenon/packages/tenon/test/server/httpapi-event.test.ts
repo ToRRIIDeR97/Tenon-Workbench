@@ -67,7 +67,6 @@ describe("event HttpApi", () => {
         const { reader } = yield* openEventStream(directory)
         expect(yield* readEvent(reader)).toMatchObject({ type: "server.connected", properties: {} })
 
-        // If no second event arrives within 250ms, the stream is still open.
         const status = yield* Queue.take(reader).pipe(
           Effect.as("event" as const),
           Effect.timeoutOrElse({ duration: "250 millis", orElse: () => Effect.succeed("open" as const) }),

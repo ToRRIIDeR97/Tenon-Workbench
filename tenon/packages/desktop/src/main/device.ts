@@ -4,10 +4,6 @@ import { readFile, rm } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 
-// Phones for the Workbench panel's Device tab and for agents. Android runs on macOS and Windows through
-// the Android SDK (adb for screens and input, the emulator for virtual devices). The iOS Simulator only
-// exists on macOS (Xcode's simctl); taps there need Meta's idb. Everything here shells out to those
-// tools with fixed argument lists; nothing from a caller reaches a shell.
 export type DevicePlatform = "android" | "ios"
 export type Device = { platform: DevicePlatform; id: string; name: string; state: string }
 export type DeviceStatus = {
@@ -109,7 +105,6 @@ export function parseSimctl(out: Buffer | string): Device[] {
     .map((device) => ({ platform: "ios" as const, id: device.udid, name: device.name, state: device.state }))
 }
 
-/** Starts an Android virtual device by name, or boots an iOS simulator by UDID. */
 export async function bootDevice(platform: DevicePlatform, id: string) {
   if (platform === "android") {
     const emulator = emulatorPath()
@@ -124,7 +119,6 @@ export async function bootDevice(platform: DevicePlatform, id: string) {
   })
 }
 
-/** The device's screen as a PNG. */
 export async function deviceScreenshot(platform: DevicePlatform, id: string) {
   if (platform === "android") return run(requireAdb(), ["-s", id, "exec-out", "screencap", "-p"], { timeout: 10_000 })
   requireMac()
@@ -141,7 +135,6 @@ export type DeviceInput =
   | { kind: "text"; text: string }
   | { kind: "key"; key: "home" | "back" | "enter" }
 
-/** Sends one touch or key to the device. Coordinates are screen pixels. */
 export async function deviceInput(platform: DevicePlatform, id: string, input: DeviceInput) {
   const n = (value: number) => String(Math.max(0, Math.round(value)))
   if (platform === "android") {
@@ -164,7 +157,6 @@ export async function deviceInput(platform: DevicePlatform, id: string, input: D
   return run(idb, ["ui", "button", "--udid", id, button])
 }
 
-// adb's `input text` treats spaces and shell metacharacters specially; %s is its space.
 export function androidText(text: string) {
   return text.replace(/[^\w.@:/-]/g, (char) => (char === " " ? "%s" : `\\${char}`))
 }
@@ -183,7 +175,6 @@ export async function launchApp(platform: DevicePlatform, id: string, app: strin
   return run("xcrun", ["simctl", "launch", id, app])
 }
 
-/** The device's recent log lines. */
 export async function deviceLogs(platform: DevicePlatform, id: string, lines = 200) {
   if (platform === "android")
     return (await run(requireAdb(), ["-s", id, "logcat", "-d", "-t", String(lines)])).toString()

@@ -69,7 +69,6 @@ const soundSettings = {
 const PermissionScopeSetting: Component<{ controller: PermissionScopeController }> = (props) => {
   const language = useLanguage()
   return (
-    // It applies to one thread's folder, so it is off without an open thread; the row says so.
     <SettingsRowV2
       title={language.t("command.permissions.autoaccept.enable")}
       description={props.controller.enabled() ? undefined : language.t("secondBrain.settings.autoAcceptNeedsThread")}
@@ -230,7 +229,6 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
 
 const threadWidthOptions: ThreadWidth[] = ["narrow", "medium", "wide", "full"]
 
-/** How wide the thread's messages and composer run on a desktop-width window. */
 const ThreadWidthSetting: Component = () => {
   const language = useLanguage()
   const settings = useSettings()
@@ -256,10 +254,6 @@ const ThreadWidthSetting: Component = () => {
   )
 }
 
-/**
- * Import a VS Code colour theme (a .json theme file): its editor, button and terminal colours become a Tenon theme
- * that appears in the theme list. An imported theme can be removed again.
- */
 const VscodeThemeImport: Component = () => {
   const language = useLanguage()
   const theme = useTheme()
@@ -405,14 +399,12 @@ const LanguageSetting = () => {
   )
 }
 
-/** Where Notes keeps its pages (desktop only). A new folder takes effect after a restart. */
 function VaultFolderSetting() {
   const language = useLanguage()
   const platform = usePlatform()
   const [state, setState] = createStore({
     choosing: false,
     message: "" as "" | "inside" | "not_empty" | "nested" | "copy_failed" | "restart" | "copied" | "failed",
-    /** The old vault folder, kept after its pages were copied to the new one. */
     previous: "",
   })
   const [folder, { mutate }] = createResource(() => Promise.resolve(platform.getVaultFolder?.()).catch(() => undefined))
@@ -439,7 +431,6 @@ function VaultFolderSetting() {
       failed: language.t("secondBrain.error.request"),
     })[state.message]
   const critical = () => !["", "restart", "copied"].includes(state.message)
-  // Documents may be redirected into a synced folder, which then syncs the default vault too.
   const syncNotice = () =>
     platform.os === "windows"
       ? language.t("secondBrain.vault.settings.syncWindows")

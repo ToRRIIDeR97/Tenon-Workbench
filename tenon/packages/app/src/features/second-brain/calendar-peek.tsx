@@ -5,7 +5,6 @@ import { Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import type { PlannerTask } from "./client"
 
-/** Read-only details of an event or task in the Calendar side panel; Edit is a separate step. */
 export function CalendarPeek(props: {
   tag: string
   title: string
@@ -72,7 +71,6 @@ export function CalendarPeek(props: {
   )
 }
 
-/** A round completion checkbox; ticking writes at once, Google tasks included. */
 export function TaskCheck(props: {
   task: PlannerTask
   onToggle: (task: PlannerTask) => Promise<void>

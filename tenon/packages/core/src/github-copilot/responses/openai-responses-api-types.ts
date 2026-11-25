@@ -100,38 +100,17 @@ export type OpenAIResponsesMcpApprovalResponse = {
   approve: boolean
 }
 
-/**
- * A filter used to compare a specified attribute key to a given value using a defined comparison operation.
- */
 export type OpenAIResponsesFileSearchToolComparisonFilter = {
-  /**
-   * The key to compare against the value.
-   */
   key: string
 
-  /**
-   * Specifies the comparison operator: eq, ne, gt, gte, lt, lte.
-   */
   type: "eq" | "ne" | "gt" | "gte" | "lt" | "lte"
 
-  /**
-   * The value to compare against the attribute key; supports string, number, or boolean types.
-   */
   value: string | number | boolean
 }
 
-/**
- * Combine multiple filters using and or or.
- */
 export type OpenAIResponsesFileSearchToolCompoundFilter = {
-  /**
-   * Type of operation: and or or.
-   */
   type: "and" | "or"
 
-  /**
-   * Array of filters to combine. Items can be ComparisonFilter or CompoundFilter.
-   */
   filters: Array<OpenAIResponsesFileSearchToolComparisonFilter | OpenAIResponsesFileSearchToolCompoundFilter>
 }
 

@@ -188,8 +188,6 @@ const MIGRATIONS: Migration[] = [
       const session = decodeSummary(raw, { onExcessProperty: "ignore" })
       if (Option.isNone(session)) continue
       const diffs = session.value.summary.diffs
-      // Effect 4.1 has no `onExcessProperty: "preserve"`; write the raw diffs so
-      // fields the schema does not know survive the migration.
       yield* fs.writeWithDirs(
         path.join(dir, "session_diff", session.value.id + ".json"),
         JSON.stringify((raw as { readonly summary: { readonly diffs: unknown } }).summary.diffs, null, 2),

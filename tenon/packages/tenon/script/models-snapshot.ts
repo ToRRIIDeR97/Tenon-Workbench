@@ -1,7 +1,3 @@
-/**
- * The models.dev catalog for the build: an explicit file wins, then the network, then the last good
- * download, so being offline or a models.dev outage doesn't stop a build.
- */
 export async function loadModelsData(input: { url: string; source?: string; snapshot: string }) {
   if (input.source) {
     const text = await Bun.file(input.source).text()

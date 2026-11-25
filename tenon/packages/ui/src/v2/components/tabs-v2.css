@@ -71,7 +71,6 @@
   box-shadow: none;
 }
 
-/* Keyboard focus rings the whole tab, inset because the tab list clips. Never on pointer focus. */
 [data-component="tabs-v2"] [data-slot="tabs-v2-trigger-wrapper"]:has([data-slot="tabs-v2-trigger"]:focus-visible) {
   outline: 2px solid var(--v2-border-border-focus);
   outline-offset: -2px;
@@ -124,8 +123,6 @@
   inset-inline-start: -8px;
 }
 
-/* Pill tabs are a segmented control (segmented-control-v2.css): a grey track sized to its tabs, with a
-   raised bg-base thumb under the selected one. */
 [data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"] [data-slot="tabs-v2-list"] {
   box-sizing: border-box;
   width: fit-content;
@@ -229,9 +226,6 @@
   color: var(--v2-text-text-base);
 }
 
-/* Pill and settings tabs share the state system: overlay hover and press (over the selected fill too) and
-   text-base when selected. The selected fill is neutral: a raised bg-base thumb for pill tabs, the sidebar's
-   pressed-overlay row for the settings navigation. */
 [data-component="tabs-v2"]:is([data-variant="pill"], [data-variant="settings"])
   [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:has([data-disabled])) {
   background-color: var(--v2-overlay-simple-overlay-hover);
@@ -262,7 +256,6 @@
   background-color: var(--v2-overlay-simple-overlay-pressed);
 }
 
-/* Shape: pill segments, and 8px rows in the settings navigation like the sidebar's. */
 [data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"] [data-slot="tabs-v2-trigger-wrapper"] {
   border-radius: var(--v2-radius-full);
 }
@@ -271,7 +264,6 @@
   border-radius: 8px;
 }
 
-/* Small state changes (hover, selection, underline): short + standard. */
 [data-component="tabs-v2"] [data-slot="tabs-v2-trigger-wrapper"],
 [data-component="tabs-v2"] [data-slot="tabs-v2-trigger"] {
   transition:
@@ -280,9 +272,6 @@
     box-shadow var(--v2-duration-short) var(--v2-ease-standard);
 }
 
-/* Sliding selection highlight (pill and settings variants; tabs-v2.tsx places it). It sits under the
-   triggers and moves between them: medium + standard. Until it is placed, the selected trigger draws its
-   own highlight. */
 [data-component="tabs-v2"] [data-slot="tabs-v2-indicator"] {
   display: none;
 }
@@ -315,12 +304,6 @@
   box-shadow: none;
 }
 
-/* Panel fade-through (settings variant): the old panel fades out (swap-out + ease-exit), then the new one
-   fades and rises 4px in (swap-in + emphasized-decelerate). Kobalte keeps the old panel mounted while its
-   exit runs (its own animation name); meanwhile the new panel is display: none, so the two never share the
-   layout, and it starts its enter once the old one unmounts. Panels mounted with forceMount stay out of
-   this. Other variants hold heavy surfaces (terminals, browser views) that should not wait or remount
-   hidden, and their panels mostly swap through a keyed Show, so they switch at once. */
 [data-component="tabs-v2"][data-variant="settings"] > [data-slot="tabs-v2-content"][data-selected] {
   animation: tabs-v2-panel-in var(--v2-duration-swap-in) var(--v2-ease-emphasized-decelerate) both;
 }

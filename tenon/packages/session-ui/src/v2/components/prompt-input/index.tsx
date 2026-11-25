@@ -50,15 +50,10 @@ export type PromptInputV2Props = {
   borderUnderlay?: boolean
   class?: string
   runtimeControl?: JSX.Element
-  /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
   headerControl?: JSX.Element
-  /** A section of the same tray above the where row, such as the running agent's checklist. */
   headerTop?: JSX.Element
-  /** Accessible label of a quote chip's remove button. */
   quoteRemoveLabel?: string
-  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
   attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
-  /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
   modelControlVisible?: boolean
@@ -93,12 +88,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
     props.controller.onCursor(promptInputV2Cursor(editor))
   }
   const mode = createMemo(() => state.mode)
-  // The open popover and its items, held through the popover's exit so it doesn't empty while fading out.
   const popover = createMemo<{ popover: OpenPopover; items: PromptInputV2Suggestion[] } | undefined>((last) =>
     state.popover.type === "closed" ? last : { popover: state.popover, items: props.controller.suggestions() },
   )
-  // The popover is portalled above the page, so no panel edge clips it and no resize handle draws over it.
-  // It follows the composer while open, flipping below it when there is no room above.
   let root: HTMLDivElement | undefined
   const [placement, setPlacement] = createSignal<PromptPopoverPlacement>()
   const place = () => {
@@ -158,7 +150,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
           event.currentTarget.value = ""
         }}
       />
-      {/* Enters and exits like the other menus; while it fades out it keeps the list it last showed. */}
       <Portal>
         <Presence when={state.popover.type !== "closed"} class="pointer-events-none fixed inset-0 z-[60]">
           <Show when={popover()}>
@@ -186,7 +177,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </Show>
         </Presence>
       </Portal>
-      {/* The form has no surface of its own: the where row is a tab above the box, and the box holds the rest. */}
       <form
         data-component="prompt-input-v2"
         class="group/prompt-input relative flex w-full flex-col"
@@ -199,8 +189,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        {/* The tray is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. It
-          holds the where row and, above it, anything that belongs to the thread's state (its checklist). */}
         <Show when={props.headerControl || props.headerTop}>
           <div
             data-slot="prompt-input-header"
@@ -215,7 +203,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </div>
         </Show>
 
-        {/* The box: attachments, prompt and controls on one raised surface, above the tab. */}
         <div
           data-slot="prompt-input-box"
           data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
@@ -278,7 +265,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               class="relative z-10 block min-h-[52px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-3 pb-1 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
               classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
               onInput={(event) => syncEditor(event.currentTarget)}
-              // A thread reference switches between its summary and the full thread on click.
               onClick={(event) => {
                 const pill = (event.target as HTMLElement).closest<HTMLElement>("[data-mention=thread]")
                 if (!pill?.dataset.url) return
@@ -314,7 +300,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
             </Show>
           </div>
 
-          {/* No fill or border of its own; its controls are 30px (responsive-controls.css). */}
           <div data-slot="prompt-input-controls-row" class="flex h-11 items-center gap-1 pb-1 pl-2.5 pr-1.5">
             <Show when={state.mode === "shell"}>
               <button
@@ -430,9 +415,7 @@ function renderPromptInputV2Editor(
         mention.dataset.path = part.path
         if (part.mime) mention.dataset.mime = part.mime
         if (part.filename) mention.dataset.filename = part.filename
-        // A thread reference (tenon-thread://) or MCP resource is addressed by URL, not by path.
         if (part.url) mention.dataset.url = part.url
-        // The mode shows after the pill without joining its text, which is the part's content.
         if (part.mime === "application/x-tenon-skill") mention.dataset.mention = "skill"
         if (part.mime === "application/x-tenon-thread") {
           mention.dataset.mention = "thread"
@@ -537,7 +520,6 @@ export function PromptInputV2Attachments(props: {
   comments?: PromptInputV2Comment[]
   quotes?: PromptInputV2Quote[]
   quoteRemoveLabel?: string
-  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
   attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
   activeCommentID?: string
   removeLabel: string
@@ -550,7 +532,6 @@ export function PromptInputV2Attachments(props: {
   const i18n = useI18n()
   const filled = () =>
     props.attachments.length > 0 || (props.comments?.length ?? 0) > 0 || (props.quotes?.length ?? 0) > 0
-  // The strip folds through Reveal once the last card goes, and keeps showing the last cards while it does.
   const shown = createMemo<{
     attachments: PromptInputV2Attachment[]
     comments: PromptInputV2Comment[]
@@ -577,7 +558,6 @@ export function PromptInputV2Attachments(props: {
                   classList={{
                     "h-8 rounded-full bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
                       !quote.comment,
-                    // A passage with the user's reply to it: two lines, the passage muted above the reply.
                     "min-h-11 rounded-[14px] bg-v2-background-bg-layer-02 py-1.5 text-v2-text-text-base":
                       !!quote.comment,
                   }}
@@ -779,7 +759,6 @@ function PromptInputV2ConfiguredSelect(props: {
 export function PromptInputV2Select(props: {
   title: string
   keybind?: string[]
-  // Consecutive options with the same `group` render under one labelled section.
   options: Array<PromptInputV2Option & { disabled?: boolean; title?: string; group?: string }>
   current: string
   currentIcon?: JSX.Element
@@ -886,7 +865,6 @@ export function PromptInputV2Popover(props: {
   }
   onActiveChange: (item: PromptInputV2Suggestion) => void
   onSelect: (item: PromptInputV2Suggestion) => void
-  /** Viewport position; without one the popover sits just above its positioned parent. */
   placement?: PromptPopoverPlacement
 }) {
   return (

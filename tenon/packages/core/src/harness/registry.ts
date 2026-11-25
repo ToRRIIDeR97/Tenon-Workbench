@@ -10,8 +10,6 @@ import type { AppProcess } from "../process"
 import { which } from "../util/which"
 import { AcpHarness } from "./acp"
 
-// The app-owned list of harnesses added after setup. It lives beside the global config and holds
-// commands only: agents can't store environment variables here.
 export const fileName = "harnesses.json"
 export const reserved: ReadonlySet<string> = new Set([
   Harness.OpenCode,
@@ -21,7 +19,6 @@ export const reserved: ReadonlySet<string> = new Set([
 ])
 
 const slug = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/
-// Serializes the read-modify-write of harnesses.json so concurrent registrations can't drop an entry.
 const writeLock = Semaphore.makeUnsafe(1)
 
 export const Input = Schema.Struct({
@@ -108,7 +105,6 @@ export const register = Effect.fn("HarnessRegistry.register")(function* (input: 
   const command = yield* resolveCommand(decoded.command.trim())
   if (!command) return yield* fail("command-not-found", `"${decoded.command}" is not an executable on PATH.`)
 
-  // Registration is a user action in Settings, so there is no separate approval step.
   const entry = { id, name: decoded.name?.trim() || id, command, args: decoded.args ?? [] }
   const settings = { command, args: entry.args, env: {}, models: decoded.models ?? [] }
   const agent = yield* AcpHarness.handshake(deps.process, settings, deps.directory).pipe(
@@ -146,7 +142,6 @@ export const setEnabled = (configDir: string, id: string, enabled: boolean) =>
 
 export const remove = (configDir: string, id: string) => update(configDir, id, () => undefined)
 
-/** Runs the ACP handshake and opens a session to list models. Nothing is written. */
 export const discover = Effect.fn("HarnessRegistry.discover")(function* (
   input: unknown,
   deps: Pick<Dependencies, "directory" | "process">,
@@ -164,10 +159,6 @@ export const discover = Effect.fn("HarnessRegistry.discover")(function* (
   return { command, args, agentName: agent.name, version: agent.version, models: agent.models } satisfies Discovery
 })
 
-/**
- * Functional check: handshake, a real session, and one short prompt. `ok` means the agent
- * answered with text. Nothing is written.
- */
 export const verify = Effect.fn("HarnessRegistry.verify")(function* (
   input: unknown,
   deps: Pick<Dependencies, "directory" | "process">,
@@ -197,8 +188,6 @@ export const verify = Effect.fn("HarnessRegistry.verify")(function* (
   }
 })
 
-// Read-modify-write of one existing entry under the shared lock. `change` returns the new entry,
-// or undefined to delete it. A malformed file is reported and never overwritten.
 function update(
   configDir: string,
   id: string,
@@ -224,7 +213,6 @@ function update(
 
 export const preferencesFileName = "harness-preferences.json"
 
-/** The harness chosen in settings to title new threads, if any. */
 export const titleAgent = (configDir: string): Effect.Effect<Harness.InstanceID | undefined> =>
   Effect.tryPromise(() => fs.readFile(path.join(configDir, preferencesFileName), "utf8")).pipe(
     Effect.map((text) => {
@@ -235,7 +223,6 @@ export const titleAgent = (configDir: string): Effect.Effect<Harness.InstanceID 
     Effect.orElseSucceed(() => undefined),
   )
 
-/** Sets the title harness; undefined goes back to each thread's own harness. */
 export const setTitleAgent = (configDir: string, id: Harness.InstanceID | undefined) =>
   Effect.tryPromise({
     try: () =>
@@ -246,7 +233,6 @@ export const setTitleAgent = (configDir: string, id: Harness.InstanceID | undefi
     catch: (cause) => registerError("write-failed", `Could not save ${preferencesFileName}: ${String(cause)}`),
   }).pipe(writeLock.withPermits(1))
 
-// The desktop app runs core under Node, so file and PATH lookups here must not use Bun globals.
 function readRaw(configDir: string) {
   return Effect.tryPromise({
     try: () =>

@@ -18,7 +18,7 @@ import "./titlebar.css"
 
 const titlebarHeight = 36
 const minTitlebarZoom = 0.25
-const windowsControlsBaseWidth = 138 // 3 native Windows caption buttons at 46px each.
+const windowsControlsBaseWidth = 138
 const macTrafficLightsBaseWidth = 84
 
 export type TitlebarUpdate = {
@@ -36,7 +36,6 @@ export function useTitlebarRightMount() {
   return mount
 }
 
-/** Window chrome: sidebar toggle, back/forward, update pill and native window controls. Navigation lives in the sidebar. */
 export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visible: boolean; toggle: () => void } }) {
   const layout = useLayout()
   const platform = usePlatform()
@@ -126,7 +125,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
   ])
 
   onMount(() => {
-    // Windows convention; on macOS Alt+Arrow moves the caret by word, so it stays a text shortcut there.
     const onKeyDown = (event: KeyboardEvent) => {
       if (!windows() || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
@@ -135,7 +133,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
       if (event.key === "ArrowLeft") return back()
       forward()
     }
-    // Mouse buttons 3/4 (back/forward); preventDefault stops Chromium's own history navigation.
     const onMouseUp = (event: MouseEvent) => {
       if (event.button !== 3 && event.button !== 4) return
       event.preventDefault()
@@ -150,9 +147,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
     })
   })
 
-  // On a desktop-width window the bar floats over the top of the window with no background; it belongs to the
-  // window. Its height is published so the sidebar and the page frames start 8px below it (`titlebar-inset-top`
-  // in index.css).
   let header: HTMLElement | undefined
   createEffect(() => {
     const root = document.documentElement
@@ -181,11 +175,9 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
       }}
       style={{
         "min-height": minHeight(),
-        // Keep native macOS traffic lights clear even when the desktop window is narrow.
         "padding-left": macTrafficLights() ? `${macTrafficLightsBaseWidth / zoom()}px` : 0,
         width: windows() ? `env(titlebar-area-width, calc(100vw - ${windowsControlsWidth()}))` : undefined,
         "max-width": windows() ? `env(titlebar-area-width, calc(100vw - ${windowsControlsWidth()}))` : undefined,
-        // Native Windows caption controls remain on the physical right in both writing directions.
         "margin-right": windows() ? "auto" : undefined,
       }}
       data-tauri-drag-region

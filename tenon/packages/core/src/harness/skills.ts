@@ -19,21 +19,13 @@ export type Skill = {
   description?: string
   location?: string
   scope: "global" | "project"
-  /** False when switched off in Settings → Skills (for a harness skill: its SKILL.md renamed, #323). */
   enabled?: boolean
-  /** Harness skills only: true when the skill sits in a folder Tenon may switch it in (home or project). */
   editable?: boolean
 }
 
-/** The suffix that switches a harness skill off: every harness loads skills by the exact file name SKILL.md. */
 export const DISABLED_SUFFIX = ".disabled"
 export type Source = "filesystem" | "reported" | "none"
 
-/**
- * Skills a harness can use, read from the folders that harness loads them from. Read-only: only names,
- * descriptions and file paths are returned, never skill content. A harness without known folders falls
- * back to the commands it reported over ACP.
- */
 export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
   home: string
   directory: string
@@ -49,15 +41,12 @@ export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
       scope: "global" as const,
       editable: true,
     })),
-    // System folders belong to an administrator; Tenon lists their skills but never renames them.
     ...(folders.system ?? []).map((root) => ({ root, scope: "global" as const, editable: false })),
     ...levels.flatMap((level) =>
       folders.project.map((folder) => ({ root: path.join(level, folder), scope: "project" as const, editable: true })),
     ),
   ]
   const seen = new Set<string>()
-  // A skill can sit in two of a harness's folders (OpenCode reads both `~/.claude/skills` and `~/.agents/skills`);
-  // the first one found is listed.
   const names = new Set<string>()
   const skills: Skill[] = []
   for (const item of roots) {
@@ -73,11 +62,6 @@ export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
   return { source: "filesystem" as Source, skills }
 })
 
-/**
- * Tenon's skills, then the skills of every external harness in settings order. Settings come from the
- * registry and config, so building the catalog never starts a harness CLI. The in-process agent is left
- * out: its skills are Tenon's.
- */
 export const catalog = Effect.fn("HarnessSkills.catalog")(function* () {
   const skills = yield* SkillV2.Service
   const harnesses = yield* HarnessRuntime.Service
@@ -92,7 +76,6 @@ export const catalog = Effect.fn("HarnessSkills.catalog")(function* () {
     tenon,
     harnesses: yield* Effect.forEach(external, (entry) =>
       scan({
-        // Global.Service lives outside location scope; its home is this same path.
         home: Global.Path.home,
         directory: location.directory,
         harness: { id: entry.id, driver: entry.driver, command: entry.command },
@@ -110,11 +93,6 @@ export class SwitchFailed extends Schema.TaggedError<SwitchFailed>()("HarnessSki
   message: Schema.String,
 }) {}
 
-/**
- * Switches one of Tenon's skills on or off, or with `harness` that harness's skill. A harness skill is switched by
- * renaming its SKILL.md to SKILL.md.disabled and back (#323); the skill is found by name in the harness's own
- * folders, so the caller never names a path.
- */
 export const setEnabled = Effect.fn("HarnessSkills.setEnabled")(function* (
   name: string,
   enabled: boolean,
@@ -141,7 +119,6 @@ export const setEnabled = Effect.fn("HarnessSkills.setEnabled")(function* (
   return { name, enabled: !disabled.has(name) }
 })
 
-/** Renames a harness skill's SKILL.md to switch it, after finding it by name where the harness loads skills. */
 export const switchSkill = Effect.fn("HarnessSkills.switchSkill")(function* (input: {
   home: string
   directory: string
@@ -157,7 +134,6 @@ export const switchSkill = Effect.fn("HarnessSkills.switchSkill")(function* (inp
   return { name: input.name, enabled: input.enabled }
 })
 
-/** The SKILL.md path for the asked state: `SKILL.md` when on, `SKILL.md.disabled` when off. */
 export function toggledLocation(location: string, enabled: boolean, api: Pick<typeof path, "basename"> = path) {
   const off = api.basename(location).endsWith(DISABLED_SUFFIX)
   if (enabled && off) return location.slice(0, -DISABLED_SUFFIX.length)
@@ -165,7 +141,6 @@ export function toggledLocation(location: string, enabled: boolean, api: Pick<ty
   return location
 }
 
-// A file already at the target (a newer SKILL.md beside a disabled one) is never overwritten.
 const rename = (from: string, to: string) =>
   Effect.tryPromise({
     try: async () => {
@@ -179,13 +154,11 @@ const rename = (from: string, to: string) =>
     catch: (cause) => new SwitchFailed({ message: cause instanceof Error ? cause.message : String(cause) }),
   })
 
-/** Tenon's skills for the catalog. Embedded skills ship inside the app, so they have no file location. */
 export function tenonSkills(
   skills: ReadonlyArray<SkillV2.Info>,
   sources: ReadonlyArray<SkillV2.Source>,
   disabled: ReadonlySet<string> = new Set(),
 ): Skill[] {
-  // A file-based skill can replace an embedded one of the same name, so match the location too.
   const embedded = new Set(
     sources.flatMap((source) => (source.type === "embedded" ? [`${source.skill.name}\0${source.skill.location}`] : [])),
   )
@@ -198,13 +171,6 @@ export function tenonSkills(
   }))
 }
 
-/**
- * Each harness's documented skill folders: `global` relative to the home directory, `system` absolute, and
- * `project` relative to every level from the working directory up to the repository root.
- * Codex: https://learn.chatgpt.com/docs/build-skills (`~/.codex/skills` also holds the skills Codex installs
- * itself). OpenCode: https://opencode.ai/docs/skills/ (plus the legacy singular `skill` folder).
- * Claude Code: https://code.claude.com/docs/en/skills. Undefined when the harness has none known.
- */
 export function locations(harness: Harness): { global: string[]; system?: string[]; project: string[] } | undefined {
   if (harness.driver === "codex")
     return { global: [".agents/skills", ".codex/skills"], system: ["/etc/codex/skills"], project: [".agents/skills"] }
@@ -219,11 +185,6 @@ export function locations(harness: Harness): { global: string[]; system?: string
   return undefined
 }
 
-/**
- * The working directory and each parent up to the repository root (the first level holding `.git`), nearest
- * first, the way Codex, OpenCode and Claude Code walk up for project skills. Outside a repository only the
- * working directory itself is searched.
- */
 const projectLevels = Effect.fn("HarnessSkills.projectLevels")(function* (directory: string) {
   const levels: string[] = []
   let current = path.resolve(directory)
@@ -242,7 +203,6 @@ const projectLevels = Effect.fn("HarnessSkills.projectLevels")(function* (direct
   }
 })
 
-/** The command's file name, lowercased and without extension, for either path style. */
 function commandName(command: string | undefined) {
   const base = (command ?? "").trim().split(/[\\/]/).at(-1) ?? ""
   const dot = base.lastIndexOf(".")
@@ -263,8 +223,6 @@ function fromReport(harness: Harness, reported: Reported | undefined) {
   }
 }
 
-// A missing or unreadable folder simply has no skills.
-// A switched-off skill's SKILL.md.disabled is listed too, so it can be switched back on.
 const skillFiles = (root: string) =>
   Effect.tryPromise(() =>
     Glob.scan("**/SKILL.md{,.disabled}", { cwd: root, absolute: true, dot: true, symlink: true }),

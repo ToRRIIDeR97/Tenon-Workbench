@@ -135,9 +135,7 @@ const layer = Layer.effect(
           for (const [name, item] of Object.entries(cfg.formatter)) {
             const builtIn = Formatter[name as keyof typeof Formatter]
 
-            // Ruff and uv are both the same formatter, so disabling either should disable both.
             if (["ruff", "uv"].includes(name) && (cfg.formatter.ruff?.disabled || cfg.formatter.uv?.disabled)) {
-              // TODO combine formatters so shared backends like Ruff/uv don't need linked disable handling here.
               delete formatters.ruff
               delete formatters.uv
               continue

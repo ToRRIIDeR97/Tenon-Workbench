@@ -202,7 +202,6 @@ function addServerPrimaryButton(input: {
       width: null,
     }
   }
-  // The desktop app does not download runtimes into WSL; the user installs a matching one.
   if (!addServerOpencodeReady(input.opencodeCheck)) {
     return {
       variant: "neutral",

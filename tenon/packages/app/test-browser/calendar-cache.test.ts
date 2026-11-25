@@ -30,7 +30,6 @@ describe("createCalendarResource", () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(first.snapshot()?.revision).toBe("r1")
 
-    // A fresh mount (a relaunch or a remounted page) whose read never answers still paints the cached events.
     const second = createRoot(() =>
       createCalendarResource(
         () => directory,

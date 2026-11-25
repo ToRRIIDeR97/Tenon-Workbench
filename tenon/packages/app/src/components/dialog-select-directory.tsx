@@ -31,7 +31,6 @@ type Row = {
 function toRow(absolute: string, home: string, group: Row["group"]): Row {
   const full = displayPickerPath(absolute, "", "")
   const tilde = displayPickerPath(full, "~", home)
-  // Windows paths display with backslashes; keep the forward-slash spelling searchable too.
   const slashed = trimPickerPath(full)
   const withSlash = (value: string) => {
     if (!value) return ""
@@ -123,7 +122,6 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
   const items = async (value: string) => {
     const results = await directories(value)
     const directoryRows = results.map((absolute) => toRow(absolute, home(), "folders"))
-    // Cap the idle list only. Once a query narrows the results, every project stays searchable.
     const recent = recentProjects()
     const visible = value ? recent : recent.slice(0, RECENT_PROJECT_LIMIT)
     return uniqueRows([...visible, ...directoryRows])
@@ -148,7 +146,6 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
           items={items}
           key={(x) => x.absolute}
           filterKeys={["search"]}
-          // Folder rows already match the typed path (`~`, `~/`, `C:/…`), which a second fuzzy pass would drop.
           skipFilter={(item) => item.group === "folders"}
           groupBy={(item) => item.group}
           sortGroupsBy={(a, b) => {

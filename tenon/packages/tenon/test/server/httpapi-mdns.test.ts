@@ -22,7 +22,6 @@ void mock.module("bonjour-service", () => ({
   },
 }))
 
-// Import Server AFTER the mock so the MDNS module picks up the stub.
 const { Server } = await import("../../src/server/server")
 
 const original = {
@@ -72,7 +71,6 @@ describe("HttpApi Server.listen mDNS", () => {
     Flag.TENON_SERVER_USERNAME = "opencode"
     const listener = await Server.listen({ hostname: "0.0.0.0", port: 0, mdns: true })
     expect(events.filter((e) => e.kind === "publish").length).toBe(1)
-    // Plain (graceful) stop without close=true should still unpublish.
     await withTimeout(listener.stop(), 10_000, "timed out stopping graceful mdns listener")
     expect(events.some((e) => e.kind === "unpublishAll")).toBe(true)
   })

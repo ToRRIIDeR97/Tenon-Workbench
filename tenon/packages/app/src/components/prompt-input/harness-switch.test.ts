@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createHarnessSwitchQueue } from "./harness-switch"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-2): a thread's harness switch shows at once and a
-// send waits for it instead of being refused.
-
 describe("AC-2 createHarnessSwitchQueue", () => {
   test("shows the pick at once, sends picks in order and settles after the last one", async () => {
     const sent: string[] = []

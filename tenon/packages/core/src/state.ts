@@ -2,12 +2,6 @@ export * as State from "./state"
 
 import { Context, Effect, Scope, Semaphore } from "effect"
 
-/**
- * A replayable transform applied to a draft during reload.
- *
- * Domain drafts expose readable and writable state while preserving concise
- * plugin/config code. Transforms may perform Effects before returning.
- */
 type TransformCallback<DraftApi> = (draft: DraftApi) => Effect.Effect<void> | void
 export type MakeDraft<State, DraftApi> = (state: State) => DraftApi
 
@@ -42,20 +36,13 @@ export function batch<A, E, R>(effect: Effect.Effect<A, E, R>) {
 }
 
 export interface Options<State, DraftApi> {
-  /** Creates the base value for initial state and every scoped-transform reload. */
   readonly initial: () => State
-  /** Wraps mutable state in a domain-specific draft API. */
   readonly draft: MakeDraft<State, DraftApi>
-  /** Runs after all active transforms and before the rebuilt state becomes visible. */
   readonly finalize?: (draft: DraftApi) => Effect.Effect<void>
 }
 
 export interface Interface<State, DraftApi> extends Transformable<DraftApi> {
   readonly get: () => State
-  /**
-   * Registers and applies a scoped transform. Closing the owning Scope removes
-   * the transform and reloads the materialized state.
-   */
 }
 
 export function create<State, DraftApi>(options: Options<State, DraftApi>): Interface<State, DraftApi> {

@@ -50,7 +50,6 @@ test("a timed event ending at midnight does not cover the next day", () => {
   expect(eventCoversDay(overnight, "2026-08-26")).toBe(false)
   const late = { ...overnight, end: "01:00" }
   expect(eventCoversDay(late, "2026-08-26")).toBe(true)
-  // All-day events keep their inclusive end date.
   expect(eventCoversDay({ date: "2026-08-25", endDate: "2026-08-27" }, "2026-08-27")).toBe(true)
   expect(dateKeys("2026-12-30", "2027-01-02")).toEqual(["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"])
 })
@@ -59,9 +58,7 @@ test("a Google sync keeps unsynced Google writes and Project links", () => {
   const local: CalendarEvent = { id: "l1", title: "Local", date: "2026-08-25", source: "local", syncState: "local" }
   const current = [
     local,
-    // Queued create that Google does not return yet.
     google("queued", { syncState: "offline", outboxKind: "create", outboxKey: "k1" }),
-    // Failed update: Google still has the old copy.
     google("failed", { title: "Mine", syncState: "failed", outboxKind: "update", outboxKey: "k2" }),
     google("linked", { projectId: "project_01A" }),
     google("gone"),
@@ -79,7 +76,6 @@ test("a Google sync keeps unsynced Google writes and Project links", () => {
     title: "Renamed",
     projectId: "project_01A",
   })
-  // Duplicate remote ids collapse to one.
   expect(mergeProviderEvents([], [remote("dup"), remote("dup")])).toHaveLength(1)
 })
 

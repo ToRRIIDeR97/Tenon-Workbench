@@ -18,12 +18,6 @@ const PREFLIGHT_HEADERS = {
   "access-control-request-headers": "content-type, x-opencode-directory",
 }
 
-// effect-smol's HttpMiddleware.cors overwrites `Vary: Origin` with
-// `Vary: Access-Control-Request-Headers` on OPTIONS preflight responses
-// (the two share the same record key during the spread). With dynamic
-// origin echoing, missing Vary: Origin lets shared caches serve a preflight
-// cached for one origin against a different origin. corsVaryFixLayer
-// restores the merged form.
 describe("CORS preflight Vary header", () => {
   test("HTTP API backend preflight Vary contains Origin", async () => {
     const response = await app().request("/global/config", {

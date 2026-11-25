@@ -1,7 +1,3 @@
-/*
- * New-thread greeting: the welcome fades in once while the headline types in over TYPE_MS (750ms), then both stay
- * put. The headline's full text holds its place invisibly, so the typed part grows over it without moving anything.
- */
 .new-thread-welcome {
   animation: greeting-fade 900ms var(--v2-ease-emphasized-decelerate) both;
 }
@@ -40,7 +36,6 @@
   background: currentColor;
 }
 
-/* Home's rolling verb (Greeting `swap`): a one-line window over a stack of verbs that slides up to the next one. */
 .greeting-slot-window {
   display: inline-block;
   height: 1.3em;
@@ -60,7 +55,6 @@
   }
 }
 
-/* The snap back from the copy of the first verb to the first one, which must not be seen. */
 .greeting-slot-snap {
   transition: none;
 }

@@ -43,7 +43,6 @@ afterEach(async () => {
   await disposeAllInstances()
 })
 
-/** Reject all pending questions so dangling Deferred fibers don't hang the test. */
 const rejectAll = Effect.gen(function* () {
   yield* Effect.forEach(yield* listEffect, (req) => rejectEffect(req.id), { discard: true })
 })
@@ -118,8 +117,6 @@ it.instance(
     }),
   { git: true },
 )
-
-// reply tests
 
 it.instance(
   "reply - resolves the pending ask with answers",
@@ -203,8 +200,6 @@ it.instance(
   { git: true },
 )
 
-// reject tests
-
 it.instance(
   "reject - throws RejectedError",
   () =>
@@ -276,8 +271,6 @@ it.instance(
   { git: true },
 )
 
-// multiple questions tests
-
 it.instance(
   "ask - handles multiple questions",
   () =>
@@ -317,8 +310,6 @@ it.instance(
     }),
   { git: true },
 )
-
-// list tests
 
 it.instance(
   "list - returns all pending requests",

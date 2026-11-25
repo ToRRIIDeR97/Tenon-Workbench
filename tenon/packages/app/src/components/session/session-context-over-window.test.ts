@@ -2,9 +2,6 @@ import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
 import { getSessionContext } from "./session-context-metrics"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-13, added mid-run): a running OpenCode turn showed
-// "Used 528,890 of 200,000 (264%)", the turn's token total. Context in use can't exceed the window.
-
 const assistant = (
   id: string,
   input: { harness?: string; contextUsed?: number; contextWindow?: number; cacheRead?: number },

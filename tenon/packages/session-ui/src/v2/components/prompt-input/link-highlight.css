@@ -1,4 +1,3 @@
-/* Links in the composer (see link-highlight.ts). */
 ::highlight(tenon-composer-link) {
   color: var(--v2-text-text-accent);
   text-decoration: underline;

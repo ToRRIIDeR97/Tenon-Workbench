@@ -125,7 +125,6 @@ describe("tool.apply_patch freeform", () => {
 
         expect(result.title).toContain("Success. Updated the following files")
         expect(result.output).toContain("Success. Updated the following files")
-        // Strict formatting assertions for slashes
         expect(result.output).toMatch(/A nested\/new\.txt/)
         expect(result.output).toMatch(/D delete\.txt/)
         expect(result.output).toMatch(/M modify\.txt/)
@@ -135,7 +134,6 @@ describe("tool.apply_patch freeform", () => {
         expect(result.metadata.diff).toContain("Index:")
         expect(calls.length).toBe(1)
 
-        // Verify permission metadata includes files array for UI rendering
         const permissionCall = calls[0]
         expect(permissionCall.metadata.files).toHaveLength(3)
         expect(permissionCall.metadata.files.map((f) => f.type).sort()).toEqual(["add", "delete", "update"])
@@ -428,15 +426,12 @@ describe("tool.apply_patch freeform", () => {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "eof_anchor.txt")
-      // File has duplicate "marker" lines - one in middle, one at end
       yield* writeText(target, "start\nmarker\nmiddle\nmarker\nend\n")
 
-      // With EOF anchor, should match the LAST "marker" line, not the first
       const patchText =
         "*** Begin Patch\n*** Update File: eof_anchor.txt\n@@\n-marker\n-end\n+marker-changed\n+end\n*** End of File\n*** End Patch"
 
       yield* execute({ patchText }, ctx)
-      // First marker unchanged, second marker changed
       expect(yield* readText(target)).toBe("start\nmarker\nmiddle\nmarker-changed\nend\n")
     }),
   )
@@ -478,10 +473,8 @@ EOF`
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "trailing_ws.txt")
-      // File has trailing spaces on some lines
       yield* writeText(target, "line1  \nline2\nline3   \n")
 
-      // Patch doesn't have trailing spaces - should still match via rstrip pass
       const patchText = "*** Begin Patch\n*** Update File: trailing_ws.txt\n@@\n-line2\n+changed\n*** End Patch"
 
       yield* execute({ patchText }, ctx)
@@ -494,10 +487,8 @@ EOF`
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "leading_ws.txt")
-      // File has leading spaces
       yield* writeText(target, "  line1\nline2\n  line3\n")
 
-      // Patch without leading spaces - should match via trim pass
       const patchText = "*** Begin Patch\n*** Update File: leading_ws.txt\n@@\n-line2\n+changed\n*** End Patch"
 
       yield* execute({ patchText }, ctx)
@@ -510,19 +501,15 @@ EOF`
       const test = yield* TestInstance
       const { ctx } = makeCtx()
       const target = path.join(test.directory, "unicode.txt")
-      // File has fancy Unicode quotes (U+201C, U+201D) and em-dash (U+2014)
       const leftQuote = "\u201C"
       const rightQuote = "\u201D"
       const emDash = "\u2014"
       yield* writeText(target, `He said ${leftQuote}hello${rightQuote}\nsome${emDash}dash\nend\n`)
 
-      // Patch uses ASCII equivalents - should match via normalized pass
-      // The replacement uses ASCII quotes from the patch (not preserving Unicode)
       const patchText =
         '*** Begin Patch\n*** Update File: unicode.txt\n@@\n-He said "hello"\n+He said "hi"\n*** End Patch'
 
       yield* execute({ patchText }, ctx)
-      // Result has ASCII quotes because that's what the patch specifies
       expect(yield* readText(target)).toBe(`He said "hi"\nsome${emDash}dash\nend\n`)
     }),
   )

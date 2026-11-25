@@ -202,7 +202,6 @@ function ModelSelectorPopoverV2View(props: {
   const models = createMemo(() => props.models(store.search))
   const groups = createMemo(() => props.groups(models()))
   const active = createSelector(() => store.active)
-  // ponytail: virtualize whole providers to retain sticky labels; split rows if a single provider becomes too large.
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() {
       return groups().length
@@ -214,7 +213,6 @@ function ModelSelectorPopoverV2View(props: {
     initialRect: { width: 300, height: 320 },
     get estimateSize() {
       const current = groups()
-      // Group label is 28px; each item is 36px (menuItemsClass) plus the 2px group gap.
       return (index: number) => 28 + current[index].items.length * 38
     },
     get getItemKey() {

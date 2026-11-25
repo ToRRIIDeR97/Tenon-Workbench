@@ -34,7 +34,6 @@ function mapProviderAuthError<A, R>(self: Effect.Effect<A, ProviderAuth.Error, R
 const listEtagBoot = crypto.randomUUID()
 const encodeListResult = Schema.encodeSync(Provider.ListResult)
 const encodeInfo = Schema.encodeSync(Provider.Info)
-// Encoded models.dev entries, keyed by the shared (read-only) Provider.fromModelsDev entry they came from.
 const encodedShared = new WeakMap<Provider.Info, unknown>()
 function encodeShared(info: Provider.Info) {
   const cached = encodedShared.get(info)
@@ -56,8 +55,6 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
     const svc = yield* ProviderAuth.Service
     const authStore = yield* Auth.Service
 
-    // The projection is rebuilt only when one of its inputs changes. models.dev data, config and
-    // provider state are replaced (not mutated) on refresh, so object identity tracks their versions.
     let cached:
       | {
           readonly all: unknown
@@ -86,7 +83,6 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       ) {
         const disabled = new Set(config.disabled_providers ?? [])
         const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
-        // The models.dev projection is directory-independent and shared with Provider state.
         const shared = Provider.fromModelsDev(all)
         const filtered: Record<string, Provider.Info> = {}
         for (const [key, value] of Object.entries(shared.catalog)) {
@@ -111,7 +107,6 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
           config,
           connected,
           credentials: credentialIDs,
-          // The boot token keeps ETags from a previous server process from matching.
           etag: `W/"${listEtagBoot}-${version}"`,
           body: JSON.stringify(result),
         }
@@ -147,9 +142,6 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       const payload = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ProviderAuth.AuthorizeInput))(body).pipe(
         Effect.mapError(() => new ProviderAuthApiError({ name: "BadRequest", data: {} })),
       )
-      // Match legacy route behavior: when authorize() resolves without a
-      // result (e.g. no further redirect), serialize as JSON `null` instead
-      // of an empty body so clients can `.json()` parse the response.
       const result = yield* authorize({ params: ctx.params, payload })
       return HttpServerResponse.jsonUnsafe(result ?? null)
     })

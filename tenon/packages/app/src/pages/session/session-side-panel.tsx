@@ -84,11 +84,9 @@ export function SessionSidePanel(props: {
   activeDiff?: string
   focusReviewDiff: (path: string) => void
   reviewSnap: boolean
-  /** The panel is sliding out: keep Review mounted, faded and pinned until the thread column has arrived. */
   closing?: boolean
   size: Sizing
   stacked?: boolean
-  /** Display name of a harness instance, for agent tabs; undefined when the harness isn't listed. */
   harnessName?: (id: string) => string | undefined
 }) {
   const layout = useLayout()
@@ -105,7 +103,6 @@ export function SessionSidePanel(props: {
   const shown = settings.visibility.fileTree
 
   const reviewOpen = createMemo(() => isDesktop() && (view().reviewPanel.opened() || !!props.closing))
-  // Under 1100px the thread can't share the page with both the Projects panel and this one.
   const narrow = createMediaQuery("(max-width: 1099px)")
   createEffect(
     on(
@@ -122,10 +119,6 @@ export function SessionSidePanel(props: {
       }),
   )
   const open = createMemo(() => reviewOpen() || fileOpen())
-  // The content mounts once the sliding panel has arrived, not on the click: building the tabs, diffs and file
-  // browser during the slide costs it frames, and they would re-lay out at every width on the way. It then
-  // stays mounted while the panel is open, and fades in if it waited for a slide. Set from an effect, so
-  // `panelSettled` has already taken this open's value when it is read.
   const [body, setBody] = createStore({ mounted: false, waited: false })
   createEffect(() => {
     if (!open()) return setBody({ mounted: false, waited: false })
@@ -215,7 +208,6 @@ export function SessionSidePanel(props: {
   const openedTabs = tabState.openedTabs
   const section = tabState.section
   const subagents = useThreadSubagents(() => section() === "agents")
-  // Tab lists saved before the Agents tab held one tab per subagent; fold them in, keeping that agent selected.
   createEffect(() => {
     const migrated = migrateAgentTabs(tabs().all(), tabs().active())
     if (!migrated) return
@@ -256,7 +248,6 @@ export function SessionSidePanel(props: {
   let tabList: HTMLDivElement | undefined
   let aside: HTMLElement | undefined
 
-  // A narrow panel floats the review/file tree over the viewer instead of squeezing the viewer to a sliver.
   onMount(() => {
     if (!aside) return
     createResizeObserver(aside, ({ width }) =>
@@ -264,7 +255,6 @@ export function SessionSidePanel(props: {
     )
   })
 
-  // Tabs scrolled out of the strip are listed in an overflow menu, so they stay reachable.
   const [overflow, setOverflow] = createStore({ hidden: [] as { value: string; label: string }[] })
   let overflowFrame: number | undefined
   const measureTabs = () => {
@@ -274,7 +264,6 @@ export function SessionSidePanel(props: {
     const box = list.getBoundingClientRect()
     let start = box.left
     let end = box.right
-    // The sidebar toggle sticks to the start; the open-browser and open-file buttons stick to the end.
     for (const child of Array.from(list.children) as HTMLElement[]) {
       if (!child.classList.contains("sticky")) continue
       const rect = child.getBoundingClientRect()
@@ -348,9 +337,6 @@ export function SessionSidePanel(props: {
     if (active && file.pathFromTab(active)) return active
     return activeFileTab()
   })
-  // Keep the file-browser shell mounted while any file tab exists. Kobalte briefly
-  // selects Review while the tab For replaces a preview trigger, which would
-  // otherwise dispose the sidebar and reset scroll.
   const fileBrowserMounted = createMemo(() => {
     if (!props.fileBrowserState) return false
     return openedTabs().length > 0 || openFileOpen() || !!browserTab()
@@ -400,7 +386,6 @@ export function SessionSidePanel(props: {
     />
   )
 
-  // Tabs opened after the strip has mounted fade and rise in; the tabs it opens with do not.
   const strip = { ready: false }
   onMount(() => requestAnimationFrame(() => (strip.ready = true)))
   const tabEnter = () => (strip.ready ? "animate-enter" : undefined)
@@ -572,9 +557,6 @@ export function SessionSidePanel(props: {
     </Show>
   )
 
-  // A drag on the thread/panel split, or the panel sliding out, pins the panel's content at its starting width
-  // and lets the panel clip it.
-  // Re-wrapping the diff at every width costs a frame or more, so the content reflows once, on release.
   let content: HTMLDivElement | undefined
   createEffect(
     on(
@@ -609,13 +591,11 @@ export function SessionSidePanel(props: {
         aria-label={language.t("session.panel.reviewAndFiles")}
         aria-hidden={!open()}
         inert={!open() || props.closing}
-        // The right shell draws the corners and ring around the panel and the rail.
         class="relative min-w-0 flex overflow-hidden bg-v2-background-bg-base"
         classList={{
           "h-full shrink-0": !props.stacked,
           "h-full min-h-0": props.stacked,
           "pointer-events-none": !open(),
-          // The same curve as the thread column, so the two edges move together.
           "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
             !props.size.active() && !props.reviewSnap,
           "flex-1": reviewOpen(),
@@ -660,14 +640,10 @@ export function SessionSidePanel(props: {
                       <TabsV2
                         class="thread-tabs"
                         value={activeTab()}
-                        // The strip holds file tabs only. Outside Files none of them is selected, and Kobalte then
-                        // picks the first one itself; that pick must not pull the panel back to Files.
                         onChange={(value: string) => section() === "files" && activateTab(value)}
                       >
                         <div class="sticky top-0 shrink-0 flex items-center gap-1 bg-v2-background-bg-base px-2.5 pt-2.5 pb-1.5">
                           <Show when={section() !== "files"}>
-                            {/* Read from props, not a Show accessor: the section can change under this row
-                                (a thread switch), and a stale accessor throws. */}
                             <Show when={section() === "changes" && props.reviewSidebarToggle}>
                               <div class="flex h-8 shrink-0 items-center pr-1">
                                 {props.reviewSidebarToggle?.(false)}
@@ -682,7 +658,6 @@ export function SessionSidePanel(props: {
                             {openFileButton(() => openFileBrowser())}
                           </Show>
                           <TabsV2.List
-                            // Scroll padding keeps a revealed tab clear of the sticky buttons at either edge.
                             class="min-w-0 flex-1 scroll-ps-11 scroll-pe-22"
                             classList={{ "!hidden": section() !== "files" }}
                             ref={(el: HTMLDivElement) => {
@@ -734,8 +709,6 @@ export function SessionSidePanel(props: {
                           {hideButton()}
                         </div>
 
-                        {/* Review, Context, Canvas and agent tabs fade through on a switch; the Files view below
-                            stays mounted and fades in on its own. */}
                         <ViewSwitch
                           key={fileBrowserVisible() ? "files" : activeTab()}
                           class={fileBrowserVisible() ? "hidden" : "flex min-h-0 flex-1 flex-col"}

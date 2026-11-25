@@ -22,7 +22,6 @@ type PlatformName = "web" | "desktop"
 type DesktopOS = "macos" | "windows" | "linux"
 
 export type DeviceInfo = { platform: "android" | "ios"; id: string; name: string; state: string }
-/** Why the panel's browser has no page to show (#325). */
 export type BrowserFailure = {
   kind: "load" | "crashed" | "certificate"
   code: number | string
@@ -35,7 +34,6 @@ export type DeviceInput =
   | { kind: "text"; text: string }
   | { kind: "key"; key: "home" | "back" | "enter" }
 
-/** Why dictation could not start or finish; `help` names the i18n key and settings URL for a denied microphone. */
 export type DictationFailure = { code: string; help?: { key: string; url: string } }
 export type DictationModelID = "whisper-small" | "whisper-turbo" | "parakeet-v3"
 export type DictationModelState = {
@@ -44,32 +42,24 @@ export type DictationModelState = {
   models: { id: DictationModelID; name: string; size: number; downloaded: boolean }[]
 }
 export type DictationDownloadProgress = { id: DictationModelID; received: number; total: number }
-/** Local dictation through the bundled tenon-dictation engine (desktop). */
 export type DictationPlatform = {
-  /** `language` is the spoken language's ISO 639 code; without it the model detects the language per clip. */
   start(options?: { language?: string }): Promise<{ error?: DictationFailure }>
   stop(): Promise<{ text?: string; error?: DictationFailure }>
   cancel(): Promise<void>
   onLevel(cb: (rms: number) => void): () => void
-  /** The transcript of the recording so far, about once a second while it records; each replaces the last. */
   onPartial?(cb: (text: string) => void): () => void
-  /** Transcribes 16 kHz mono samples (an attachment's audio, #330) with the local engine. */
   transcribe?(samples: Float32Array): Promise<{ text?: string; error?: DictationFailure }>
-  /** The microphone's frequency bands (0–1 each) while recording, for the voice wave (#328). */
   onBands?(cb: (values: number[]) => void): () => void
-  /** The recording reached its length limit; the engine has stopped listening and `stop()` collects the text. */
   onLimit(cb: () => void): () => void
   models(): Promise<DictationModelState>
   setActive(id: DictationModelID): Promise<void>
   remove(id: DictationModelID): Promise<void>
-  /** Settles with why a download stopped; `cancelled` when `cancelDownload` ended it. */
   download(id: DictationModelID): Promise<{ error?: string }>
   cancelDownload(id: DictationModelID): Promise<void>
   onDownloadProgress(cb: (progress: DictationDownloadProgress) => void): () => void
   openPermissionSettings(): Promise<void>
 }
 
-/** A mail account the Command Centre can search and draft in (desktop). */
 export type MailAccount = { id: string; provider: "gmail" | "outlook" | "imap"; address: string }
 export type MailImapInput = {
   host: string
@@ -79,9 +69,7 @@ export type MailImapInput = {
   password: string
   address?: string
 }
-/** Mail accounts owned by the Electron main process. Reading and drafts only; Tenon never sends email. */
 export type MailPlatform = {
-  /** Which sign-ins this build offers, and whether credentials can be stored encrypted. */
   available(): Promise<{ secureStorage: boolean; gmail: boolean; outlook: boolean; imap: boolean }>
   accounts(): Promise<MailAccount[]>
   connect(provider: "gmail" | "outlook"): Promise<MailAccount[]>
@@ -91,22 +79,18 @@ export type MailPlatform = {
 
 export type GoogleAccount = {
   id: string
-  /** The account's address, read from its primary calendar. */
   email?: string
   label: string
   access: "read" | "write"
   lastSyncedAt?: string
-  /** The last sync's failure for this account, kept until the next sync. */
   errorCode?: string
   pendingWrites: number
   failedWrites: number
 }
 
-/** The top-level fields summarize every account; `accounts` holds each one. */
 export type GoogleCalendarConnection = {
   available: boolean
   configured: boolean
-  /** The build ships its own OAuth client, so sign-in needs no typed credentials. */
   builtInClient?: boolean
   connected: boolean
   access: "read" | "write"
@@ -139,7 +123,6 @@ export type GoogleCalendarWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   event: GoogleCalendarProviderEvent
-  /** The user chose their version in a conflict, so the write ignores Google's etag. */
   overwrite?: boolean
 }
 
@@ -165,7 +148,6 @@ export type GoogleTaskWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   task: GoogleTaskProviderTask
-  /** The user chose their version in a conflict, so the write ignores Google's etag. */
   overwrite?: boolean
 }
 
@@ -176,29 +158,21 @@ export type GoogleTaskWriteResult = {
 
 export type GoogleCalendarPlatform = {
   status(): Promise<GoogleCalendarConnection>
-  /** Adds an account, or renews the one signed in with the same address. */
   connect(input: {
-    /** Omit both to use the build's own client. */
     clientId?: string
     clientSecret?: string
     access: "read" | "write"
-    /** Electron main process supplies this; renderer values are ignored. */
     windowId?: number
   }): Promise<GoogleCalendarConnection>
-  /** Syncs every account; one account failing leaves the others' results intact. */
   sync(): Promise<{
     events: GoogleCalendarProviderEvent[]
     tasks: GoogleTaskProviderTask[]
-    /** Accounts whose items were fetched; the page replaces only those accounts' items. */
     syncedAccounts: string[]
-    /** Finished outbox writes; the planner stops showing these as queued. `providerId` is Google's ID, if any. */
     settled: { idempotencyKey: string; providerId?: string }[]
     connection: GoogleCalendarConnection
   }>
   write(input: GoogleCalendarWrite): Promise<GoogleCalendarWriteResult>
   writeTask(input: GoogleTaskWrite): Promise<GoogleTaskWriteResult>
-  /** Disconnects one account, or every account when none is named. */
-  /** Drops a write in conflict, keeping Google's version; the next sync brings it back to the planner. */
   discardConflict(input: { idempotencyKey: string }): Promise<GoogleCalendarConnection>
   disconnect(input?: { accountId?: string }): Promise<GoogleCalendarConnection>
 }
@@ -212,20 +186,14 @@ export type FatalRendererErrorLog = {
 }
 
 type PlatformBase = {
-  /** App version */
   version?: string
 
-  /** Open a web or mail URL in the default system application */
   openExternal(url: string): void
 
-  /** Open a local path in a local app (desktop only) */
   openPath?(path: string, app?: string): Promise<void>
 
-  /** Open a local file URL in its default app (desktop only) */
   openLocalFile?(url: string): void
-  /** A read-only URL for a file inside `directory` (desktop), for viewers that can't take a data URL. */
   fileViewerURL?(directory: string, path: string): Promise<string | undefined>
-  /** The Workbench panel's browser (desktop). Agents use the same browser through the tenon MCP server. */
   browser?: {
     show(bounds?: { x: number; y: number; width: number; height: number }): Promise<void>
     navigate(url: string): Promise<void>
@@ -252,7 +220,6 @@ type PlatformBase = {
     ): () => void
     onAgent(cb: (event: { tool: string }) => void): () => void
   }
-  /** Phones for the Device tab (desktop): Android everywhere, the iOS Simulator on macOS. */
   device?: {
     status(): Promise<{
       android: { sdk: boolean; devices: DeviceInfo[]; avds: string[] }
@@ -264,47 +231,34 @@ type PlatformBase = {
     onAgent(cb: (event: { tool: string; platform: DeviceInfo["platform"]; id: string }) => void): () => void
   }
 
-  /** Reveal a local path in the system file manager; false when the path does not exist (desktop only) */
   revealPath?(path: string): Promise<boolean>
 
-  /** Restart the app  */
   restart(): Promise<void>
 
-  /** Tells the desktop shell this window has unsaved edits, so a quit can ask before it stops the server. */
   setUnsavedChanges?(unsaved: boolean): void
 
-  /** Send a system notification */
   notify(title: string, description?: string, onClick?: () => void): Promise<void>
 
-  /** Open a native attachment picker and read selected files sequentially (desktop only) */
   openAttachmentPickerDialog?(
     opts: OpenAttachmentPickerOptions,
     onFile: (file: File) => Promise<unknown>,
   ): Promise<void>
 
-  /** Resolve the native source path for a desktop File. */
   getPathForFile?(file: File): string
 
-  /** Open a native save file picker dialog (desktop only) */
   saveSessionExport?(input: { filename: string; json: string }): Promise<boolean>
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 
-  /** Storage mechanism, defaults to localStorage */
   storage?: (name?: string) => SyncStorage | AsyncStorage
 
-  /** Prompt drafts, history, and their blobs. */
   draftStore?: DraftStore
 
-  /** Stable platform window identity for window-scoped persistence */
   windowID?: string
 
-  /** Application-global desktop updater */
   updater?: UpdaterPlatform
 
-  /** Fetch override */
   fetch?: typeof fetch
 
-  /** The desktop widget (desktop only): toggle or hide it, size it to its card, open an app route in a main window. */
   desktopWidget?: {
     toggle: () => Promise<void> | void
     hide: () => Promise<void> | void
@@ -312,78 +266,51 @@ type PlatformBase = {
     openInApp: (path: string) => Promise<void> | void
   }
 
-  /** Google Calendar integration owned by the Electron main process */
   googleCalendar?: GoogleCalendarPlatform
 
-  /** Local dictation (desktop only); absent in the web build, which hides the composer mic. */
   dictation?: DictationPlatform
 
-  /** Mail accounts for the Command Centre (desktop only); absent in the web build, which hides Settings › Accounts. */
   mail?: MailPlatform
 
-  /** Harness sync of global instructions and skills (desktop only); absent in the web build, which hides Settings › Instructions. */
   harnessSync?: HarnessSyncPlatform
 
-  /** The Tenon vault folder and whether the user chose it (desktop only). */
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
-  /**
-   * Pick another vault folder in a native dialog; null when cancelled. It takes effect after a restart; a folder
-   * inside a repository or workspace is refused with `error: "inside_workspace"`; a non-empty non-vault folder
-   * (`not_empty`), one inside or around the vault (`nested`) or a failed copy (`copy_failed`) too. The current
-   * vault is copied over and kept; `previous` names it (desktop only).
-   */
   chooseVaultFolder?(): Promise<
     | { folder: string; restartRequired: boolean; previous?: string }
     | { error: "inside_workspace" | "not_empty" | "nested" | "copy_failed"; folder: string }
     | null
   >
 
-  /** Get the configured default server URL (platform-specific) */
   getDefaultServer?(): Promise<ServerConnection.Key | null>
 
-  /** Set the default server URL to use on app startup (platform-specific) */
   setDefaultServer?(url: ServerConnection.Key | null): Promise<void> | void
 
-  /** Manage WSL sidecar servers (Electron on Windows only) */
   wslServers?: WslServersPlatform
 
-  /** Get the preferred display backend (desktop only) */
   getDisplayBackend?(): Promise<DisplayBackend | null> | DisplayBackend | null
 
-  /** Set the preferred display backend (desktop only) */
   setDisplayBackend?(backend: DisplayBackend): Promise<void>
 
-  /** Webview zoom level (desktop only) */
   webviewZoom?: Accessor<number>
 
-  /** Whether the native desktop window is fullscreen */
   windowFullscreen?: Accessor<boolean>
 
-  /** Get whether native pinch/Ctrl-scroll zoom gestures are enabled (desktop only) */
   getPinchZoomEnabled?(): Promise<boolean> | boolean
 
-  /** Allow native pinch/Ctrl-scroll zoom gestures (desktop only) */
   setPinchZoomEnabled?(enabled: boolean): Promise<void> | void
 
-  /** Run a desktop-only menu action from the app chrome */
   runDesktopMenuAction?(action: DesktopMenuAction): Promise<void> | void
 
-  /** Check if an editor app exists (desktop only) */
   checkAppExists?(appName: string): Promise<boolean>
 
-  /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>
 
-  /** Export collected diagnostic logs (desktop only) */
   exportDebugLogs?(): Promise<string>
 
-  /** Force focus styles on interactive elements through desktop devtools (desktop only) */
   setForceFocus?(enabled: boolean): Promise<void>
 
-  /** Record a fatal renderer error in platform logs (desktop only) */
   recordFatalRendererError?(error: FatalRendererErrorLog): Promise<void>
 
-  /** Log one startup milestone with its time since this page began loading, once per page (desktop only) */
   recordStartupMilestone?(name: "first-route" | "bootstrap-settled"): void
 }
 

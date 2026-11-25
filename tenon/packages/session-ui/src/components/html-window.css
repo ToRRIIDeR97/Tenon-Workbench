@@ -1,4 +1,3 @@
-/* ```html blocks rendered as design windows and canvas cards (html-window.ts) */
 [data-component="markdown"] {
   [data-component="markdown-code"][data-html-window] {
     margin-top: 12px;
@@ -127,7 +126,6 @@
   }
 }
 
-/* After the Source toggle, the source or the preview it reveals fades in. */
 [data-component="markdown"] [data-component="markdown-code"][data-html-window-toggled] {
   &[data-html-window="source"] pre,
   &[data-html-window="card-source"] pre,

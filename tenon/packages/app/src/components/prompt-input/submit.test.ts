@@ -157,8 +157,6 @@ beforeAll(async () => {
     toaster: {},
   }))
 
-  // Keeps the module's other exports (`checksum` and friends): modules this test loads import them, and without
-  // them the file only loaded when another test had imported the real module first.
   mock.module("@tenon/core/util/encode", () => ({
     checksum,
     hash,
@@ -373,7 +371,6 @@ describe("prompt submit worktree selection", () => {
     expect(sentPrompts).toHaveLength(1)
   })
 
-  // harness-ux-batch-2 AC-2: a send during a switch now waits for it instead of being refused.
   test("waits for an in-flight Harness switch before submitting", async () => {
     let release = () => {}
     const switching = new Promise<void>((resolve) => (release = resolve))
@@ -404,7 +401,6 @@ describe("prompt submit worktree selection", () => {
     await sending
   })
 
-  // Added after the panel review: a send waiting on a switch that failed stays in the composer.
   test("keeps the prompt when the Harness switch it waited for failed", async () => {
     const submit = (settled: boolean) =>
       createPromptSubmit({

@@ -1,5 +1,4 @@
 ;(function () {
-  // Theme keys were named opencode-* before the rename; move them once, before anything reads them.
   ;["theme-id", "color-scheme", "theme-css-light", "theme-css-dark"].forEach(function (name) {
     var old = localStorage.getItem("opencode-" + name)
     if (old === null) return
@@ -25,7 +24,6 @@
   document.documentElement.dataset.colorScheme = mode
   document.documentElement.style.backgroundColor = isDark ? "#080808" : "#f3f3f4"
 
-  // Update theme-color meta tag to match app color scheme
   var metas = document.querySelectorAll("meta[name='theme-color']")
   if (metas.length > 0) metas[0].setAttribute("content", isDark ? "#080808" : "#f3f3f4")
 

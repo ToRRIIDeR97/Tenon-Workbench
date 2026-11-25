@@ -41,7 +41,6 @@ describe("reports in the director's finished messages", () => {
   test("the streaming message counts once it completes, and each finished message is parsed once", () => {
     const cache = new Map<string, Report[]>()
     const read: string[] = []
-    // Counts the parts each call reads: a cached message must not be read again.
     const tracked = (value: CommandTranscript) => ({
       ...value,
       part: new Proxy(value.part, { get: (part, id: string) => (read.push(id), part[id]) }),

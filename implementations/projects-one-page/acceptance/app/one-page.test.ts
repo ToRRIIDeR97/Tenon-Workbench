@@ -25,7 +25,6 @@ describe("AC-2 one page, no tree", () => {
 describe("AC-7 app-styled controls", () => {
   test("AC-7 the Projects page renders no native select or date input", () => {
     for (const file of projectFiles) {
-      // Comments may name the native controls they replace.
       const source = read(file)
         .split("\n")
         .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
@@ -36,7 +35,6 @@ describe("AC-7 app-styled controls", () => {
   })
 
   test("AC-7 the month grid starts on Monday and pads the first week", () => {
-    // 1 Nov 2026 is a Sunday: six empty cells, then the 1st.
     const days = monthDays("2026-11")
     expect(days.slice(0, 6)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined])
     expect(days[6]).toBe("2026-11-01")

@@ -128,10 +128,6 @@ const sharedKeys = [
 const textKeys = ["file", ...sharedKeys] as const
 const diffKeys = ["fileDiff", "before", "after", "virtualize", ...sharedKeys] as const
 
-// ---------------------------------------------------------------------------
-// Shared viewer hook
-// ---------------------------------------------------------------------------
-
 type MouseHit = {
   line: number | undefined
   numberColumn: boolean
@@ -144,7 +140,6 @@ type ViewerConfig = {
   commentedLines: () => SelectedLineRange[]
   onLineSelectionEnd: (range: SelectedLineRange | null) => void
 
-  // mode-specific callbacks
   lineFromMouseEvent: (event: MouseEvent) => MouseHit
   setSelectedLines: (range: SelectedLineRange | null, preserve?: { root: ShadowRoot; text: Range }) => void
   updateSelection: (preserveTextSelection: boolean) => void
@@ -181,8 +176,6 @@ function useFileViewer(config: ViewerConfig) {
     getRoot,
   })
 
-  // -- selection scheduling --
-
   const scheduleSelectionUpdate = () => {
     if (selectionFrame !== undefined) return
     selectionFrame = requestAnimationFrame(() => {
@@ -203,8 +196,6 @@ function useFileViewer(config: ViewerConfig) {
       if (selected) config.setSelectedLines(selected)
     })
   }
-
-  // -- mouse handlers --
 
   const handleMouseDown = (event: MouseEvent) => {
     if (!config.enableLineSelection()) return
@@ -289,8 +280,6 @@ function useFileViewer(config: ViewerConfig) {
     if (!selection || selection.isCollapsed) return
     scheduleSelectionUpdate()
   }
-
-  // -- shared effects --
 
   onMount(() => {
     onCleanup(observeViewerScheme(getHost))
@@ -489,8 +478,6 @@ function useAnnotationRerender<A>(opts: {
     const active = opts.current()
     if (!active) return
     const annotations = opts.annotations()
-    // renderViewer always draws with empty annotations, so skip the extra rerender
-    // when this instance has nothing applied and nothing to apply.
     if (annotations.length === 0 && !applied.has(active)) return
     if (annotations.length === 0) applied.delete(active)
     else applied.add(active)
@@ -686,10 +673,6 @@ function diffSelectionSide(node: Node | null) {
   return findDiffSide(el)
 }
 
-// ---------------------------------------------------------------------------
-// Shared JSX shell
-// ---------------------------------------------------------------------------
-
 function ViewerShell(props: {
   mode: "text" | "diff"
   viewer: ReturnType<typeof useFileViewer>
@@ -731,10 +714,6 @@ function ViewerShell(props: {
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// TextViewer
-// ---------------------------------------------------------------------------
 
 function TextViewer<T>(props: TextFileProps<T>) {
   let instance: PierreFile<T> | VirtualizedFile<T> | undefined
@@ -902,8 +881,6 @@ function TextViewer<T>(props: TextFileProps<T>) {
     find: viewer.find,
   })
 
-  // -- render instance --
-
   createEffect(() => {
     const opts = options()
     const workerPool = getWorkerPool("unified")
@@ -938,8 +915,6 @@ function TextViewer<T>(props: TextFileProps<T>) {
     annotations: () => (local.annotations as LineAnnotation<T>[] | undefined) ?? [],
   })
 
-  // -- cleanup --
-
   onCleanup(() => {
     instance?.cleanUp()
     instance = undefined
@@ -948,10 +923,6 @@ function TextViewer<T>(props: TextFileProps<T>) {
 
   return <ViewerShell mode="text" viewer={viewer} class={local.class} classList={local.classList} />
 }
-
-// ---------------------------------------------------------------------------
-// DiffViewer
-// ---------------------------------------------------------------------------
 
 function DiffViewer<T>(props: DiffFileProps<T>) {
   let instance: FileDiff<T> | undefined
@@ -1107,8 +1078,6 @@ function DiffViewer<T>(props: DiffFileProps<T>) {
     find: viewer.find,
   })
 
-  // -- render instance --
-
   createEffect(() => {
     const opts = options()
     const workerPool = large() ? getWorkerPool("unified") : getWorkerPool(props.diffStyle)
@@ -1140,8 +1109,6 @@ function DiffViewer<T>(props: DiffFileProps<T>) {
           instanceAfter === undefined ||
           !areFilesEqual(instanceBefore, before) ||
           !areFilesEqual(instanceAfter, after)
-    // Pierre beta virtualized instances retain their first diff target and resolve separator metrics at construction.
-    // Plain timeline diffs can retain the instance as content streams; virtualized viewers reset only when that is unsafe.
     const reset =
       instance !== undefined &&
       (instanceVirtualizer !== virtualizer ||
@@ -1198,8 +1165,6 @@ function DiffViewer<T>(props: DiffFileProps<T>) {
     annotations: () => (local.annotations as DiffLineAnnotation<T>[] | undefined) ?? [],
   })
 
-  // -- cleanup --
-
   onCleanup(() => {
     instance?.cleanUp()
     instance = undefined
@@ -1216,10 +1181,6 @@ function DiffViewer<T>(props: DiffFileProps<T>) {
 
   return <ViewerShell mode="diff" viewer={viewer} class={local.class} classList={local.classList} />
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export function File<T>(props: FileProps<T>) {
   if (props.mode === "text") {

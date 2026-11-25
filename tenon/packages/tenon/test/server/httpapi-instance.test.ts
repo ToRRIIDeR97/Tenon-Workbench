@@ -17,11 +17,6 @@ import { resetDatabase } from "../fixture/db"
 import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// Flip the experimental workspaces flag so EventV2.run actually writes to
-// EventSequenceTable (the source of truth the fence middleware reads). Reset
-// the database around the test so per-instance state does not leak between
-// runs. resetDatabase() already calls disposeAllInstances(), so we don't
-// repeat it.
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     const originalWorkspaces = Flag.TENON_EXPERIMENTAL_WORKSPACES
@@ -36,9 +31,6 @@ const testStateLayer = Layer.effectDiscard(
   }),
 )
 
-// Mount the production HttpApi route tree on a real Node HTTP server bound to
-// 127.0.0.1:0 and a fetch-based HttpClient that prepends the server URL. This
-// keeps the test wired directly through the same route layer production uses.
 const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(
   HttpApiApp.routes,
   { disableListenLog: true, disableLogger: true },

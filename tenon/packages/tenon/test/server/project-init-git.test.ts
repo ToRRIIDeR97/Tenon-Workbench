@@ -69,7 +69,6 @@ describe("project.initGit endpoint", () => {
         vcs: "git",
         worktree: tmp.directory,
       })
-      // Reload behavior: bus emits exactly one server.instance.disposed for the directory.
       expect(disposedEvents(events.seen, tmp.directory)).toBe(1)
       expect(yield* fs.exists(path.join(tmp.directory, ".git", "opencode"))).toBe(false)
 

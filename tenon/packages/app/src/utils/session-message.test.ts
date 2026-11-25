@@ -169,7 +169,6 @@ describe("normalizeSessionMessages", () => {
         type: "assistant",
         agent: "build",
         model: { id: "opencode", providerID: "opencode-acp" },
-        // The IDs an ACP agent gives: its reasoning blocks are numbered, its tool calls are UUIDs.
         content: [
           { type: "reasoning", text: "Look at the structure.", time: { created: 2 } },
           tool("f3a1c0de-0000-4000-8000-000000000001"),

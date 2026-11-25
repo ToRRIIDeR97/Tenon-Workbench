@@ -13,7 +13,6 @@ export const layer = Layer.unwrap(
     const logs = Logger.layer([...Logging.loggers(), ...Otlp.loggers()], { mergeWithExisting: false }).pipe(
       Layer.provide(NodeFileSystem.layer),
       Layer.provide(OtlpSerialization.layerJson),
-      // Effect 4.1 OTLP loggers register with a shared exporter flusher.
       Layer.provide(OtlpExporter.layerFlusher),
       Layer.provide(FetchHttpClient.layer),
       Layer.orDie,

@@ -70,24 +70,18 @@ const emptyDraft = (): Draft => ({
 export function CalendarTasks(props: {
   tasks: ReadonlyArray<PlannerTask>
   projects: ReadonlyArray<ProjectRecord>
-  /** `overwrite` names the task whose save replaces Google's version in a conflict. */
   onSave: (tasks: ReadonlyArray<PlannerTask>, overwrite?: string) => Promise<void>
-  /** Drops the queued change of a task in conflict, keeping Google's version. */
   onKeepGoogle?: (outboxKey: string) => Promise<void>
-  /** Completes or reopens a task at once, Google tasks included; no editor or confirm step. */
   onToggle: (task: PlannerTask) => Promise<void>
   filter?: CalendarTaskFilter
   selectedId?: string
-  /** Changes when the page's New task is chosen; each change opens a blank task. */
   newTask?: number
-  /** Google accounts with write access; a new task can be saved to any of them. */
   googleAccounts?: ReadonlyArray<{ id: string; label: string }>
 }) {
   const language = useLanguage()
   const [state, setState] = createStore({
     filter: (props.filter ?? "today") as CalendarTaskFilter,
     editing: false,
-    /** A task shown read-only in the side panel until Edit is chosen. */
     peek: "",
     draft: emptyDraft(),
     saving: false,
@@ -102,7 +96,6 @@ export function CalendarTasks(props: {
   const today = () => localDateKey(new Date())
   const peeked = createMemo(() => props.tasks.find((task) => task.id === state.peek))
   const visible = createMemo(() => {
-    // One date for the whole pass instead of one per task and comparison.
     const now = today()
     return props.tasks
       .filter((task) => {

@@ -10,16 +10,12 @@ import { HarnessIcon } from "@/components/harness-icon"
 export type PromptInputHarnessController = {
   instances: () => ReadonlyArray<Harness.Instance> | undefined
   loading: () => boolean
-  /** True while any harness check runs or the current harness's models are still being listed. */
   checking?: () => boolean
   disabled?: () => boolean
-  /** While a turn runs: the model and effort can change (from the next turn), the harness can't. */
   harnessLocked?: () => boolean
-  /** Checks the harnesses again in the background; the shown list stays until the answer arrives. */
   revalidate?: () => void
   current: () => Harness.InstanceID
   select: (instanceID: Harness.InstanceID) => void
-  /** Harness CLI updates, so a harness that fails its check can be updated where the picker reports it (#321). */
   update?: {
     status: (id: string) => Harness.UpdateStatus | undefined
     running: (id: string) => boolean
@@ -31,12 +27,10 @@ export type PromptInputHarnessController = {
   }
 }
 
-// Tenon Workbench's own loop first, then every external agent (built-in or registered) as one group.
 export function orderHarnesses(instances: ReadonlyArray<Harness.Instance> | undefined) {
   return instances?.toSorted((a, b) => Number(isExternalHarness(a)) - Number(isExternalHarness(b)))
 }
 
-/** What the harness pickers say beside a harness. A missing sign-in is a hint: the agent may have another login. */
 export function harnessStatusKey(
   instance: Pick<Harness.Instance, "driver" | "status" | "authenticated" | "slowStart">,
 ) {
@@ -51,7 +45,6 @@ export function isExternalHarness(instance: Pick<Harness.Instance, "driver">) {
 }
 
 export async function openHarnessSettings(dialog: ReturnType<typeof useDialog>) {
-  // Loaded on demand: Settings renders these controls too, so a static import would be circular.
   const { DialogSettings } = await import("@/components/settings-v2/dialog-settings-v2")
   void dialog.show(() => <DialogSettings defaultValue="harnesses" />)
 }
@@ -59,11 +52,6 @@ export async function openHarnessSettings(dialog: ReturnType<typeof useDialog>) 
 const SELECT_CLASS =
   "prompt-input-responsive-select !h-8 !w-auto min-w-0 max-w-[220px] !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
 
-/**
- * The harness the controls show and its chosen model, shared by the separate pickers and the one-pill panel.
- * While a check runs, the last answer for the same harness stays in place, so the model and effort pickers keep
- * their slot instead of collapsing until the new list arrives.
- */
 export function createHarnessView(controller: PromptInputHarnessController) {
   const options = createMemo(() => orderHarnesses(controller.instances()))
   const checking = () => controller.loading() || !!controller.checking?.()
@@ -74,7 +62,6 @@ export function createHarnessView(controller: PromptInputHarnessController) {
     if (next.models.length === 0 && checking()) return kept ?? next
     return next
   })
-  // Falls back to the model the picker shows when none is saved yet, so effort and tier stay selectable.
   const model = createMemo(() => {
     const selection = controller.model.current()
     const models = instance()?.models

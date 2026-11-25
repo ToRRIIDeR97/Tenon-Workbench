@@ -9,8 +9,6 @@ import type { SQLiteEffectDatabase } from "drizzle-orm/sqlite-core/effect"
 import { layer as bunLayer } from "@tenon/core/database/sqlite.bun"
 import { tmpdir } from "./fixture/tmpdir"
 
-// Transaction semantics of core's own SQLite clients, which mirror @effect/sql-sqlite-bun and -node 4.1:
-// BEGIN IMMEDIATE by default, savepoints for nested transactions, and rollback after a failed COMMIT.
 const nodeSupported = await import("node:sqlite").then(
   () => true,
   () => false,
@@ -104,7 +102,6 @@ for (const driver of drivers) {
             name text NOT NULL,
             parent_id integer REFERENCES parent (id) DEFERRABLE INITIALLY DEFERRED
           )`)
-          // The deferred foreign key only fails at COMMIT, which leaves SQLite's transaction open.
           const error = yield* db
             .transaction((tx) => tx.run(sql`INSERT INTO item (name, parent_id) VALUES ('orphan', 1)`))
             .pipe(Effect.flip)

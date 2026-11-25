@@ -4,14 +4,10 @@ import { Cause, Effect } from "effect"
 import { HttpRouter, HttpServerError, HttpServerRequest, HttpServerRespondable, HttpServerResponse } from "effect/http"
 import { stat } from "node:fs/promises"
 
-// A workspace whose folder was moved or deleted fails deep inside its per-folder services. When the
-// request names a directory that is not there, answer with a typed 404 the app can act on.
 const missingDirectory = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest
-  // x-opencode-directory is the OpenCode protocol name the app and SDK still send.
   const header = request.headers["x-tenon-directory"] || request.headers["x-opencode-directory"]
   const query = new URL(request.url, "http://localhost").searchParams
-  // Instance routes take `directory`; the location-scoped `/api` routes take `location[directory]`.
   const directory =
     query.get("directory") || query.get("location[directory]") || (header ? decodeURIComponent(header) : undefined)
   if (!directory) return false
@@ -21,10 +17,8 @@ const missingDirectory = Effect.gen(function* () {
       () => true,
     ),
   )
-  // A malformed header is not a missing folder; fall through to the 500.
 }).pipe(Effect.catchCause(() => Effect.succeed(false)))
 
-// Keep typed HttpApi failures on their declared error path; this boundary only replaces defect-only empty 500s.
 export const errorLayer = HttpRouter.middleware<{ handles: unknown }>()((effect) =>
   effect.pipe(
     Effect.catchCause((cause) =>

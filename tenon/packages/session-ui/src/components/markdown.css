@@ -6,17 +6,15 @@
   --markdown-shell-code-color: var(--v2-text-text-base);
   --markdown-shell-code-token-color: currentColor;
 
-  /* Reset & Base Typography */
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
   color: var(--v2-text-text-base);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base); /* 14px */
+  font-size: var(--font-size-base);
   font-weight: 450;
   line-height: 22px;
 
-  /* Spacing for flow */
   > *:first-child {
     margin-top: 0;
   }
@@ -30,7 +28,6 @@
     margin-bottom: 0;
   }
 
-  /* Headings: Sized by level, distinguished by color and spacing */
   h1 {
     font-size: 17px;
     color: var(--v2-text-text-base);
@@ -69,19 +66,16 @@
     line-height: var(--line-height-large);
   }
 
-  /* Emphasis & Strong: Neutral strong color */
   strong,
   b {
     color: var(--v2-text-text-base);
     font-weight: 600;
   }
 
-  /* Paragraphs */
   p {
     margin-bottom: 12px;
   }
 
-  /* Links */
   a {
     color: var(--v2-text-text-accent);
     text-decoration: none;
@@ -94,7 +88,6 @@
     text-underline-offset: 2px;
   }
 
-  /* Lists */
   ul,
   ol {
     margin-top: 8px;
@@ -145,19 +138,17 @@
     color: var(--v2-text-text-muted);
   }
 
-  /* Nested lists spacing */
   li > ul,
   li > ol {
     margin-top: 0.25rem;
     margin-bottom: 0.25rem;
-    padding-inline-start: 1rem; /* Minimal indent for nesting only */
+    padding-inline-start: 1rem;
   }
 
   li > ol {
     padding-inline-start: 1.75rem;
   }
 
-  /* Blockquotes */
   blockquote {
     border-inline-start: 3px solid var(--v2-border-border-base);
     margin: 1rem 0;
@@ -166,14 +157,12 @@
     font-style: normal;
   }
 
-  /* Horizontal Rule - Invisible spacing only */
   hr {
     border: none;
     height: 0;
     margin: 32px 0;
   }
 
-  /* !important beats the inline background/color Shiki writes from the shared ui theme. */
   .shiki {
     background: var(--v2-background-bg-layer-01) !important;
     color: var(--v2-text-text-base) !important;
@@ -215,7 +204,6 @@
     opacity: 1;
   }
 
-  /* ```svg blocks rendered as a diagram window (svg-window.ts) */
   [data-component="markdown-code"][data-svg-window] {
     margin-top: 12px;
     margin-bottom: 24px;
@@ -275,7 +263,6 @@
     background: transparent;
   }
 
-  /* Placeholder boxes and a connector, shimmering while the diagram streams. */
   [data-slot="svg-window-skeleton"] {
     position: relative;
     height: 180px;
@@ -393,19 +380,16 @@
     text-underline-offset: 2px;
   }
 
-  /* Tables */
   table {
     width: 100%;
     border-collapse: collapse;
     margin: 16px 0;
     font-size: var(--font-size-base);
-    /* A real table, so its rows fill the column; long cell content wraps instead of scrolling. */
     display: table;
   }
 
   th,
   td {
-    /* Minimal borders for structure, matching TUI "lines" roughly but keeping it web-clean */
     border-bottom: 1px solid var(--v2-border-border-muted);
     padding: 12px;
     text-align: start;
@@ -420,7 +404,6 @@
     border-bottom: 1px solid var(--v2-border-border-muted);
   }
 
-  /* Images */
   img {
     max-width: 100%;
     height: auto;

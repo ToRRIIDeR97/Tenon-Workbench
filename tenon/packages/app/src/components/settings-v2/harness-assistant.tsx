@@ -31,7 +31,6 @@ import {
 } from "./harness-assistant-behavior"
 import "./settings-v2.css"
 
-// Failed tests are sent back automatically this many times; after that the user decides.
 const autoRetryLimit = 3
 
 type TestState =
@@ -79,7 +78,6 @@ const HarnessAssistant: Component<{
   const sessionID = () => state.sessionID
   const test = () => state.test
   const tested = { key: "", retries: 0, assistantMessage: "" }
-  // Commands the user chose to test; only these may run without another click.
   const approved = new Set<string>()
 
   const harness = createPromptHarnessController({
@@ -89,7 +87,6 @@ const HarnessAssistant: Component<{
       current: () => selection.model,
       set: (model) => setSelection("model", model),
     },
-    // The harness is fixed once the chat starts.
     disabled: () => !!sessionID(),
   })
 
@@ -108,7 +105,6 @@ const HarnessAssistant: Component<{
   })
   const busy = () => {
     const id = sessionID()
-    // Harness turns can run for minutes; an unfinished assistant reply also counts as busy.
     return state.sending || (!!id && session().data.session_working(id)) || messages().some((message) => !message.done)
   }
   const permission = () => {
@@ -190,8 +186,6 @@ const HarnessAssistant: Component<{
     void send(message)
   }
 
-  // Show each new proposal once the assistant has finished its reply. Testing runs the command on
-  // this computer, so a command the user has not approved waits for "Test this command".
   createEffect(
     on([busy, lastAssistant], ([isBusy, message]) => {
       if (isBusy || !message || message.id === tested.assistantMessage) return
@@ -221,7 +215,6 @@ const HarnessAssistant: Component<{
       name: passed.proposal.name,
       command: passed.verification.command,
       args: [...passed.verification.args],
-      // The picker defaults to the first model, so the one that passed the test goes first.
       models: [
         ...(passed.proposal.model ? [passed.proposal.model] : []),
         ...passed.verification.models.map((model) => model.id).filter((id) => id !== passed.proposal.model),

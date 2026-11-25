@@ -178,10 +178,7 @@ export const Assistant = Schema.Struct({
   }).pipe(optional),
   finish: Schema.String.pipe(optional),
   cost: Schema.Finite.pipe(optional),
-  // The context window a harness reported for this step; harness model ids can be aliases no provider lists.
   contextWindow: Schema.Finite.pipe(optional),
-  // The context a harness reported in use after this step, for the context meter; its token counts are the step's
-  // total across model calls, which can exceed the window.
   contextUsed: Schema.Finite.pipe(optional),
   tokens: Schema.Struct({
     input: Schema.Finite,

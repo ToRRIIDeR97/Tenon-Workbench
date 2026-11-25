@@ -5,10 +5,6 @@ import { THREAD_MENU_KEYS, threadMenuAction, type ThreadMenuAction } from "./thr
 
 export type ThreadMenuRun = Record<ThreadMenuAction, () => void>
 
-/**
- * Runs the item whose single key was pressed while the thread menu has focus, then closes the menu:
- * the same order as a click. Pass it to `MenuV2.Content`'s `onKeyDown`.
- */
 export function onThreadMenuKey(event: KeyboardEvent, run: ThreadMenuRun, close: () => void) {
   const action = threadMenuAction(event)
   if (!action) return
@@ -18,7 +14,6 @@ export function onThreadMenuKey(event: KeyboardEvent, run: ThreadMenuRun, close:
   close()
 }
 
-/** A thread's menu items, in one order for the sidebar row and the thread header. */
 export function ThreadMenuItems(props: { run: ThreadMenuRun; pinned: boolean }) {
   const language = useLanguage()
   const hint = (action: keyof typeof THREAD_MENU_KEYS) => formatKeybind(THREAD_MENU_KEYS[action], language.t)

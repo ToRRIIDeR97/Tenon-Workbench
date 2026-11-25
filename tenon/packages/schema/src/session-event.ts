@@ -81,9 +81,7 @@ export const HarnessContinuationSet = Event.define({
     ...Base,
     instanceID: Harness.InstanceID,
     continuation: Schema.String,
-    /** Last canonical message this native session saw; set after a successful turn. */
     lastSeenMessageID: Schema.String.pipe(optional),
-    /** Legacy single-slot revision; ignored by per-instance continuations. */
     revision: Schema.Finite.pipe(optional),
   },
 })
@@ -125,7 +123,6 @@ export const PromptAdmitted = Event.define({
 })
 export type PromptAdmitted = typeof PromptAdmitted.Type
 
-// A queued input left the inbox before the runner promoted it.
 export const PromptWithdrawn = Event.define({
   type: "session.next.prompt.withdrawn",
   ...options,
@@ -133,7 +130,6 @@ export const PromptWithdrawn = Event.define({
 })
 export type PromptWithdrawn = typeof PromptWithdrawn.Type
 
-// A queued input now waits for the next steer point instead of the session going idle.
 export const PromptSteered = Event.define({
   type: "session.next.prompt.steered",
   ...options,
@@ -196,7 +192,6 @@ export namespace Shell {
 }
 
 export namespace Step {
-  /** Context in use while a step runs, from harnesses that report it mid-step. Step.Ended settles the final value. */
   export const Usage = Event.define({
     type: "session.next.step.usage",
     schema: {
@@ -272,7 +267,6 @@ export namespace Text {
   })
   export type Started = typeof Started.Type
 
-  // Stream fragments are live-only; Text.Ended is the replayable full-value boundary.
   export const Delta = Event.define({
     type: "session.next.text.delta",
     schema: {
@@ -310,7 +304,6 @@ export namespace Reasoning {
   })
   export type Started = typeof Started.Type
 
-  // Stream fragments are live-only; Reasoning.Ended is the replayable full-value boundary.
   export const Delta = Event.define({
     type: "session.next.reasoning.delta",
     schema: {
@@ -354,7 +347,6 @@ export namespace Tool {
     })
     export type Started = typeof Started.Type
 
-    // Stream fragments are live-only; Input.Ended is the replayable raw-input boundary.
     export const Delta = Event.define({
       type: "session.next.tool.input.delta",
       schema: {
@@ -390,10 +382,6 @@ export namespace Tool {
   })
   export type Called = typeof Called.Type
 
-  /**
-   * Replayable bounded running-tool state. Tools should checkpoint semantic
-   * transitions or at a bounded cadence, not persist every stdout/stderr chunk.
-   */
   export const Progress = Event.define({
     type: "session.next.tool.progress",
     ...options,

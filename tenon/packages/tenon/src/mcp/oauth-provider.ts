@@ -53,20 +53,16 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformation | undefined> {
-    // Use getForUrl to validate credentials are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
     if (this.config.clientId) {
       return {
         client_id: this.config.clientId,
         client_secret: this.config.clientSecret,
-        // The authorization server these configured credentials were first accepted by.
         issuer: entry?.clientInfo?.clientId === this.config.clientId ? entry.clientInfo.issuer : undefined,
       }
     }
 
-    // Check stored client info (from dynamic registration)
     if (entry?.clientInfo) {
-      // Check if client secret has expired
       if (entry.clientInfo.clientSecretExpiresAt && entry.clientInfo.clientSecretExpiresAt < Date.now() / 1000) {
         return undefined
       }
@@ -77,7 +73,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
       }
     }
 
-    // No client info or URL changed - will trigger dynamic registration
     return undefined
   }
 
@@ -87,9 +82,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
     await Effect.runPromise(this.auth.updateClientInfo(this.mcpName, clientInfo, this.serverUrl))
   }
 
-  // The SDK stamps what it saves with `issuer` and refuses to present it to a different
-  // authorization server, so `issuer` is stored unchanged. Configured credentials stay in the
-  // config: only their binding is stored, and a registration that would replace them is not.
   protected toClientInfo(info: OAuthClientInformationFull): McpAuth.ClientInfo | undefined {
     if (this.config.clientId) {
       return info.client_id === this.config.clientId && info.issuer
@@ -116,7 +108,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    // Use getForUrl to validate tokens are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
     if (!entry?.tokens) return undefined
 
@@ -162,10 +153,6 @@ export class McpOAuthProvider implements OAuthClientProvider {
       return entry.oauthState
     }
 
-    // Generate a new state if none exists — the SDK calls state() as a
-    // generator, not just a reader, so we need to produce a value even when
-    // startAuth() hasn't pre-saved one (e.g. during automatic auth on first
-    // connect).
     const newState = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")
@@ -198,8 +185,6 @@ export class McpOAuthPendingProvider extends McpOAuthProvider {
 
   override async clientInformation(): Promise<OAuthClientInformation | undefined> {
     if (!this.config.clientId) return this.pendingClientInfo
-    // Configured credentials keep their stored binding, so re-authenticating never presents
-    // the secret to an authorization server other than the one that first accepted it.
     if (this.pendingClientInfo?.client_id === this.config.clientId && this.pendingClientInfo.issuer) {
       return {
         client_id: this.config.clientId,
@@ -229,8 +214,6 @@ export class McpOAuthPendingProvider extends McpOAuthProvider {
 
   async commit(): Promise<void> {
     if (!this.pendingTokens) return
-    // The SDK only re-saves client information it has not bound yet, so an already bound
-    // configured client keeps its stored binding.
     const stored = this.config.clientId
       ? await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
       : undefined
@@ -250,10 +233,6 @@ export class McpOAuthPendingProvider extends McpOAuthProvider {
 
 export { OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH }
 
-/**
- * Parse a redirect URI to extract port and path for the callback server.
- * Returns defaults if the URI can't be parsed.
- */
 export function parseRedirectUri(redirectUri?: string): { port: number; path: string } {
   if (!redirectUri) {
     return { port: OAUTH_CALLBACK_PORT, path: OAUTH_CALLBACK_PATH }

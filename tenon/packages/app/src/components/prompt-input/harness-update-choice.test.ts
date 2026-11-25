@@ -70,7 +70,6 @@ describe("AC-2 a harness that becomes unavailable triggers a fresh update check"
     expect(shouldCheckHarnessUpdates(list, 30_000, 61_000)).toBe(false)
   })
 
-  // The list only carries enabled harnesses (core `list()` filters them), so a disabled one never asks.
   test("doesn't check when every harness is available", () => {
     expect(shouldCheckHarnessUpdates([instance()], undefined, 10_000)).toBe(false)
     expect(shouldCheckHarnessUpdates(undefined, undefined, 10_000)).toBe(false)

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { mcpEntryFromForm, mcpNameProblem, mcpReach, mcpRowState } from "./mcp-servers-model"
 
-// #334, variant A: one list; each row carries its live state, the fix, and which harnesses receive it.
 const harnesses = [
   { name: "Tenon", driver: "opencode" },
   { name: "Codex", driver: "codex" },

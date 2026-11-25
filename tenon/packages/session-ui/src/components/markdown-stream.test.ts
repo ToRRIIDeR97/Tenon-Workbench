@@ -71,8 +71,6 @@ describe("markdown stream", () => {
     ])
   })
 
-  // Blocks split as usual while streaming (one live block re-rendered the whole reply per token); each
-  // block carries the reply's reference definitions so its reference links still resolve.
   test("splits reference-style markdown and gives each block the definitions", () => {
     expect(stream("[docs][1]\n\n[1]: https://example.com", true)).toEqual([
       { raw: "[docs][1]\n\n", src: "[docs][1]\n\n\n\n[1]: https://example.com", mode: "full" },

@@ -29,7 +29,6 @@ export type PromptProject = {
   sandboxes?: string[]
   icon?: { color?: string; url?: string; override?: string }
   server?: { key: string; name: string }
-  /** When the Project last had thread activity; the picker lists the latest few under Recent. */
   lastActive?: number | null
 }
 
@@ -37,7 +36,6 @@ export type PromptProjectControls = {
   available: PromptProject[]
   directory: string
   server?: string
-  /** The draft's Project. Several Projects can share a thread folder, so the folder alone can't pick one. */
   projectID?: string
   select: (worktree: string, server?: string, projectID?: string) => void
   add: (title: string, server?: string) => void
@@ -45,7 +43,6 @@ export type PromptProjectControls = {
 
 const actionPrefix = "action:"
 const projectPrefix = "project:"
-/** How many recently active Projects the picker lists first. */
 const RECENT_LIMIT = 3
 
 function projectKey(project: PromptProject) {
@@ -57,7 +54,6 @@ function actionKey(server?: string) {
   return `${actionPrefix}${encodeURIComponent(server ?? "")}`
 }
 
-/** The Project the composer is in: the draft's Project among those using its folder, else the folder's own. */
 export function currentProject(
   controls: Pick<PromptProjectControls, "available" | "directory" | "server" | "projectID">,
 ) {
@@ -84,7 +80,6 @@ export function createPromptProjectController(input: {
 
   const current = () => currentProject(input.controls())
   const selected = () => current() ?? input.controls().available[0]
-  // With no search, the latest few Projects with thread activity come first (Recent), then the rest (Workspace).
   const recent = () => {
     if (store.search.trim()) return []
     return input
@@ -223,7 +218,6 @@ export function createPromptProjectController(input: {
 
 export type PromptProjectController = ReturnType<typeof createPromptProjectController>
 
-// Each folder's branch (null: not a git repository), shared by every picker so a reopened one shows it at once.
 const [branches, setBranches] = createStore<Record<string, string | null>>({})
 
 export function PromptProjectSelector(props: {
@@ -233,7 +227,6 @@ export function PromptProjectSelector(props: {
   const serverSDK = useServerSDK()
   const platform = usePlatform()
   const [triggerReady, setTriggerReady] = createSignal(false)
-  // The branch beside each Project, read when the picker opens.
   createEffect(() => {
     if (!props.controller.open()) return
     for (const project of props.controller.projects()) {
@@ -248,7 +241,6 @@ export function PromptProjectSelector(props: {
   const dismiss = createMenuDismissController(() => contentRef)
   let triggerFrame: number | undefined
 
-  // Floating UI requires a connected anchor; route transitions can construct this trigger before adoption.
   const setTriggerRef = (element: HTMLButtonElement) => {
     const ready = () => {
       if (!element.isConnected) {
@@ -355,8 +347,6 @@ export function PromptProjectSelector(props: {
               aria-autocomplete="list"
               aria-controls="prompt-project-menu"
               aria-activedescendant={props.controller.active() || undefined}
-              // The field keeps focus while the menu is open (hovering a row hands focus back to it), so it draws no
-              // ring: a ring here flickered on every hover and left blue specks at its corners as it faded.
               class={`${searchFieldClass} !rounded-[12px] !bg-v2-background-bg-layer-01 pr-9 !shadow-none hover:!shadow-none focus-visible:!shadow-none !transition-none`}
               onInput={(event) => props.controller.setSearch(event.currentTarget.value)}
               onKeyDown={(event) => {
@@ -507,7 +497,6 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
   )
 }
 
-/** Composer chip: a pill that tightens its corners while pressed. */
 const chipClass =
   "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 type-control transition-[background-color,color,border-radius] duration-short ease-standard active:rounded-[12px] active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
 
@@ -554,7 +543,6 @@ function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptPr
   )
 }
 
-/** A caption over a group of Projects in the picker (Recent, Workspace). */
 function GroupLabel(props: { children: string }) {
   return (
     <span class="px-3 pb-1 pt-2 type-caption uppercase tracking-[0.04em] text-v2-text-text-muted first:pt-1">

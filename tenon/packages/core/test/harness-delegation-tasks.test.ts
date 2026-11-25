@@ -10,7 +10,6 @@ const parent = { id: "ses_parent", location: { directory: "/work" }, harnessInst
 let created = 0
 const sessions = Layer.succeed(SessionV2.Service, {
   get: (id: string) => Effect.succeed(id === parent.id ? parent : { ...parent, id, parentID: parent.id }),
-  // Slow enough that every call in a batch passes the limit check before any child registers.
   create: (input: { parentID: string }) =>
     Effect.sleep("20 millis").pipe(Effect.as({ ...parent, id: `ses_child_${++created}`, parentID: input.parentID })),
   prompt: () => Effect.void,

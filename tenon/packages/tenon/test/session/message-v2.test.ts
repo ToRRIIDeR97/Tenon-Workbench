@@ -1261,7 +1261,6 @@ describe("session.message-v2.toModelMessage", () => {
   })
 
   test("substitutes space for empty text between signed reasoning blocks", async () => {
-    // Reproduces the bug pattern: [reasoning(sig), text(""), reasoning(sig), text(full)]
     const assistantID = "m-assistant"
     const input: SessionV1.WithParts[] = [
       {
@@ -1289,15 +1288,12 @@ describe("session.message-v2.toModelMessage", () => {
 
     const result = await MessageV2.toModelMessages(input, model)
 
-    // step-start splits into two assistant messages; SDK's groupIntoBlocks merges them later
     expect(result).toHaveLength(2)
     expect((result[0].content as any[]).find((p) => p.type === "text").text).toBe(" ")
     expect((result[1].content as any[]).find((p) => p.type === "text").text).toBe("the answer")
   })
 
   test("leaves empty text alone when reasoning signature is under 'bedrock' namespace", async () => {
-    // Bedrock signed reasoning is preserved as reasoning metadata, but unlike the
-    // direct Anthropic path we do not preserve empty text separators for Bedrock.
     const assistantID = "m-assistant-bedrock"
     const input: SessionV1.WithParts[] = [
       {
@@ -1323,8 +1319,6 @@ describe("session.message-v2.toModelMessage", () => {
   })
 
   test("leaves empty text alone when reasoning has no Anthropic signature", async () => {
-    // Non-Anthropic providers' reasoning doesn't position-validate, so empty text
-    // should be filtered normally rather than substituted.
     const assistantID = "m-assistant-unsigned"
     const input: SessionV1.WithParts[] = [
       {
@@ -1666,11 +1660,6 @@ describe("session.message-v2.latest", () => {
     expect(state.user?.id).toBe(higher.id)
   })
 
-  // Regression for double auto-compaction. The reorder in filterCompacted
-  // (#27145) returns [compaction-user, summary, ...tail..., continue-user],
-  // so picking lastFinished by array position landed on the pre-compaction
-  // overflow assistant and bypassed the `summary !== true` overflow guard
-  // in SessionPrompt.runLoop, firing a second compaction.create immediately.
   test("finished is the chronologically-latest finished assistant, not the array-latest", () => {
     const filtered = MessageV2.filterCompacted([
       continueUser,

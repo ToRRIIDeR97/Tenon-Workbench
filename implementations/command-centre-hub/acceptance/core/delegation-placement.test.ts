@@ -1,4 +1,3 @@
-// Run from tenon/packages/core: bun test ../../../Implementations/command-centre-hub/acceptance/core
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect, Layer } from "../../../../tenon/packages/core/node_modules/effect/dist/index.js"
 import { HarnessRuntime } from "../../../../tenon/packages/core/src/harness"
@@ -16,12 +15,10 @@ type Fake = {
   origin?: { sessionID: string; commandCentre: boolean }
 }
 
-// A session store in memory: the delegation layer only needs get, create, prompt, resume, interrupt, messages.
 function world(seed: Fake[]) {
   const all = new Map(seed.map((item) => [item.id, item] as const))
   const created: Array<Record<string, unknown>> = []
   let next = 0
-  // A run ends when it is interrupted, so cancel_task settles at once instead of waiting out its timeout.
   const stops = new Map<string, () => void>()
   const sessions = Layer.succeed(SessionV2.Service, {
     get: (id: string) => {

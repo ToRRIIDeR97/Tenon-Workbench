@@ -6,7 +6,6 @@ export type SidebarSession = {
   parentID?: string
   directory: string
   time: { created: number; updated?: number; archived?: number }
-  /** `metadata.pinned` holds the pin time in epoch ms. */
   metadata?: { [key: string]: unknown }
 }
 
@@ -16,20 +15,14 @@ export type ThreadNode<S extends SidebarSession = SidebarSession> = { session: S
 
 export type SidebarGroups<P extends SidebarProject, S extends SidebarSession> = {
   projects: Array<{ project: P; threads: ThreadNode<S>[] }>
-  /** Threads in the workspace folder outside every Project (its root or a non-project subfolder). */
   workspace: ThreadNode<S>[]
 }
 
 const recent = (session: SidebarSession) => session.time.updated ?? session.time.created
 
-/** Pinned roots first (latest pin first), then the rest by last update. */
 const compareRoots = (a: SidebarSession, b: SidebarSession) =>
   (sessionPinnedAt(b) ?? 0) - (sessionPinnedAt(a) ?? 0) || recent(b) - recent(a)
 
-/**
- * Nest child threads under their parent. Pinned roots come first, then the newest; children oldest first.
- * A child whose parent is not in the list is shown as a root so it never disappears.
- */
 export function buildThreadTree<S extends SidebarSession>(sessions: readonly S[]): ThreadNode<S>[] {
   const unique = [...new Map(sessions.map((session) => [session.id, session] as const)).values()]
   const nodes = new Map(unique.map((session) => [session.id, { session, children: [] as ThreadNode<S>[] }]))
@@ -51,13 +44,11 @@ const directoryPrefix = (key: string) => (key.endsWith("/") ? key : `${key}/`)
 
 const matchesDirectory = (outer: string, prefix: string, inner: string) => inner === outer || inner.startsWith(prefix)
 
-/** Whether `directory` is `parent` or inside it. */
 export function isWithinDirectory(parent: string, directory: string) {
   const outer = pathKey(parent)
   return matchesDirectory(outer, directoryPrefix(outer), pathKey(directory))
 }
 
-/** The Project whose thread directory holds `directory`; the deepest one wins for nested folders. */
 export function projectForDirectory<P extends SidebarProject>(projects: readonly P[], directory: string | undefined) {
   if (!directory) return
   const inner = pathKey(directory)
@@ -73,11 +64,6 @@ export function projectForDirectory<P extends SidebarProject>(projects: readonly
   return best
 }
 
-/**
- * Split one workspace's threads into Project groups and the workspace group. A thread belongs to the
- * Project whose folder holds it, otherwise to the workspace when it runs inside the workspace folder.
- * Threads from anywhere else belong to another workspace and are left out, so workspaces never mix.
- */
 export function groupSidebarThreads<P extends SidebarProject, S extends SidebarSession>(input: {
   projects: readonly P[]
   workspaceDirectory?: string
@@ -85,7 +71,6 @@ export function groupSidebarThreads<P extends SidebarProject, S extends SidebarS
 }): SidebarGroups<P, S> {
   const byProject = new Map<string, S[]>()
   const workspace: S[] = []
-  // Deepest project folder first so the first match for each session wins without re-sorting.
   const rankedProjects = input.projects
     .map((project) => {
       const key = pathKey(project.threadDirectory)
@@ -113,12 +98,6 @@ export function groupSidebarThreads<P extends SidebarProject, S extends SidebarS
   }
 }
 
-/**
- * Keep the previous thread node objects wherever their content is unchanged. The sidebar's `<For>`
- * rows are keyed by object identity, so a fresh node would remount its row and drop the row's state
- * (an open menu, a rename in progress). A node is reused while its session object and its children
- * are the same; sessions come from reconciled stores, so they keep identity across updates.
- */
 export function createThreadNodeCache<S extends SidebarSession>() {
   let nodes = new Map<string, ThreadNode<S>>()
   return <P extends SidebarProject>(value: SidebarGroups<P, S>): SidebarGroups<P, S> => {
@@ -144,12 +123,6 @@ export function createThreadNodeCache<S extends SidebarSession>() {
 const sameItems = <T>(a: readonly T[], b: readonly T[]) =>
   a.length === b.length && a.every((item, index) => item === b[index])
 
-/**
- * Combine the loaded directory lists with the recent-session index. A directory list
- * contributes only threads that run in that directory: server events for a thread
- * reach only its own directory's list, so a copy held by another list (e.g. the Brain
- * folder's list of its whole Tenon project) can be stale and must not win.
- */
 export function mergeSidebarSessions<S extends SidebarSession>(
   lists: ReadonlyArray<{ directory: string; sessions: readonly S[] }>,
   index: readonly S[],
@@ -161,18 +134,10 @@ export function mergeSidebarSessions<S extends SidebarSession>(
   return [...owned, ...index]
 }
 
-/**
- * Whether a thread has child threads (subagents). Directory lists load roots only, so a child the sidebar
- * has not fetched yet is known only by the session index's child-to-parent links.
- */
 export function hasChildThreads(node: ThreadNode, links: Readonly<Record<string, string>>) {
   return node.children.length > 0 || Object.values(links).includes(node.session.id)
 }
 
-/**
- * Whether a thread's child rows show: the user's own choice for that row, else open while the active
- * thread is the row or one of its descendants.
- */
 export function childThreadsOpen(node: ThreadNode, activeSessionID: string | undefined, choice?: boolean) {
   return choice ?? containsSession(node, activeSessionID)
 }
@@ -180,7 +145,6 @@ export function childThreadsOpen(node: ThreadNode, activeSessionID: string | und
 const containsSession = (node: ThreadNode, sessionID: string | undefined): boolean =>
   !!sessionID && (node.session.id === sessionID || node.children.some((child) => containsSession(child, sessionID)))
 
-/** Visible threads in sidebar order, for previous/next thread navigation. */
 export function flattenThreads<S extends SidebarSession>(nodes: readonly ThreadNode<S>[]): S[] {
   return nodes.flatMap((node) => [node.session, ...flattenThreads(node.children)])
 }

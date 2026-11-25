@@ -44,14 +44,11 @@ export function required(config: Info) {
 
 export function authorized(credentials: DecodedCredentials, config: Info) {
   if (Option.isNone(config.password)) return false
-  // Compare both fields so a wrong username takes as long to reject as a wrong password.
   const username = safeEqual(credentials.username, config.username)
   const password = safeEqual(Redacted.value(credentials.password), config.password.value)
   return username && password
 }
 
-// Constant-time string comparison. timingSafeEqual throws on a length mismatch, so a
-// mismatched input is compared against the expected value itself and then rejected.
 function safeEqual(input: string, expected: string) {
   const actual = Buffer.from(input)
   const wanted = Buffer.from(expected)

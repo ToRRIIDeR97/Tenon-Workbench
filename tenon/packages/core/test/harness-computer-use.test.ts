@@ -5,8 +5,6 @@ import path from "node:path"
 import { HarnessComputerUse } from "@tenon/core/harness/computer-use"
 import { Harness } from "@tenon/schema/harness"
 
-// #333 (variant B, whole desktop): a Project turns computer use on; its threads then get the Cua Driver MCP server,
-// except harnesses that bring their own computer use.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "computer-use-"))
 afterAll(() => fs.rm(root, { recursive: true, force: true }))
 
@@ -38,7 +36,6 @@ describe("AC-21 the per-Project switch", () => {
     await HarnessComputerUse.setEnabled(project, true, root)
     expect(await HarnessComputerUse.enabledFor(project, root)).toBe(true)
     expect(await HarnessComputerUse.enabledFor(path.join(root, "other"), root)).toBe(false)
-    // A thread in a subfolder or a worktree kept inside the Project counts as the Project (panel round 1, C11).
     expect(await HarnessComputerUse.enabledFor(path.join(project, "nested"), root)).toBe(true)
     await HarnessComputerUse.setEnabled(project, false, root)
     expect(await HarnessComputerUse.enabledFor(project, root)).toBe(false)

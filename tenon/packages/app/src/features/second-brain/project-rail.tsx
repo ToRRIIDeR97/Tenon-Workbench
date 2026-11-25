@@ -10,24 +10,15 @@ import { focusWhenConnected } from "@/utils/focus-when-connected"
 import type { VaultPageInfo } from "./client"
 import { labelClass, type ProjectCard } from "./project-details"
 
-/**
- * Parts of the Project page kept from its old rail: the Status card (progress, next milestone and blocker), which
- * now heads the Settings section, and the Pages grid. Story replaced the Threads and Log cards.
- */
-
 export type Loaded<T> = { value?: T; loading: boolean; failed: boolean; retry: () => void }
 export type ProjectThread = { id: string; title: string; updated: number; running: boolean }
 
 const cardClass =
   "flex scroll-mt-6 flex-col gap-3 rounded-[16px] bg-v2-background-bg-layer-01 p-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
-// Filled like the page's other inputs; the textarea's own ring and focus ring stay.
 const fieldClass = "!w-full !min-h-0 [background:var(--v2-background-bg-base)]"
-// A 6px track filled to the value with a small round handle. The native range input keeps keyboard and screen
-// reader support.
 const sliderClass =
   "h-1.5 w-full cursor-pointer appearance-none rounded-full outline-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-v2-background-bg-accent [&::-webkit-slider-thumb]:[box-shadow:0_0_0_3px_var(--v2-background-bg-layer-01)] focus-visible:[&::-webkit-slider-thumb]:[box-shadow:0_0_0_3px_var(--v2-background-bg-layer-01),0_0_0_5px_var(--v2-border-border-focus)] [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-v2-background-bg-accent [&::-moz-range-thumb]:[box-shadow:0_0_0_3px_var(--v2-background-bg-layer-01)] focus-visible:[&::-moz-range-thumb]:[box-shadow:0_0_0_3px_var(--v2-background-bg-layer-01),0_0_0_5px_var(--v2-border-border-focus)]"
 
-/** A loaded value's view, or its loading and error states. */
 export function loadedView<T>(source: Loaded<T>, view: (value: T) => JSX.Element) {
   const language = useLanguage()
   return (
@@ -54,10 +45,6 @@ export function loadedView<T>(source: Loaded<T>, view: (value: T) => JSX.Element
   )
 }
 
-/**
- * Progress, next milestone and blocker; a set blocker reads as a warning chip until clicked. With tasks, progress is
- * done of total and read-only; without any, it is the manual slider, labelled as such.
- */
 export function ProgressCard(props: { card: ProjectCard; tasks?: { percent?: number; done: number; total: number } }) {
   const language = useLanguage()
   const state = props.card.state
@@ -210,7 +197,6 @@ export function PagesGrid(props: {
     "flex h-[72px] w-full flex-col gap-1 rounded-[12px] p-2.5 text-left transition-colors duration-short ease-standard motion-reduce:transition-none"
   return (
     <div class="flex flex-col gap-2">
-      {/* As many tiles as fit (at least 150px each), so a wide page shows more of them per row. */}
       <ul class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
         <For each={props.pages}>
           {(page) => (
@@ -227,7 +213,6 @@ export function PagesGrid(props: {
                 <span class="line-clamp-2 break-words type-row-title text-v2-text-text-base" title={page.title}>
                   {page.title}
                 </span>
-                {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
                 <Show when={Number.isFinite(Date.parse(page.updatedAt))}>
                   <span class="mt-auto type-caption tabular-nums text-v2-text-text-muted">
                     {props.dateLabel(new Date(page.updatedAt).toISOString())}

@@ -18,7 +18,6 @@ describe("Patch namespace", () => {
   })
 
   afterEach(async () => {
-    // Clean up temp directory
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 

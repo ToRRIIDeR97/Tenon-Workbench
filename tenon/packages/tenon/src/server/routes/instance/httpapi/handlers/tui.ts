@@ -71,7 +71,6 @@ export const tuiHandlers = HttpApiBuilder.group(InstanceHttpApi, "tui", (handler
     const executeCommand = Effect.fn("TuiHttpApi.executeCommand")(function* (ctx: {
       payload: typeof CommandPayload.Type
     }) {
-      // Legacy only publishes known aliases; unknown commands become undefined.
       yield* publishCommand(commandAliases[ctx.payload.command as keyof typeof commandAliases])
       return true
     })

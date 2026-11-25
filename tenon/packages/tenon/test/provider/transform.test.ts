@@ -1054,7 +1054,7 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           type: "array",
           items: {
             type: "array",
-            items: {}, // Empty items object
+            items: {},
           },
         },
       },
@@ -1062,7 +1062,6 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
 
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
-    // Inner items should have a default type
     expect(result.properties.values.items.items.type).toBe("string")
   })
 
@@ -1072,7 +1071,7 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
       properties: {
         data: {
           type: "array",
-          items: { type: "array" }, // No items at all
+          items: { type: "array" },
         },
       },
     } as any
@@ -1093,7 +1092,6 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
             type: "array",
             items: {
               type: "array",
-              // No items
             },
           },
         },
@@ -1114,7 +1112,7 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           type: "array",
           items: {
             type: "array",
-            items: { type: "number" }, // Has explicit type
+            items: { type: "number" },
           },
         },
       },
@@ -1122,7 +1120,6 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
 
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
-    // Should preserve the explicit type
     expect(result.properties.numbers.items.items.type).toBe("number")
   })
 
@@ -1137,7 +1134,7 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
               type: "array",
               items: {
                 type: "array",
-                items: {}, // Empty items
+                items: {},
               },
             },
           },
@@ -1152,12 +1149,6 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
 })
 
 describe("ProviderTransform.schema - gemini type arrays", () => {
-  // Mirrors @ai-sdk/google's convertJSONSchemaToOpenAPISchema: JSON Schema type
-  // arrays (e.g. `["number","string"]`, common in MCP tool schemas) become an
-  // `anyOf` of single-type schemas, with `null` lifted into `nullable`. Plain
-  // @ai-sdk/google rewrites these, but OpenAI-compatible transports such as
-  // GitHub Copilot (proxying to Gemini) forward them verbatim and the backend
-  // rejects the array form.
   const geminiModel = {
     providerID: "google",
     api: {
@@ -1178,7 +1169,6 @@ describe("ProviderTransform.schema - gemini type arrays", () => {
     expect(result.properties.status.type).toBeUndefined()
     expect(result.properties.status.anyOf).toEqual([{ type: "number" }, { type: "string" }])
     expect(result.properties.status.nullable).toBeUndefined()
-    // Sibling keywords stay alongside the generated anyOf.
     expect(result.properties.status.description).toBe("status filter")
   })
 
@@ -2627,8 +2617,6 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
             },
           },
           {
-            // The stale itemId on tool-call parts is what Copilot echoes back as the
-            // `function_call` item `id`, which is what the upstream connection rejects.
             type: "tool-call",
             toolCallId: "call_1",
             toolName: "bash",
@@ -2698,7 +2686,6 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
       },
     ] as any[]
 
-    // openai package preserves itemId regardless of store value
     const result = ProviderTransform.message(msgs, openaiModel, { store: true }) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -2731,7 +2718,6 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
       },
     ] as any[]
 
-    // store=false preserves metadata for non-openai packages
     const result = ProviderTransform.message(msgs, anthropicModel, { store: false }) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -3021,7 +3007,6 @@ describe("ProviderTransform.message - bedrock caching with non-bedrock providerI
 
     const result = ProviderTransform.message(msgs, model, {}) as any[]
 
-    // Cache should be at the message level and not the content-part level
     expect(result[0].providerOptions?.bedrock).toEqual({
       cachePoint: { type: "default" },
     })
@@ -5562,8 +5547,6 @@ describe("ProviderTransform.providerOptions - ai-gateway-provider", () => {
     }) as any
 
   test("routes options under openaiCompatible (the key @ai-sdk/openai-compatible reads)", () => {
-    // Regression: previously fell back to providerID="cloudflare-ai-gateway",
-    // which @ai-sdk/openai-compatible never reads, silently dropping reasoningEffort.
     const result = ProviderTransform.providerOptions(createModel(), { reasoningEffort: "high" })
     expect(result).toEqual({ openaiCompatible: { reasoningEffort: "high" } })
   })

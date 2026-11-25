@@ -1,5 +1,3 @@
-// UI/UX PR1 verification: measures computed styles in the running dev app (http://localhost:4445).
-// Run from tenon/packages/app as e2e/.uiux-pr1.mts: node --experimental-strip-types e2e/.uiux-pr1.mts <outdir> <workspace>
 import { chromium, type Page } from "@playwright/test"
 
 const OUT = process.argv[2]!
@@ -48,7 +46,6 @@ const open = async (scheme: "light" | "dark") => {
   return { browser, page }
 }
 
-// V1/V2: theme tokens as the browser resolves them.
 for (const scheme of ["light", "dark"] as const) {
   const { browser, page } = await open(scheme)
   const warn = await tokenColor(page, "--v2-state-fg-warning")
@@ -72,8 +69,6 @@ for (const scheme of ["light", "dark"] as const) {
   }
 
   if (scheme === "dark") {
-    // V3: keyboard focus on the thread composer's send button draws an outline (Home's composer is a
-    // different component whose IconButtonV2 already has the ring).
     const start = page.locator('button[aria-label="Start in a project"]').first()
     await start.dispatchEvent("pointerdown", { button: 0, pointerType: "mouse" })
     await start.dispatchEvent("pointerup", { button: 0, pointerType: "mouse" })
@@ -101,7 +96,6 @@ for (const scheme of ["light", "dark"] as const) {
     check("V3 send button focus ring", !!ring && ring.style !== "none" && ring.width === "2px", { found, ring })
     await page.screenshot({ path: `${OUT}/v3-send-focus-${scheme}.png`, clip: { x: 300, y: 450, width: 1140, height: 450 } })
 
-    // V5: project card actions in the sidebar.
     const action = page.locator('button[aria-label="New thread"][data-component="icon-button-v2"]').first()
     const exists = (await action.count()) > 0
     if (exists) {

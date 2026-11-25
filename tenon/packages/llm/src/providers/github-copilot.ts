@@ -7,8 +7,6 @@ import { withOpenAIOptions, type OpenAIProviderOptionsInput } from "./openai-opt
 
 export const id = ProviderID.make("github-copilot")
 
-// GitHub Copilot has no canonical public URL — callers (Tenon, etc.) must
-// supply `baseURL` explicitly.
 export type ModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
   ProviderAuthOption<"optional"> & {
     readonly baseURL: string

@@ -4,7 +4,6 @@ import { collectDesigns, collectToolDesigns, designID } from "../../../../tenon/
 const messages = [{ id: "m1", role: "assistant" }]
 const text = (t: string) => ({ m1: [{ id: "p1", type: "text", text: t }] })
 
-// AC-7: a canvas fence that is still streaming is a design with a key that survives its close.
 describe("AC-7 streaming canvas designs", () => {
   const open = 'Here:\n```html canvas title="Hero"\n<style>a{}</style><main><h1>Pri'
   const closed = 'Here:\n```html canvas title="Hero"\n<style>a{}</style><main><h1>Pricing</h1></main>\n```\n'
@@ -33,7 +32,6 @@ describe("AC-7 streaming canvas designs", () => {
   })
 })
 
-// AC-8: a write tool call to an .html file is a canvas design, live while it streams.
 describe("AC-8 collectToolDesigns", () => {
   const parts = (status: string, content: string, filePath = "designs/hero.html") => ({
     m1: [{ id: "t1", type: "tool", tool: "write", callID: "call_1", state: { status, input: { filePath, content } } }],

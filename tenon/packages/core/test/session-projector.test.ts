@@ -97,7 +97,6 @@ describe("SessionProjector", () => {
         part: stepFinish("prt_usage", "msg_usage", 2),
         time: 1,
       })
-      // A concurrent setTitle built its snapshot before the step-finish was projected.
       yield* events.publish(SessionV1.Event.Updated, {
         sessionID,
         info: SessionV1.SessionInfo.make({
@@ -120,7 +119,6 @@ describe("SessionProjector", () => {
           .pipe(Effect.orDie)
       expect(yield* usage()).toEqual({ title: "renamed", cost: 2, input: 20 })
 
-      // Replacing the step-finish swaps its usage, and a non-usage part type replacing it removes the usage.
       yield* events.publish(SessionV1.Event.PartUpdated, {
         sessionID,
         part: stepFinish("prt_usage", "msg_usage", 3),
@@ -265,7 +263,6 @@ describe("SessionProjector", () => {
         messageID: boundary,
         timestamp: DateTime.makeUnsafe(4),
       })
-      // The boundary is the first rolled-back message (the client hides it), so a commit removes it too.
       expect(
         (yield* db.select({ id: SessionMessageTable.id }).from(SessionMessageTable).all()).map((row) => row.id),
       ).toEqual([])
@@ -313,7 +310,6 @@ describe("SessionProjector", () => {
         resume: false,
       })
 
-      // The boundary and every later message are gone; the earlier turn stays.
       expect(
         (yield* sessions.messages({ sessionID, order: "asc" })).map((message) =>
           message.type === "user" ? message.text : message.type,
@@ -328,7 +324,6 @@ describe("SessionProjector", () => {
       ).toEqual([SessionMessage.ID.make("msg_first"), SessionMessage.ID.make("msg_replacement")])
       const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie)
       expect(row?.revert).toBeNull()
-      // Native harness sessions still hold the removed turns, so they are dropped; the harness choice stays.
       expect(row?.metadata).toEqual({ harnessInstanceID: "codex", harnessModel: { id: "gpt-5.5" }, harnessRevision: 1 })
     }).pipe(Effect.provide(sessionsLayer)),
   )
@@ -351,7 +346,6 @@ describe("SessionProjector", () => {
         timestamp: DateTime.makeUnsafe(1),
         revert: { messageID: SessionMessage.ID.make("msg_second"), files: [] },
       })
-      // Records each close and whether the new prompt had been admitted by then.
       const closed: { sessionID: string; admitted: boolean }[] = []
       yield* HarnessRuntime.closeOnRevertCommit(events, (id) =>
         db
@@ -394,7 +388,6 @@ describe("SessionProjector", () => {
       })
       const commit = { sessionID, messageID: boundary, timestamp: DateTime.makeUnsafe(2) }
       yield* events.publish(SessionEvent.RevertEvent.Committed, commit)
-      // Two prompts sent at once both read the staged revert and both commit it.
       yield* events.publish(SessionEvent.RevertEvent.Committed, { ...commit, timestamp: DateTime.makeUnsafe(3) })
 
       expect(
@@ -402,7 +395,6 @@ describe("SessionProjector", () => {
       ).toEqual([SessionMessage.ID.make("msg_earlier")])
       expect((yield* db.select({ revert: SessionTable.revert }).from(SessionTable).get())?.revert).toBeNull()
 
-      // A stale commit for a removed boundary leaves a newer staged revert alone.
       const newer = { messageID: SessionMessage.ID.make("msg_earlier"), files: [] }
       yield* events.publish(SessionEvent.RevertEvent.Staged, {
         sessionID,
@@ -712,7 +704,6 @@ describe("SessionProjector", () => {
         agent: "build",
         model,
       })
-      // A switch is a setting, not conversation: it leaves the thread's place in the lists alone. A prompt moves it.
       const updated = () =>
         db
           .select({ time: SessionTable.time_updated })
@@ -856,7 +847,6 @@ describe("SessionProjector", () => {
         contextWindow: 200000,
         time: { completed: DateTime.makeUnsafe(1) },
       })
-      // The finished reply is the thread's latest conversation.
       expect(
         (yield* db
           .select({ time: SessionTable.time_updated })

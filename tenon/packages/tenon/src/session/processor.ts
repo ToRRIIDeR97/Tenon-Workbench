@@ -96,9 +96,6 @@ const layer = Layer.effect(
     const database = yield* Database.Service
 
     const create = Effect.fn("SessionProcessor.create")(function* (input: Input) {
-      // Pre-capture snapshot before the LLM stream starts. The AI SDK
-      // may execute tools internally before emitting start-step events,
-      // so capturing inside the event handler can be too late.
       const initialSnapshot = yield* snapshot.track()
       const ctx: ProcessorContext = {
         assistantMessage: input.assistantMessage,
@@ -192,7 +189,6 @@ const layer = Layer.effect(
             status: "error",
             input: match.part.state.input,
             error: errorMessage(error),
-            // Keep metadata streamed while running so failures retain progress detail (e.g. execute's child calls).
             metadata: match.part.state.metadata,
             time: { start: match.part.state.time.start, end: Date.now() },
           },
@@ -292,7 +288,6 @@ const layer = Layer.effect(
             return
 
           case "reasoning-delta":
-            // Match dev: silently drop orphan deltas (no preceding reasoning-start).
             if (!(value.id in ctx.reasoningMap)) return
             ctx.reasoningMap[value.id].text += value.text
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata

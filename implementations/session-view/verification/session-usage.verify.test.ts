@@ -1,6 +1,3 @@
-// Independent verification for AC-5, AC-6.
-// Run from tenon/packages/app:
-//   bun test ../../../implementations/session-view/verification/session-usage.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
 import { getSessionUsage } from "../../../tenon/packages/app/src/components/session/session-usage"

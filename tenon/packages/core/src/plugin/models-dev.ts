@@ -85,8 +85,6 @@ function applyModel(
 ) {
   draft.name = input.name ?? model.name
   draft.family = model.family
-  // A model that overrides only the endpoint keeps its provider's SDK package, as in upstream OpenCode.
-  // Zen lists most of its models this way (provider.api set, no npm) under @ai-sdk/openai-compatible.
   const npm = model.provider?.npm ?? (model.provider?.api ? input.npm : undefined)
   draft.api = npm
     ? {

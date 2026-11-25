@@ -16,7 +16,6 @@ import {
 
 export type FileReferenceLabels = {
   open: string
-  /** For a path outside the thread's folder, which opens in a viewer of its own rather than Files. */
   openOutside: string
   missingOutside: string
   copy: string
@@ -62,21 +61,11 @@ const chipAttributes = [
   "tabindex",
 ]
 
-/** Whether a path in the thread folder is a file or a folder, from its parent's listing. */
 export type FileReferenceEntryLookup = (path: string) => Promise<"file" | "directory" | undefined>
 
-// Listing results for extensionless paths, by thread folder and path. Rendering re-marks often, so each
-// path is listed once; `pending` holds its place while the lookup runs.
 const entries = new Map<string, "file" | "directory" | "missing" | "pending">()
 
-/**
- * Marks inline code that cites a file or folder inside `directory` as a focusable link chip. The
- * resolved relative path, range and kind live in data attributes so the delegated handlers never
- * re-parse. An extensionless path (`src/components`, but also `owner/repo` or `and/or`) stays plain
- * code until `lookup` finds it in the thread folder; `root` is then marked again.
- */
 export function markFileReferences(root: Element, directory: string | undefined, lookup?: FileReferenceEntryLookup) {
-  // A Markdown link to a local file (`[report](report.docx)`, `[x](file:///…/x.md)`) is a chip on the link itself.
   root.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((link) => {
     const target = directory ? localLinkTarget(link.getAttribute("href") ?? "") : undefined
     const inside = target && resolveFileReferencePath(target, directory!)
@@ -96,7 +85,6 @@ export function markFileReferences(root: Element, directory: string | undefined,
   root.querySelectorAll<HTMLElement>(":not(pre) > code").forEach((code) => {
     const parsed = directory && !code.closest("a") ? parseFileReference(code.textContent ?? "") : undefined
     const inside = parsed && resolveFileReferencePath(parsed.path, directory!)
-    // A path outside the thread folder can't be listed, so only a named file or a trailing-slash folder counts.
     const outside =
       parsed && !inside && parsed.kind !== "either" ? outsideFileReferencePath(parsed.path, directory!) : undefined
     const path = inside || outside
@@ -153,7 +141,6 @@ function chipReference(chip: HTMLElement): FileReference {
   return { path: chip.dataset.fileReference!, start, end, kind, outside }
 }
 
-/** Delegated hover peek and open handling for the chips under `root`. Returns its cleanup. */
 export function setupFileReferences(
   root: HTMLElement,
   actions: () => FileReferenceActions | undefined,
@@ -242,7 +229,6 @@ export function setupFileReferences(
     if (target()) scheduleHide()
     else clearTimeout(showTimer)
   }
-  // Pointer clicks focus the chip too; only keyboard focus opens the peek straight away.
   const onFocusIn = (event: FocusEvent) => {
     const chip = chipFrom(event.target)
     if (chip?.matches(":focus-visible")) show(chip)
@@ -254,7 +240,6 @@ export function setupFileReferences(
   const onClick = (event: MouseEvent) => {
     const chip = chipFrom(event.target)
     if (!chip || !actions()) return
-    // Dragging across a chip to select its text should not open the panel.
     if (window.getSelection()?.isCollapsed === false) return
     event.preventDefault()
     open(chip)
@@ -277,7 +262,6 @@ export function setupFileReferences(
       host?.querySelector<HTMLElement>("button")?.focus()
     }
   }
-  // The timeline scrolls while replies stream, so follow the chip and only close once it is gone.
   let viewportListening = false
   let viewportFrame: number | undefined
   const onViewportChange = (event: Event) => {
@@ -344,7 +328,6 @@ function FileReferencePeek(props: {
   onLeave: () => void
   onDismiss: () => void
 }) {
-  // The peek fades out after it is dismissed; until then it keeps showing the reference it had.
   const shown = createMemo<typeof props.target>((last) => props.target ?? last)
   const [preview] = createResource(
     () => shown()?.reference,
@@ -363,7 +346,6 @@ function FileReferencePeek(props: {
   let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
   const reference = () => shown()?.reference
-  // While the next reference loads, `latest` still holds the previous one's result.
   const result = () => (preview.loading ? undefined : preview.latest)
   const found = () => {
     const value = result()
@@ -373,7 +355,6 @@ function FileReferencePeek(props: {
     const value = result()
     if (value?.status === "folder") return value.count
   }
-  // A bare file name shows its full path once the app has found it.
   const path = () => result()?.path ?? reference()?.path ?? ""
   const name = () => path().split("/").at(-1) ?? ""
   const folder = () => path().split("/").slice(0, -1).join("/")
@@ -384,9 +365,6 @@ function FileReferencePeek(props: {
     return Math.max(0, current.end - value.start + 1 - value.lines.length)
   }
 
-  // Below the chip, or above it (anchored by its bottom edge) when the viewport has no room; re-placed when
-  // the content settles or the page scrolls. The first placement lands before the peek fades in; moving to
-  // another chip glides there (top/left transitions once placed), so it never flashes at the old spot.
   createEffect(() => {
     const target = props.target
     void props.placement
@@ -396,7 +374,6 @@ function FileReferencePeek(props: {
       if (!element) return
       const anchor = target.chip.getBoundingClientRect()
       const box = element.getBoundingClientRect()
-      // The body eases to its content's height, so place against the height it is heading for.
       const height = box.height - (body?.offsetHeight ?? 0) + (inner?.offsetHeight ?? 0)
       const above = anchor.bottom + 6 + height > window.innerHeight - 8 && anchor.top - 6 - height >= 8
       const left = Math.max(8, Math.min(anchor.left, window.innerWidth - box.width - 8))
@@ -404,14 +381,12 @@ function FileReferencePeek(props: {
       element.style.bottom = above ? `${window.innerHeight - anchor.top + 6}px` : "auto"
       element.style.left = `${left}px`
       if (element.dataset.placed !== undefined) return
-      // Commit the position before the placed state turns its transitions on.
       void element.offsetWidth
       element.dataset.placed = ""
     })
     onCleanup(() => cancelAnimationFrame(frame))
   })
 
-  // The body follows its content's height (loading line, then the lines); it eases once first sized.
   const observeBody = (el: HTMLDivElement) => {
     inner = el
     const observer = new ResizeObserver(() => {

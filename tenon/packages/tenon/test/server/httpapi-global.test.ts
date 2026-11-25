@@ -24,7 +24,6 @@ const apiLayer = HttpRouter.serve(
   HttpApiBuilder.layer(RootHttpApi).pipe(
     Layer.provide([controlHandlers, controlPlaneHandlers, globalHandlers]),
     Layer.provide([authorizationLayer, schemaErrorLayer]),
-    // Raw HttpApi routes expose an opaque handler context at the request boundary.
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     HttpRouter.provideRequest(Layer.succeedContext(Context.empty() as Context.Context<unknown>)),
   ),
@@ -73,8 +72,6 @@ describe("global HttpApi", () => {
     Effect.gen(function* () {
       const response = yield* HttpClient.get(GlobalPaths.event)
       expect(response.status).toBe(200)
-      // Bursts are emitted synchronously, so the server cannot drain between them.
-      // The stream starts listening after server.connected, so keep bursting until it ends.
       yield* Effect.sync(() => {
         for (let index = 0; index < 5000; index++)
           GlobalBus.emit("event", { directory: "/overflow", payload: { type: "test.overflow", properties: {} } })

@@ -151,7 +151,6 @@ const layer = Layer.effect(
       registry.set(strategy.id, strategy)
     })
 
-    // Register default strategies
     yield* register(makeGitWorktreeStrategy({ git, canonical })).pipe(Effect.orDie)
 
     const strategies = () => Array.from(registry.values())

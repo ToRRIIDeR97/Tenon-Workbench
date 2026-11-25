@@ -35,7 +35,6 @@ export interface PermissionRequest {
   readonly resources: ReadonlyArray<string>
   readonly title: string
   readonly kind?: string
-  /** The agent's toolCallId, which its tool events also carry. */
   readonly callID?: string
 }
 
@@ -43,18 +42,11 @@ export interface OpenInput {
   readonly settings: Settings
   readonly directory: string
   readonly continuation?: string
-  /** MCP servers offered to the agent; HTTP ones are dropped when it does not advertise `mcpCapabilities.http`. */
   readonly mcpServers?: ReadonlyArray<McpServer>
   readonly approve: (request: PermissionRequest) => Effect.Effect<boolean>
-  /**
-   * Asks an agent's form elicitation (`elicitation/create`) as questions in the Run's dock: one answer per
-   * question, or undefined when the user declined. Without it the client doesn't advertise forms. Claude Code
-   * sends its own AskUserQuestion tool this way.
-   */
   readonly ask?: (
     questions: ReadonlyArray<QuestionV2.Prompt>,
   ) => Effect.Effect<ReadonlyArray<QuestionV2.Answer> | undefined>
-  /** Called with the slash commands the agent reports, whenever it reports them. */
   readonly onCommands?: (commands: ReadonlyArray<AcpCommand>) => Effect.Effect<void>
 }
 
@@ -66,35 +58,22 @@ export interface AcpCommand {
 export interface Session {
   readonly sessionId: string
   readonly resumed: boolean
-  /** An HTTP MCP server (Tenon's own, when offered) was passed on: the agent advertises `mcpCapabilities.http`. */
   readonly mcpAttached: boolean
   readonly agent: { readonly name?: string; readonly version?: string }
   readonly capabilities: ReturnType<typeof agentCapabilities>
   readonly models: ReadonlyArray<Harness.Model>
-  /** True once the agent process has exited; the runtime must then be replaced. */
   readonly closed: Effect.Effect<boolean>
-  /**
-   * Subagents an earlier turn sent to work in the background may still be running. OpenCode keeps them going after
-   * the turn that launched them has ended, so their requests arrive between turns.
-   */
   readonly backgroundWorking: () => boolean
   readonly turn: (input: {
     readonly text: string
     readonly media?: ReadonlyArray<Media>
     readonly model?: string
     readonly reasoningEffort?: string
-    /** Finishes when a steer is waiting; the agent is then asked to end this turn. */
     readonly steer?: Effect.Effect<void>
-    /** Fails the turn when the agent goes silent; see `failOnSilence`. One-off prompts have their own deadline. */
     readonly watch?: { readonly name: string; readonly waiting: () => boolean }
   }) => Stream.Stream<LLMEvent, LLMError>
 }
 
-/**
- * An external agent runs its whole loop inside one turn, so the turn boundary a steer otherwise waits for is the
- * end of the agent's work. Once `steer` finishes this runs `stop`, once, and keeps reading: the turn still ends
- * through its own finish events, so the next turn cannot overlap it. An agent that ignores `stop` finishes as usual.
- */
 export const stopOnSteer = <A, E>(
   events: Stream.Stream<A, E>,
   steer: Effect.Effect<void> | undefined,
@@ -106,34 +85,19 @@ export const stopOnSteer = <A, E>(
       )
     : events
 
-/** How long a harness turn may stay silent with nothing open before it counts as stopped. */
 export const SILENCE_LIMIT_MINUTES = 10
 const SILENCE_LIMIT = SILENCE_LIMIT_MINUTES * 60_000
 
-/**
- * How long subagents an agent sent to work in the background keep its later turns from counting as silent. OpenCode
- * holds the next prompt until they finish and forwards none of their work meanwhile, so a turn can be quiet far
- * longer than the silence limit while they build; replacing the runtime then would stop them.
- */
 export const BACKGROUND_LIMIT = 60 * 60_000
 
-/** Child sessions an OpenCode subagent result says are still working in the background. */
 export function backgroundChild(output: string) {
   return /working in the background \(sessionID: ([^)\s]+)\)/.exec(output)?.[1]
 }
 
-/** Whether a subagent launched in the background (child session → launch time) may still be working. */
 export function backgroundWorking(children: ReadonlyMap<string, number>, now: number) {
   return [...children.values()].some((started) => now - started < BACKGROUND_LIMIT)
 }
 
-/**
- * A liveness check for a harness turn, which otherwise has no deadline: an agent that is alive but silent, say on a
- * stalled provider connection, would keep the thread running until the user presses Stop. `build` calls `heard` for
- * each message from the agent; `busy` is true while a tool or a question to the user legitimately takes long, and
- * the wait restarts when it ends. The failure takes the stream's usual path: its finalizer asks the agent to stop,
- * and the caller replaces the runtime.
- */
 export const failOnSilence = <A, E>(
   build: (heard: Effect.Effect<void>) => Stream.Stream<A, E>,
   busy: () => boolean,
@@ -162,18 +126,12 @@ export const failOnSilence = <A, E>(
     ),
   )
 
-/** An attachment on the user message: `data` is a `data:` URL (pasted) or a `file://` URL (picked file). */
 export interface Media {
   readonly mediaType: string
   readonly data: string
   readonly filename?: string
 }
 
-/**
- * The prompt for one ACP turn: the text, then each attachment the agent can take. A pasted image (`data:image/…`)
- * becomes an `image` block when the agent advertises `promptCapabilities.image`; a local file becomes a
- * `resource_link`, which every ACP agent must accept. Anything else is left out; the text still names it.
- */
 export function acpPromptBlocks(text: string, media: ReadonlyArray<Media>, capabilities: { readonly image?: boolean }) {
   return [
     { type: "text", text },
@@ -193,12 +151,6 @@ export function acpPromptBlocks(text: string, media: ReadonlyArray<Media>, capab
   ]
 }
 
-/**
- * The mode to switch a new or loaded ACP session to, or undefined to leave it. Tenon's own approval modes (Ask,
- * Auto-edit, Full auto) decide, so the agent must ask Tenon before acting. Claude Code starts in the user's
- * `defaultMode`, or in its own Auto mode when none is set; Auto, Accept edits and bypass approve on the agent's side
- * and never ask, so the session moves to the agent's `default` (ask) mode when it offers one. Plan is left alone.
- */
 export function safeAcpMode(modes: unknown) {
   if (!isRecord(modes) || modes.currentModeId === "default" || modes.currentModeId === "plan") return undefined
   if (typeof modes.currentModeId !== "string") return undefined
@@ -276,7 +228,6 @@ function connect(
   })
 }
 
-/** Why a harness CLI didn't start, in words that say what to do about it. */
 export function startError(command: string, cause: PlatformError) {
   const reason = cause.reason._tag
   if (reason === "NotFound")
@@ -288,7 +239,6 @@ export function startError(command: string, cause: PlatformError) {
   return new ProtocolError(`Could not start ${command}.`, { cause })
 }
 
-/** What the agent says it supports in `initialize`, for the add-harness checklist. */
 export function agentCapabilities(initialize: Record<string, unknown>) {
   const capabilities = isRecord(initialize.agentCapabilities) ? initialize.agentCapabilities : {}
   const mcp = isRecord(capabilities.mcpCapabilities) ? capabilities.mcpCapabilities : {}
@@ -315,7 +265,6 @@ export const handshake = (process: Process, settings: Settings, directory: strin
     Effect.map(({ initialize }) => agentInfo(initialize)),
   )
 
-/** Handshake plus `session/new`, so Settings can show the agent's models before saving. */
 export const discover = (process: Process, settings: Settings, directory: string) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -325,11 +274,6 @@ export const discover = (process: Process, settings: Settings, directory: string
       const configId = selector.configId
       const levels = (effort: EffortOption | undefined) =>
         (effort?.values ?? []).filter((value) => value !== EFFORT_DEFAULT)
-      // Agents report levels for the active model only, so this throwaway session switches to each model once.
-      // It does so even when the active model has none: OpenCode starts on a model without levels while most of
-      // its others have them (476 switches take well under a second). A switch can fail without saying anything
-      // about levels (Claude Code checks some models with its server first), so a failed switch keeps the active
-      // model's levels rather than none.
       const models = configId
         ? yield* Effect.forEach(selector.models, (model) =>
             model.isDefault
@@ -346,7 +290,6 @@ export const discover = (process: Process, settings: Settings, directory: string
       return { ...agentInfo(initialize), models }
     }),
   ).pipe(
-    // Claude Code needs about 10s here when warm (one switch per model), more on a busy cold start.
     Effect.timeoutOrElse({
       duration: "45 seconds",
       orElse: () => Effect.fail(new ProtocolError("The ACP agent did not list its models within 45 seconds.")),
@@ -355,10 +298,6 @@ export const discover = (process: Process, settings: Settings, directory: string
 
 export const verifyPrompt = "Reply with exactly: harness ok"
 
-/**
- * Functional check used before saving a harness: open a real session, optionally switch model,
- * and run one short prompt. Tool permission requests are refused; the prompt needs no tools.
- */
 export const verify = (process: Process, settings: Settings, directory: string, model?: string) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -377,10 +316,6 @@ export const verify = (process: Process, settings: Settings, directory: string, 
     }),
   )
 
-/**
- * Availability check for the picker: the handshake alone, offering the known models. The agent's own
- * model list comes from `discover`, which the caller runs separately because it takes much longer.
- */
 export function probe(
   process: Process,
   instance: { readonly id: Harness.InstanceID; readonly driver: Harness.DriverKind; readonly name: string },
@@ -404,11 +339,6 @@ export function probe(
   )
 }
 
-/**
- * The picker's answer for a failed check. Only a late answer leaves the harness usable: an outdated CLI often starts
- * slowly (an npx adapter checking for or fetching its update), and the thread's own start has no 8 s limit. A protocol
- * mismatch or a CLI that doesn't start can't work, so those disable it (#321).
- */
 export function probeFailure(
   base: { readonly id: Harness.InstanceID; readonly driver: Harness.DriverKind; readonly name: string },
   error: unknown,
@@ -424,10 +354,6 @@ export function probeFailure(
   })
 }
 
-/**
- * The agent's own models when it reports any. Saved model IDs are only a fallback: entries added
- * before live discovery stored a snapshot, which would otherwise keep models the agent dropped.
- */
 export function withConfigured(models: ReadonlyArray<Harness.Model>, configured: ReadonlyArray<string>) {
   return models.length > 0 ? [...models] : configuredModels(configured)
 }
@@ -444,7 +370,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     handleRequest: (request) => handleRequest(request, input.approve, input.ask),
     elicitation: input.ask !== undefined,
     onNotification: (notification) => {
-      // Agents often report commands right after session/new, before any turn reads the queue.
       const commands = input.onCommands ? reportedCommands(notification) : undefined
       return (commands ? input.onCommands!(commands) : Effect.void).pipe(
         Effect.andThen(Queue.offer(items, { type: "update", notification })),
@@ -471,8 +396,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
           Effect.catch(() => Effect.succeed(undefined)),
         )
       : undefined
-  // A load replays history as updates before it responds; none of it belongs to the next turn. The last
-  // replayed cost is the session's running total, so the next turn records only its own share.
   const replayed = yield* Queue.clear(items)
   const baseline = loaded
     ? replayedCost(replayed.flatMap((item) => (item.type === "update" ? [item.notification] : [])))
@@ -493,9 +416,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     currentModel: string | undefined
     effort?: EffortOption
     sessionCost?: number
-    /** Finishes when the last session/prompt has been answered, which a stopped turn doesn't wait for. */
     prompt?: Deferred.Deferred<void>
-    /** Subagents sent to work in the background in an earlier turn: child session → launch time. */
     readonly background: Map<string, number>
   } = {
     currentModel: selector.current,
@@ -503,7 +424,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     sessionCost: baseline,
     background: new Map(),
   }
-  // set_config_option answers with every option, and a model switch can change or drop the levels.
   const readEffort = (response: unknown) =>
     Effect.sync(() => {
       if (isRecord(response) && Array.isArray(response.configOptions)) state.effort = sessionModels(response).effort
@@ -528,7 +448,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
           Effect.asVoid,
         )
 
-  // No effort chosen means the agent's own default, when it offers one.
   const setEffort = (effort: string | undefined) =>
     Effect.suspend(() => {
       const option = state.effort
@@ -547,13 +466,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (
             }).pipe(Effect.andThen(readEffort(response))),
           ),
           Effect.asVoid,
-          // A refused level is left to the agent; no answer at all means the process needs replacing.
           Effect.catch((error) => (error.timedOut ? Effect.fail(error) : Effect.void)),
         )
     })
 
-  // After Stop the agent can still be unwinding the old prompt, and its late updates carry the same session ID. The
-  // next prompt starts once the old one is answered, or the turn fails and the runtime reopens through session/load.
   const promptSettled = Effect.suspend(() =>
     state.prompt
       ? Deferred.await(state.prompt).pipe(
@@ -579,11 +495,8 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     Stream.unwrap(
       Effect.gen(function* () {
         yield* promptSettled
-        // A folded level is sent as its `<base>/<level>` model; otherwise as the agent's level option.
         const variant = `${turnInput.model}/${turnInput.reasoningEffort}`
         const requested = selector.variants?.has(variant) ? variant : turnInput.model
-        // Running on another model while the thread records the chosen one would misreport the turn, so a
-        // refused switch ends the turn and names the model instead.
         const switched = yield* Effect.exit(setModel(requested))
         if (Exit.isFailure(switched)) {
           const error = Option.getOrUndefined(Exit.findErrorOption(switched))
@@ -604,14 +517,12 @@ export const open = Effect.fn("AcpHarness.open")(function* (
         const parser = acpState(state.sessionCost)
         const settled = yield* Deferred.make<void>()
         state.prompt = settled
-        // In the runtime's scope, not the stream's: the request outlives a stopped turn, or its answer would be lost.
         yield* client
           .request("session/prompt", {
             sessionId: session.sessionId,
             prompt: acpPromptBlocks(turnInput.text, turnInput.media ?? [], promptCapabilities),
           })
           .pipe(
-            // Closing the runtime stops this fiber before the client can answer it, and a live turn would wait forever.
             Effect.onInterrupt(() =>
               Queue.offer(items, { type: "done", exit: Exit.fail(new ProtocolError("ACP agent client closed.")) }),
             ),
@@ -620,9 +531,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
             Effect.ensuring(Deferred.succeed(settled, undefined)),
             Effect.forkIn(scope),
           )
-        // Added after the request fiber, so closing the runtime runs this first, while the fiber can still answer.
-        // An agent killed mid-turn leaves its session busy in its own store, and the next start of that store's
-        // service can resume the old work; telling it to cancel lets the turn end properly instead.
         yield* Scope.addFinalizer(
           scope,
           Effect.suspend(() => {
@@ -638,14 +546,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (
             )
           }),
         )
-        // Set while the turn waits on background subagents (see `followBackground`); `reported` holds the ones
-        // whose notice it saw.
         const follow = { active: false, leave: yield* Deferred.make<void>(), reported: new Set<string>() }
         const followBackground = (exit: Exit.Exit<unknown, ProtocolError>) =>
           Stream.unwrap(
             Effect.gen(function* () {
-              // This turn's background subagents and any an earlier turn left still out: a turn that ends before
-              // they report (a new message ended its wait) hands them to the next one.
               const now = Date.now()
               const out = [
                 ...[...parser.tools.values()].flatMap((tool) => (tool.background ? [tool.background] : [])),
@@ -678,8 +582,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
                   )
                   const now = Date.now()
                   const quiet = pending.size === 0 ? (progress.fresh.length > 0 ? now : (settled ?? now)) : undefined
-                  // Done once every child has reported and the agent is idle, or a while after the last report with
-                  // nothing new; the background limit ends the wait however it stands.
                   const over =
                     progress.idle ||
                     (quiet !== undefined && now - quiet >= FOLLOW_SETTLE) ||
@@ -709,8 +611,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
                 )
               if (item.type !== "done")
                 return events(parseAcpNotification(item.notification, session.sessionId, parser))
-              // OpenCode answers the prompt as soon as it has sent its subagents to the background, then takes up
-              // their results in turns of its own that it never sends over ACP. The turn stays open and shows those.
               return Stream.concat(
                 followBackground(item.exit),
                 Stream.suspend(() => events(finishAcpTurn(item.exit, parser))),
@@ -741,8 +641,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
           Stream.ensuring(
             Effect.suspend(() => {
               if (parser.sessionCost !== undefined) state.sessionCost = parser.sessionCost
-              // A background subagent stays out until its notice is seen or the background limit passes; another
-              // turn ending says nothing about it, and forgetting it would refuse its requests (see turnGate).
               for (const tool of parser.tools.values())
                 if (tool.background && !state.background.has(tool.background))
                   state.background.set(tool.background, Date.now())
@@ -771,7 +669,6 @@ export const open = Effect.fn("AcpHarness.open")(function* (
   } satisfies Session
 })
 
-// session/load replays history before it answers, so allow more than the initialize handshake.
 const SESSION_SETUP_TIMEOUT = "60 seconds"
 const PROMPT_UNWIND_TIMEOUT = "10 seconds"
 
@@ -808,26 +705,15 @@ export interface AcpTool {
   input: Record<string, unknown>
   called: boolean
   done: boolean
-  /** Steps a subagent ran in its own child session, keyed by the child's tool call ID. */
   readonly steps: Map<string, AcpStep>
-  /** A subagent's conversation in arrival order; tool entries update in place. */
   readonly transcript: AcpTranscriptEntry[]
-  /** The transcript entry of each child tool call, keyed by the child's tool call ID. */
   readonly entries: Map<string, AcpTranscriptTool>
-  /** The text or reasoning entry later chunks of the same message merge into. */
   block?: { readonly type: "text" | "reasoning"; readonly messageId?: string; readonly entry: AcpTranscriptText }
-  /** Characters of text, reasoning and tool output kept so far, for the transcript cap. */
   chars: number
   truncated?: boolean
   usage?: AcpUsage
-  /**
-   * A Claude Code subagent's settled result, held until its token use arrives: the adapter sends that with the tool
-   * response from a PostToolUse hook, which can come after the result. The turn's end releases anything still held.
-   */
   held?: { readonly failed: boolean; readonly update: Record<string, unknown> }
-  /** An OpenCode subagent's own session, where its token use can be read once it ends (`openCodeUsageLookup`). */
   childSession?: string
-  /** The child session of an OpenCode subagent its result says is still working in the background. */
   background?: string
 }
 
@@ -852,11 +738,9 @@ export interface AcpTranscriptTool {
 
 export type AcpTranscriptEntry = AcpTranscriptText | AcpTranscriptTool
 
-/** A subagent's context and token use as its child session reported it; absent keys were not reported. */
 export interface AcpUsage {
   readonly used?: number
   readonly size?: number
-  /** USD amount. */
   readonly cost?: number
   readonly inputTokens?: number
   readonly outputTokens?: number
@@ -865,26 +749,20 @@ export interface AcpUsage {
   readonly cachedWriteTokens?: number
 }
 
-/** A subagent's transcript stops growing past this many characters of text, reasoning and tool output. */
 export const TRANSCRIPT_LIMIT = 100_000
-/** Live progress is stored for every checkpoint, so it carries only the latest entries and no tool output. */
 export const PROGRESS_ENTRIES = 50
 
 export interface AcpState {
   readonly tools: Map<string, AcpTool>
-  /** Child session ID to the parent tool call that started it. */
   readonly children: Map<string, string>
   text?: { readonly id: string; readonly messageId?: string }
   reasoning?: { readonly id: string; readonly messageId?: string }
   blocks: number
   finished: boolean
-  /** Cumulative session cost reported before this turn, so the turn records only its own share. */
   readonly previousCost?: number
   usage?: { readonly used?: number; readonly size?: number; readonly cost?: number }
   sessionCost?: number
-  /** Slash commands the agent reported through `available_commands_update`. */
   commands?: AcpCommand[]
-  /** Plan updates shown so far this turn; each becomes its own todo call. */
   plans: number
 }
 
@@ -907,11 +785,8 @@ export function parseAcpNotification(
   if (params.sessionId !== sessionId || !isRecord(params.update)) return []
   const update = params.update
   const kind = string(update.sessionUpdate)
-  // OpenCode forwards a subagent's updates under the parent session ID and marks them with
-  // `_meta["opencode/child-session"]`. They belong to the subagent's row, not the parent turn.
   const child = childSession(update)
   if (child && child.id !== sessionId) return recordChild(state, child, kind, update)
-  // Claude Code marks a subagent's own updates with the Task/Agent call that started it.
   const claudeParent = claudeSubagent(update, state)
   if (claudeParent) {
     const id = `claude:${claudeParent}`
@@ -954,18 +829,14 @@ export function parseAcpNotification(
     if (!tool.called) tool.input = toolInput(tool.name, update, tool.input)
     const status = string(update.status)
     const terminal = status === "completed" || status === "failed"
-    // A pending call can carry partial arguments (OpenCode sends only `cwd`); the command or path
-    // arrives with `in_progress`, so the call is published then, or when it finishes.
     const ready = !tool.called && (terminal || status === "in_progress")
     if (ready) tool.called = true
     const start = ready ? [LLMEvent.toolCall({ id, name: tool.name, input: tool.input, providerExecuted: true })] : []
-    // Claude Code reports a subagent's own token use only with its tool response; release a result held for it.
     const reported = tool.name === "acp_subagent" ? claudeSubagentUsage(update) : undefined
     if (reported) tool.usage = { ...tool.usage, ...reported }
     if (reported && tool.held) return [...closed, ...start, ...releaseHeld(id, tool)]
     if (tool.done || !terminal) return [...closed, ...start]
     tool.done = true
-    // OpenCode names the subagent's session in its result even when it forwarded none of its updates.
     if (tool.name === "acp_subagent") {
       tool.childSession ??= /<subagent sessionID="([^"]+)"/.exec(toolOutput(update))?.[1]
       tool.background = backgroundChild(toolOutput(update))
@@ -990,7 +861,6 @@ export function parseAcpNotification(
   if (kind === "usage_update") {
     const cost = isRecord(update.cost) && update.cost.currency === "USD" ? number(update.cost.amount) : undefined
     state.usage = { used: number(update.used), size: number(update.size), cost }
-    // The context in use goes out now so the thread's ring follows the turn; the step's settlement repeats it.
     if (state.usage.used === undefined) return []
     return [
       LLMEvent.stepUsage({
@@ -1005,26 +875,19 @@ export function parseAcpNotification(
   return []
 }
 
-// ACP's auth_required error code.
 const AUTH_REQUIRED = -32000
 
-/**
- * The error a failed turn or a failed session setup shows. A signed-out agent answers with `auth_required` (or, from
- * older agents, a "not logged in" message); the raw protocol text doesn't say what to do, so `signInHint` adds it.
- */
 export function turnError(error: unknown) {
   if (!(error instanceof Error) || !error.message) return "The agent failed."
   return signInHint(error.message, error instanceof ProtocolError && error.code === AUTH_REQUIRED)
 }
 
-/** `message`, or when it means the agent has no login, the same with where to sign in. */
 export function signInHint(message: string, signedOut = false) {
   const noLogin = /auth(entication)?[ _-]required|not (logged|signed) in|please (run \/login|log ?in|sign in)/i
   if (!signedOut && !noLogin.test(message)) return message
   return `The agent isn't signed in (${message}). Sign in from Settings → Harnesses, or run the agent's own login, then send again.`
 }
 
-/** The USD cost of the last `usage_update` among replayed updates: an agent's cost is cumulative per session. */
 export function replayedCost(notifications: ReadonlyArray<Notification>) {
   return notifications
     .flatMap((notification) => {
@@ -1039,7 +902,6 @@ export function replayedCost(notifications: ReadonlyArray<Notification>) {
 
 export function finishAcpTurn(exit: Exit.Exit<unknown, ProtocolError>, state: AcpState): ReadonlyArray<LLMEvent> {
   state.finished = true
-  // Subagent results still waiting for a usage report settle without it.
   const held = [...state.tools].flatMap(([id, tool]) => (tool.held ? releaseHeld(id, tool) : []))
   const closed = [...closeBlocks(state), ...held]
   if (Exit.isFailure(exit)) {
@@ -1054,8 +916,6 @@ export function finishAcpTurn(exit: Exit.Exit<unknown, ProtocolError>, state: Ac
   const response = isRecord(exit.value) ? exit.value : {}
   const harness = harnessUsage(state)
   const usage = normalizeUsage(isRecord(response.usage) ? response.usage : undefined, harness)
-  // OpenCode swallows provider failures (expired key, no credits, blocked free tier) and still
-  // answers `end_turn`, so a turn with no output at all is reported instead of left blank.
   const empty =
     response.stopReason !== "cancelled" && state.blocks === 0 && state.tools.size === 0 && !usage?.outputTokens
   if (empty)
@@ -1072,7 +932,6 @@ export function finishAcpTurn(exit: Exit.Exit<unknown, ProtocolError>, state: Ac
   return [...closed, LLMEvent.stepFinish({ index: 0, reason, usage }), LLMEvent.finish({ reason, usage })]
 }
 
-/** ACP reports the session's cumulative cost; the turn's cost is the increase since the last turn. */
 function harnessUsage(state: AcpState) {
   if (!state.usage) return undefined
   const amount = state.usage.cost
@@ -1137,11 +996,6 @@ export function handleRequest(
   )
 }
 
-/**
- * A form elicitation asked as dock questions, one per field of `requestedSchema`, with its `oneOf`/`enum` choices
- * as options (`anyOf` items for a multi-select). A string field named `<field>_custom` holds that field's typed
- * answer, which the dock already offers, so it isn't asked separately. A url-mode request is declined.
- */
 export function elicit(params: unknown, ask: NonNullable<OpenInput["ask"]>) {
   const fields = elicitationFields(params)
   if (fields.length === 0) return Effect.succeed({ action: "decline" })
@@ -1159,9 +1013,7 @@ type FieldKind = "string" | "array" | "boolean" | "number" | "integer"
 interface ElicitationField {
   readonly key: string
   readonly kind: FieldKind
-  /** Option label to the value sent back. */
   readonly values: ReadonlyMap<string, string>
-  /** The `<key>_custom` field that takes typed text, when the form has one. */
   readonly custom?: string
   readonly prompt: QuestionV2.Prompt
 }
@@ -1228,7 +1080,6 @@ function elicitationChoices(field: Record<string, unknown>, kind: FieldKind) {
   return []
 }
 
-/** The form content for the dock's answers: picked labels become their values, typed text goes to `<key>_custom`. */
 export function elicitationContent(fields: ReadonlyArray<ElicitationField>, answers: ReadonlyArray<QuestionV2.Answer>) {
   return Object.fromEntries(
     fields.flatMap((field, index) => {
@@ -1284,8 +1135,6 @@ function permissionResources(tool: Record<string, unknown>, title: string) {
 }
 
 function toolName(update: Record<string, unknown>) {
-  // OpenCode reports its subagent tool with the generic `think` kind; its own tool name is clearer.
-  // Claude Code names its subagent tool `Task` or `Agent`.
   const claude = isRecord(update._meta) && isRecord(update._meta.claudeCode) ? update._meta.claudeCode : undefined
   const name = (string(update.name) ?? string(claude?.toolName))?.toLowerCase()
   if (name === "subagent" || name === "task" || name === "agent") return "acp_subagent"
@@ -1293,7 +1142,6 @@ function toolName(update: Record<string, unknown>) {
   return kind ? `acp_${kind}` : "acp_tool"
 }
 
-/** The call's arguments plus the agent's title and first location, which rows fall back to. */
 function toolInput(name: string, update: Record<string, unknown>, previous: Record<string, unknown>) {
   const raw = isRecord(update.rawInput) ? update.rawInput : {}
   const location = Array.isArray(update.locations) ? update.locations.find(isRecord) : undefined
@@ -1316,18 +1164,12 @@ function childSession(update: Record<string, unknown>) {
   return id ? { id, title: string(meta.title) } : undefined
 }
 
-/**
- * Route a child session's update to the subagent call that started it. Tool steps checkpoint the
- * subagent when one starts or changes status, and so does the end of a child message block, so the
- * row can show progress while it runs without an event per chunk.
- */
 function recordChild(
   state: AcpState,
   child: { readonly id: string; readonly title?: string },
   kind: string | undefined,
   update: Record<string, unknown>,
 ): ReadonlyArray<LLMEvent> {
-  // Tenon's task tool titles a child session "<description> (@<agent> subagent)".
   const description = child.title?.replace(SUBAGENT_TITLE_SUFFIX, "")
   const parentId = state.children.get(child.id) ?? subagentFor(state, description)
   const parent = parentId === undefined ? undefined : state.tools.get(parentId)
@@ -1358,7 +1200,6 @@ function recordChild(
   const before = parent.steps.get(id)
   const previous = before ? `${before.status}:${before.title}` : undefined
   const step = parent.steps.get(id) ?? { tool: toolName(update), status: "pending" }
-  // Titles arrive as "<subagent description>: <command or tool>"; the row already shows the description.
   const raw = isRecord(update.rawInput) ? update.rawInput : {}
   const title =
     string(raw.command) ??
@@ -1385,7 +1226,6 @@ function recordChild(
   return progress(parentId, parent)
 }
 
-/** Adds a child chunk to the transcript; true when it ended the previous text or reasoning block. */
 function appendChunk(tool: AcpTool, type: "text" | "reasoning", messageId: string | undefined, text: string) {
   const block = tool.block
   const merges = block?.type === type && (messageId === undefined || messageId === block.messageId)
@@ -1403,7 +1243,6 @@ function appendChunk(tool: AcpTool, type: "text" | "reasoning", messageId: strin
   return block !== undefined
 }
 
-/** The part of `text` that fits the subagent's transcript budget; marks the transcript truncated when cut. */
 function withinBudget(tool: AcpTool, text: string) {
   if (tool.truncated) return ""
   const room = TRANSCRIPT_LIMIT - tool.chars
@@ -1413,7 +1252,6 @@ function withinBudget(tool: AcpTool, text: string) {
   return kept
 }
 
-/** The commands in an `available_commands_update`, or undefined for any other notification. */
 export function reportedCommands(notification: Notification) {
   if (notification.method !== "session/update") return undefined
   const params = isRecord(notification.params) ? notification.params : {}
@@ -1430,11 +1268,6 @@ function commandList(update: Record<string, unknown>): AcpCommand[] {
   })
 }
 
-/**
- * How an OpenCode subagent's token use is read: OpenCode sends none over ACP (only the root session gets
- * `usage_update`), but its server keeps each session's totals, and `opencode api` reaches the server `opencode acp`
- * uses. The same command runs with `api GET /api/session/<id>` in place of `acp`; any failure leaves no usage.
- */
 export function openCodeUsageLookup(
   process: Partial<Pick<AppProcess.Interface, "run">>,
   settings: Settings,
@@ -1464,7 +1297,6 @@ export function openCodeUsageLookup(
   }
 }
 
-/** The token totals of an OpenCode session from its server's `GET /api/session/:id` answer. */
 export function openCodeSessionUsage(text: string): AcpUsage | undefined {
   const parsed: unknown = (() => {
     try {
@@ -1489,16 +1321,9 @@ export function openCodeSessionUsage(text: string): AcpUsage | undefined {
   return Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined))
 }
 
-/** How long a turn waits between reads of the agent's own turns while its background subagents work. */
 export const FOLLOW_INTERVAL = "3 seconds"
-/** After the last background subagent reports, how long a turn waits for the agent to take its result up. */
 export const FOLLOW_SETTLE = 30_000
 
-/**
- * Reads a session's newest messages (newest first) from OpenCode's own server, as `openCodeUsageLookup` reads
- * usage: OpenCode runs the turns that take up a background subagent's result itself and sends none of them over
- * ACP, so this is the only way to see them.
- */
 export function openCodeMessageLookup(
   process: Partial<Pick<AppProcess.Interface, "run">>,
   settings: Settings,
@@ -1521,7 +1346,6 @@ export function openCodeMessageLookup(
     )
 }
 
-/** The messages in a `GET /api/session/:id/message` answer, newest first; undefined when it isn't one. */
 export function openCodeMessages(text: string): ReadonlyArray<Record<string, unknown>> | undefined {
   const parsed: unknown = (() => {
     try {
@@ -1534,11 +1358,6 @@ export function openCodeMessages(text: string): ReadonlyArray<Record<string, unk
   return data?.filter((message) => typeof message.id === "string")
 }
 
-/**
- * Where a turn that waits on background subagents stands after one read: the messages it hasn't shown yet, oldest
- * first; the children still out (a `<subagent …>` notice anywhere in the read settles one); and whether the agent
- * is idle with none out. `seen` and `pending` are updated in place.
- */
 export function followProgress(
   messages: ReadonlyArray<Record<string, unknown>>,
   seen: Set<string>,
@@ -1551,7 +1370,6 @@ export function followProgress(
         : undefined
     if (child) pending.delete(child)
   }
-  // A reply still streaming is read again once it completes; marking it seen now would lose the rest of it.
   const fresh = messages.filter((message) => !seen.has(String(message.id)) && !streaming(message)).reverse()
   for (const message of fresh) seen.add(String(message.id))
   return { fresh, idle: pending.size === 0 && messages[0]?.type === "idle" }
@@ -1561,7 +1379,6 @@ function streaming(message: Record<string, unknown>) {
   return message.type === "assistant" && !(isRecord(message.time) && typeof message.time.completed === "number")
 }
 
-// OpenCode's own tool names, as the ACP kinds it reports them with live.
 const openCodeKinds: Record<string, string> = {
   shell: "execute",
   bash: "execute",
@@ -1580,11 +1397,6 @@ const openCodeKinds: Record<string, string> = {
   task: "think",
 }
 
-/**
- * One OpenCode message as the `session/update` payloads its ACP adapter sends live, so a turn the agent ran on its
- * own reads like any other: an assistant's reasoning, text and finished tool calls, and the notice a background
- * subagent leaves when it ends (shown as text). User, system and idle markers are not part of a reply.
- */
 export function openCodeMessageUpdates(message: Record<string, unknown>): ReadonlyArray<Record<string, unknown>> {
   const messageId = String(message.id)
   if (message.type === "synthetic") {
@@ -1639,7 +1451,6 @@ export function openCodeMessageUpdates(message: Record<string, unknown>): Readon
   })
 }
 
-/** Adds an OpenCode subagent's token use to its result, read from OpenCode's server as the result goes out. */
 export function withSubagentUsage(
   events: ReadonlyArray<LLMEvent>,
   state: AcpState,
@@ -1667,7 +1478,6 @@ export function withSubagentUsage(
   })
 }
 
-/** Settles a held subagent result with whatever usage it has now. */
 function releaseHeld(id: string, tool: AcpTool): ReadonlyArray<LLMEvent> {
   const held = tool.held
   if (!held) return []
@@ -1688,11 +1498,6 @@ function isClaudeCodeUpdate(update: Record<string, unknown>) {
   return isRecord(update._meta) && isRecord(update._meta.claudeCode)
 }
 
-/**
- * A Claude Code subagent's token use, from the Agent/Task tool response its adapter sends with
- * `_meta.claudeCode.toolResponse`. Its `usage` is the subagent's last request, so the input, cache read and cache
- * write it counts are the context the subagent ended with.
- */
 export function claudeSubagentUsage(update: Record<string, unknown>): AcpUsage | undefined {
   const meta = isRecord(update._meta) && isRecord(update._meta.claudeCode) ? update._meta.claudeCode : undefined
   const response = isRecord(meta?.toolResponse) ? meta.toolResponse : undefined
@@ -1733,10 +1538,6 @@ function progress(id: string, tool: AcpTool): ReadonlyArray<LLMEvent> {
   return [LLMEvent.toolProgress({ id, name: tool.name, structured: { acp: subagentSnapshot(tool, true) } })]
 }
 
-/**
- * A copy of the subagent's steps, transcript and usage, safe to publish while they keep changing.
- * A live checkpoint keeps the last entries without tool output; the result carries the full capped transcript.
- */
 function subagentSnapshot(tool: AcpTool, live = false) {
   const transcript = live ? tool.transcript.slice(-PROGRESS_ENTRIES) : tool.transcript
   return {
@@ -1753,11 +1554,6 @@ function subagentSnapshot(tool: AcpTool, live = false) {
 
 const SUBAGENT_TITLE_SUFFIX = /\s*\(@[^)]+ subagent\)$/
 
-/**
- * The open subagent call a new child session belongs to, matched by description. OpenCode's child-session
- * marker names only the parent session, not the call, so an unmatched child falls back to the newest
- * subagent no other child has claimed yet.
- */
 function subagentFor(state: AcpState, description: string | undefined) {
   const open = [...state.tools.entries()].filter((entry) => entry[1].name === "acp_subagent" && !entry[1].done)
   const claimed = new Set(state.children.values())
@@ -1785,17 +1581,12 @@ function toolOutput(update: Record<string, unknown>) {
 const OUTPUT_HEAD = 8_000
 const OUTPUT_TAIL = 24_000
 
-/**
- * Bounds harness tool output to 32,000 characters, keeping the start and the end: the end of a build or test run
- * is usually where the failure and the summary are.
- */
 export function clipToolOutput(output: string) {
   if (output.length <= OUTPUT_HEAD + OUTPUT_TAIL) return output
   const omitted = output.length - OUTPUT_HEAD - OUTPUT_TAIL
   return `${output.slice(0, OUTPUT_HEAD)}\n… ${omitted} characters omitted …\n${output.slice(-OUTPUT_TAIL)}`
 }
 
-/** A provider-executed `todowrite` call and result for a plan, the shape the built-in todo list uses. */
 export function planEvents(
   state: { plans: number },
   todos: ReadonlyArray<{ readonly content: string; readonly status: string }>,
@@ -1821,7 +1612,6 @@ function claudeSubagent(update: Record<string, unknown>, state: AcpState) {
   return parent && state.tools.get(parent)?.name === "acp_subagent" ? parent : undefined
 }
 
-/** Diffs an edit reported, kept so the edit view can show them; the output text only names the files. */
 function acpDiffs(update: Record<string, unknown>) {
   const content = Array.isArray(update.content) ? update.content.filter(isRecord) : []
   return content.flatMap((item) => {
@@ -1857,8 +1647,6 @@ function normalizeUsage(value: Record<string, unknown> | undefined, harness?: Re
   const write = number(value?.cachedWriteTokens)
   const output = number(value?.outputTokens)
   const total = number(value?.totalTokens)
-  // OpenCode reports inputTokens without cache reads (total = input + cache + output + thought).
-  // Agents that report it inclusively fail this check and keep the subtraction.
   const exclusive =
     reported !== undefined &&
     (reported < read || (total !== undefined && total >= reported + read + (write ?? 0) + (output ?? 0)))
@@ -1875,23 +1663,16 @@ function normalizeUsage(value: Record<string, unknown> | undefined, harness?: Re
   }
 }
 
-/**
- * Agents report models either in the legacy `models` field or, in newer ACP
- * versions, as a `configOptions` select of category `model`. The source decides
- * how a model switch is sent.
- */
 export function sessionModels(response: unknown): {
   readonly models: ReadonlyArray<Harness.Model>
   readonly current?: string
   readonly configId?: string
   readonly effort?: EffortOption
-  /** Ids of models that stand for a base model at one reasoning level, as `<base>/<level>`. */
   readonly variants?: ReadonlySet<string>
 } {
   const value = isRecord(response) ? response : {}
   const configOptions = Array.isArray(value.configOptions) ? value.configOptions.filter(isRecord) : []
   const effort = effortOption(configOptions)
-  // Agents report levels only for the active model, so only that model offers them.
   const entry = (id: string | undefined, name: unknown, description: unknown, current: string | undefined) =>
     modelEntry(id, name, description, current, id === current ? (effort?.values ?? []) : [])
   if (isRecord(value.models)) {
@@ -1916,8 +1697,6 @@ export function sessionModels(response: unknown): {
   }
 }
 
-// Claude Code lists its account default as a `default` row described by the model it stands for
-// ("Opus" for "Opus 5.5"). Show that model as the current one instead of a model named Default.
 function foldDefault(models: ReadonlyArray<Harness.Model>, current: string | undefined) {
   const row = models.find((model) => model.id === MODEL_DEFAULT)
   const name = row?.description
@@ -1938,14 +1717,12 @@ function foldDefault(models: ReadonlyArray<Harness.Model>, current: string | und
   }
 }
 
-/** The agent's reasoning-level select (ACP category `thought_level`), if it reports one. */
 export type EffortOption = {
   readonly configId: string
   readonly current?: string
   readonly values: ReadonlyArray<string>
 }
 
-// The level OpenCode and other agents use for "no override"; the app shows its own Default entry instead.
 const EFFORT_DEFAULT = "default"
 const MODEL_DEFAULT = "default"
 
@@ -1961,8 +1738,6 @@ function effortOption(configOptions: ReadonlyArray<Record<string, unknown>>): Ef
   return { configId: option.id as string, current: string(option.currentValue), values }
 }
 
-// OpenCode before `thought_level` lists each level as its own model, `<base>/<level>` named
-// "<base name> (<level>)". Fold those into the base model's levels so the picker shows one model.
 function foldVariants(models: ReadonlyArray<Harness.Model>, current: string | undefined) {
   const byId = new Map(models.map((model) => [model.id, model]))
   const levels = new Map<string, string[]>()

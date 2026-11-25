@@ -21,7 +21,6 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
     return !!provider?.models[model.modelID] && connected().has(model.providerID)
   }
 
-  // Implicit picks skip models turned off in Settings › Models; an explicit choice is kept as is.
   const pickable = (model: ModelKey) => valid(model) && models.visible(model)
 
   const configured = () => {
@@ -48,7 +47,6 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
       configured,
       recent,
       () => firstModel(true),
-      // Every model is turned off: keep the composer usable rather than selecting nothing.
       () => firstModel(false),
     ]) {
       const key = read()

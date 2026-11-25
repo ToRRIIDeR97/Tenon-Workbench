@@ -3,9 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { replyAsks } from "./thread-finish"
 
-// Verification tests for implementations/harness-ux-batch-2, panel round 3: the finish mark's question lookup never
-// blocks or throws, and the design values the panel asked about are in the stylesheets.
-
 describe("replyAsks", () => {
   test("a reply already in memory is read without loading", async () => {
     let loads = 0

@@ -2,9 +2,6 @@ import { expect, test } from "bun:test"
 import { join } from "node:path"
 import { createDictation } from "./dictation"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-6, desktop side): the engine's live transcript
-// reaches listeners while recording, and the spoken language goes with "start".
-
 const engine = join(import.meta.dir, "fixtures", "fake-dictation-engine.mjs")
 
 test("partial transcripts reach onPartial while recording, and start forwards the language", async () => {
@@ -22,7 +19,6 @@ test("partial transcripts reach onPartial while recording, and start forwards th
   }
 })
 
-// Panel round 3: a live transcript that arrives after stop never reaches the window.
 test("a partial that arrives after stop is dropped", async () => {
   process.env.FAKE_DICTATION_LATE_PARTIAL = "1"
   const dictation = createDictation({ command: process.execPath, args: [engine], log: () => {} })
@@ -32,7 +28,6 @@ test("a partial that arrives after stop is dropped", async () => {
     await dictation.start()
     const text = await dictation.stop()
     expect(text).toBe("hello from the fake engine")
-    // The late partial is written right after the final; a second recording proves the engine's output was read.
     await dictation.start()
     await dictation.stop()
     expect(partials).not.toContain("too late")

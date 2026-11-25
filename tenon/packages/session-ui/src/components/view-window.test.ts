@@ -27,7 +27,6 @@ describe("view blocks", () => {
   })
 })
 
-// This needs a DOM: run with `bun test --preload ../app/happydom.ts src/components/view-window.test.ts`.
 describe.skipIf(typeof document === "undefined")("view windows", () => {
   test("the Pin button follows a list that loads after the window is drawn, and stops when replaced", () => {
     const labels = { open: "Open", pin: "Pin", pinned: "Pinned", unsupported: "No viewer" }

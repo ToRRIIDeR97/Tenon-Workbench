@@ -1,5 +1,3 @@
-// Each subagent's own context and usage, for the Context tab's Subagents cards and the Environment window. Kept free
-// of UI imports for tests.
 import type { ToolPart } from "@opencode-ai/sdk/v2"
 import { subagentDetail } from "./subagent-detail"
 import type { SubagentGroup } from "./subagent-list"
@@ -7,21 +5,13 @@ import type { SubagentGroup } from "./subagent-list"
 export type SubagentContext = {
   id: string
   sessionID: string
-  /** The turn that started it, and that turn's user message (to reveal it in the thread). */
   turn: number
   turnID: string
   status: ToolPart["state"]["status"]
   input: Record<string, unknown>
-  /** A built-in `task` agent's child session. */
   childID?: string
-  /** Whole seconds it ran, once it has finished. */
   seconds?: number
-  /** Its own context window: tokens used, and the window size when the agent reports one. */
   context?: { used: number; size?: number; percent?: number }
-  /**
-   * When the agent reports no context for it (OpenCode sends no usage for its subagents), a rough count of what its
-   * transcript holds: its prompt, replies, reasoning and tool output at about four characters a token.
-   */
   estimate?: number
   usage: { input?: number; output?: number; reasoning?: number; cacheRead?: number; cost?: number }
 }
@@ -31,10 +21,6 @@ type ChildSession = {
   cost?: number
 }
 
-/**
- * The thread's subagents, newest turn first. A harness subagent (`acp_subagent`) carries the context its agent
- * reported; a built-in `task` agent has its child session's token totals but no context figure.
- */
 export function subagentContexts(
   groups: readonly SubagentGroup[],
   child: (sessionID: string) => ChildSession | undefined,
@@ -94,10 +80,6 @@ export function subagentContexts(
   )
 }
 
-/**
- * How long a subagent's bar is, as a share of the busiest one: by context used, else its transcript estimate, else the
- * tokens it took in.
- */
 export function subagentBar(row: SubagentContext, rows: readonly SubagentContext[]) {
   const size = (item: SubagentContext) =>
     item.context?.used ?? (item.estimate || (item.usage.input ?? 0) + (item.usage.cacheRead ?? 0))

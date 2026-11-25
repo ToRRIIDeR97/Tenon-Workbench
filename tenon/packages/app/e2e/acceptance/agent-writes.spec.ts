@@ -1,8 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { brain, openApp } from "./open-app"
 
-// P6 · Write previews (implementations/notes-command-centre/implementation.md, AC-6.1, AC-6.3 … AC-6.6)
-
 const directory = `${brain}/projects/Acme`
 const sessionID = "ses_acme_thread"
 const thread = {
@@ -90,7 +88,6 @@ test("AC-6.1 a write by the open thread shows inline and folds to Open and Undo"
   await expect(card).toBeVisible()
   await expect(card.getByRole("button", { name: "Open" })).toBeVisible()
   await expect(card.getByRole("button", { name: "Undo" })).toBeVisible()
-  // The card sits in the thread's centred column, over the composer, not at the page's left edge.
   const centre = (box: { x: number; width: number } | null) => (box ? box.x + box.width / 2 : NaN)
   const composer = await page.locator('[data-component="prompt-input"]').boundingBox()
   expect(Math.abs(centre(await card.boundingBox()) - centre(composer))).toBeLessThan(24)
@@ -113,7 +110,6 @@ for (const [kind, sample] of Object.entries(previews)) {
     await page.goto(`/${base64(directory)}/session/${sessionID}`)
     const card = page.locator(`[data-agent-write][data-kind="${kind}"]`).first()
     await expect(card).toBeVisible()
-    // The folded card hides the preview; Show expands it again.
     const show = card.getByRole("button", { name: "Show" })
     if (await show.count()) await show.first().click()
     for (const text of sample.expect) await expect(card).toContainText(text)

@@ -2,33 +2,14 @@ export * as SystemContext from "./index"
 
 import { Effect, Option, Schema } from "effect"
 
-/**
- * Models privileged system context as independently refreshable typed sources.
- *
- * `Source<A>` describes how to observe, compare, and render one value. `make`
- * closes over `A`, producing an opaque `SystemContext` that composes uniformly
- * with contexts built from other value types. Interpreters observe the composed
- * context once, then produce a durable structured
- * `Snapshot` alongside the exact model-visible baseline or update text.
- *
- * Returning `unavailable` means observation failed temporarily. It differs from
- * removing a source from the context: refresh preserves the admitted snapshot,
- * and replacement waits rather than silently constructing an incomplete baseline.
- *
- * @module
- */
-
-/** Stable namespaced identity for one independently refreshable context source. */
 export const Key = Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._/-]*$/u)).pipe(
   Schema.brand("SystemContext.Key"),
 )
 export type Key = typeof Key.Type
 
-/** Indicates that a source could not be observed without treating it as removed. */
 export const unavailable = Symbol.for("@tenon/SystemContext.Unavailable")
 export type Unavailable = typeof unavailable
 
-/** Defines one typed source before its value type is hidden by `make`. */
 export interface Source<A> {
   readonly key: Key
   readonly codec: Schema.Codec<A, Schema.Json, never, never>
@@ -40,21 +21,16 @@ export interface Source<A> {
 
 const ContextTypeId: unique symbol = Symbol.for("@tenon/SystemContext")
 
-/** Opaque carrier for composable system context sources. */
 export interface SystemContext {
   readonly [ContextTypeId]: ReadonlyArray<PackedSource>
 }
 
-/** Durable comparison state for one admitted source. */
 export const SourceSnapshot = Schema.Struct({
   value: Schema.Json,
   removed: Schema.optional(Schema.NonEmptyString),
 })
 export type SourceSnapshot = typeof SourceSnapshot.Type
 
-/** Durable structured comparison state for one active context generation. */
-// Effect 4.1 drops record keys that fail a refined key schema instead of
-// rejecting them, so the namespaced-key rule is a property-name check.
 export const Snapshot = Schema.Record(Schema.String, SourceSnapshot).check(Schema.isPropertyNames(Key))
 export type Snapshot = Readonly<Record<string, SourceSnapshot>>
 
@@ -130,10 +106,8 @@ interface UnavailableEntry {
 
 type Entry = AvailableEntry | UnavailableEntry
 
-/** The identity context. */
 export const empty = context([])
 
-/** Closes a typed source into a context that composes with differently typed sources. */
 export function make<A>(source: Source<A>): SystemContext {
   const decode = Schema.decodeUnknownOption(source.codec)
   const encode = Schema.encodeSync(source.codec)
@@ -174,7 +148,6 @@ export function make<A>(source: Source<A>): SystemContext {
   ])
 }
 
-/** Combines contexts in order and rejects duplicate source keys immediately. */
 export function combine(values: ReadonlyArray<SystemContext>): SystemContext {
   const sources = values.flatMap((value) => value[ContextTypeId])
   assertUniqueKeys(sources)
@@ -196,7 +169,6 @@ const observe = (value: SystemContext) =>
     { concurrency: "unbounded" },
   )
 
-/** Creates the immutable baseline and durable snapshot for a new generation. */
 export function initialize(value: SystemContext): Effect.Effect<Generation, InitializationBlocked> {
   return observe(value).pipe(
     Effect.flatMap((entries) => {
@@ -216,7 +188,6 @@ function initializeObservation(entries: ReadonlyArray<Entry>): Generation {
   }
 }
 
-/** Reconciles current source values with one active generation. */
 export function reconcile(value: SystemContext, previous: Snapshot): Effect.Effect<ReconcileResult> {
   return observe(value).pipe(
     Effect.map((entries): ReconcileResult => {
@@ -281,7 +252,6 @@ function reconcileObservation(
   return { _tag: "Updated", text: render(updates), snapshot }
 }
 
-/** Creates a complete replacement generation or blocks while admitted context is unavailable. */
 export function replace(value: SystemContext, previous: Snapshot): Effect.Effect<ReplacementResult> {
   return observe(value).pipe(Effect.map((entries) => replaceObservation(entries, previous)))
 }

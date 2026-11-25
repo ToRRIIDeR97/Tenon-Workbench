@@ -2,7 +2,6 @@ import type { Page } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
 import { mockTenonServer, type MockServerConfig } from "../utils/mock-server"
 
-// Shared setup for the notes-command-centre acceptance tests (implementations/notes-command-centre).
 export const brain = fixture.directory
 
 export async function openApp(page: Page, input: Partial<MockServerConfig> = {}) {

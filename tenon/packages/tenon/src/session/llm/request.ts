@@ -144,9 +144,6 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
   )
 
   const tools = resolveTools(input)
-  // Codex parity: OpenAI Responses-family providers hardcode `strict: false`
-  // on every function tool so MCP-sourced and dynamic schemas that don't
-  // satisfy OpenAI's structured-outputs constraints still register.
   if (
     input.model.api.npm === "@ai-sdk/openai" ||
     input.model.api.npm === "@ai-sdk/azure" ||
@@ -159,7 +156,6 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     Object.keys(tools).length === 0 &&
     hasToolCalls(input.messages)
   ) {
-    // Copilot needs a tools field when replaying prior tool calls, even if no tools are currently enabled.
     tools["_noop"] = aiTool({
       description: "Do not call this tool. It exists only for API compatibility and must never be invoked.",
       inputSchema: jsonSchema({

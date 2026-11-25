@@ -119,7 +119,6 @@ const layer = Layer.effect(
       })
 
       if (input.reply === "reject") {
-        // With feedback the turn goes on, so calls waiting beside this one get it too; a plain reject stops the turn.
         const rejection = () =>
           input.message
             ? new PermissionV1.CorrectedError({ feedback: input.message })

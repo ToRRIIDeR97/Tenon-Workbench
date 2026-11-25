@@ -1,6 +1,3 @@
-/* Dictation while recording: a capsule above the composer and the words written in place (dictation-ghost.ts). */
-
-/* On the Presence wrapper: the capsule springs up out of the composer's top edge and drops back in. */
 .dictation-capsule-enter {
   animation: dictation-capsule-in var(--v2-duration-medium) var(--v2-ease-spring) both;
 }
@@ -61,13 +58,11 @@
   }
 }
 
-/* The words in progress: faint and italic, as they're still being transcribed. */
 [data-slot="dictation-ghost"] {
   color: var(--v2-text-text-faint);
   font-style: italic;
 
   &[data-settled] {
-    /* The final transcript firms up from left to right. */
     background: linear-gradient(90deg, var(--v2-text-text-base) 0 45%, var(--v2-text-text-faint) 55% 100%);
     background-size: 240% 100%;
     background-position: 100% 0;

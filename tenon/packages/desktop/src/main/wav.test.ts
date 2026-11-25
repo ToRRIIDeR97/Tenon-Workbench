@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { wavBytes } from "./wav"
 
-// #330: an attachment's audio reaches the dictation engine as a 16 kHz mono PCM WAV.
 describe("AC-25 the WAV handed to the engine", () => {
   test("has a RIFF/WAVE header for 16 kHz mono 16-bit and the samples, clamped", () => {
     const bytes = wavBytes(new Float32Array([0, 1, -1, 2]), 16_000)

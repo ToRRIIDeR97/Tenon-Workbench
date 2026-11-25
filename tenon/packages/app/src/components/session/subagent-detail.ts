@@ -11,9 +11,7 @@ export interface SubagentDetail {
   status: string
   transcript: SubagentTranscriptEntry[]
   truncated: boolean
-  /** Absent when the harness reported no context use for the subagent. */
   context?: { used: number; size?: number; percent?: number }
-  /** Each value is undefined when the harness didn't report it; never a stand-in 0. */
   usage: {
     input?: number
     output?: number
@@ -25,7 +23,6 @@ export interface SubagentDetail {
   }
 }
 
-/** What the agent tab shows for one ACP subagent call, read from its tool part. */
 export function subagentDetail(part: ToolPart): SubagentDetail {
   const input = part.state.input ?? {}
   const subagent = record(part.metadata?.acpSubagent) ? part.metadata.acpSubagent : {}

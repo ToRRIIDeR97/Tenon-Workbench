@@ -1,5 +1,3 @@
-// Acceptance tests for AC-2 and AC-5.
-// Run from tenon/packages/core: bun test test/command-centre-bugs.test.ts
 import { describe, expect, test } from "bun:test"
 import { Effect, Layer } from "effect"
 import { Database } from "@tenon/core/database/database"
@@ -26,7 +24,6 @@ const projects = Layer.succeed(
     commit: () => Effect.void,
   }),
 )
-// The session is always executing, as a Command Centre lead busy with check-ins is.
 const busy = Layer.succeed(
   SessionExecution.Service,
   SessionExecution.Service.of({

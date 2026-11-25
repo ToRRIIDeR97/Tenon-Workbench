@@ -5,8 +5,6 @@ import { Effect } from "effect"
 import { EffectDrizzleSqlite } from "@tenon/effect-drizzle-sqlite"
 import { tmpdir } from "./fixture/tmpdir"
 
-// The desktop server runs the node:sqlite driver under Node. Bun only has node:sqlite in some versions (the pinned
-// 1.3.14 doesn't), so the suite runs where the module exists and is skipped, not failed, where it doesn't.
 const supported = await import("node:sqlite").then(
   () => true,
   () => false,

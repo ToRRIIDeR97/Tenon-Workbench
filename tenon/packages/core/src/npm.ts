@@ -197,8 +197,6 @@ const layer = Layer.effect(
         const files = yield* fs.readDirectory(binDir).pipe(Effect.catch(() => Effect.succeed([] as string[])))
 
         if (files.length === 0) return Option.none<string>()
-        // Caller picked a specific bin (e.g. pyright exposes both `pyright` and
-        // `pyright-langserver`); trust the hint if the package provides it.
         if (bin) return files.includes(bin) ? Option.some(bin) : Option.none<string>()
         if (files.length === 1) return Option.some(files[0])
 

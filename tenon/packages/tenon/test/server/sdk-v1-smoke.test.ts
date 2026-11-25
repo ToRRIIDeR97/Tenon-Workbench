@@ -1,7 +1,3 @@
-// Smoke test: v1 SDK (the plugin contract) can actually reach core endpoints
-// against the current server. v1 generation has been frozen since #5216
-// (2025-12-07) so types may be stale, but runtime calls should still work
-// for endpoints the v1 SDK was generated against.
 import { afterEach, describe, expect, test } from "bun:test"
 import { createOpencodeClient } from "@opencode-ai/sdk"
 import { Server } from "../../src/server/server"
@@ -51,7 +47,6 @@ describe("v1 SDK runtime smoke", () => {
     const sdk = client(tmp.path)
     const result = await sdk.session.get({ path: { id: "ses_no_such" } as never })
     expect(result.error).toBeDefined()
-    // wire body for 404 is NamedError-shaped
     expect(result.error).toMatchObject({ name: "NotFoundError" })
   })
 })

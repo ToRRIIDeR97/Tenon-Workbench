@@ -1,9 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { openApp } from "./open-app"
 
-// P4 · Notes F (implementations/notes-command-centre/implementation.md, AC-4.1 … AC-4.6), as rebuilt by
-// implementations/projects-one-page/implementation.md: no page tree, a Project is one page with sections.
-
 const project = {
   project: {
     id: "project_01ACME",
@@ -61,7 +58,6 @@ async function mockVault(page: Page, options: { conflicts?: unknown[]; conflictO
   await page.route("**/second-brain/vault**", async (route) => {
     const request = route.request()
     const url = new URL(request.url())
-    // The glob also matches the app's own modules (vault-pages.ts); only the server's routes are mocked.
     if (!url.pathname.startsWith("/second-brain/vault")) return route.fallback()
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) })
@@ -118,7 +114,6 @@ test("AC-4.1 the landing lists Projects and General pages, with no page tree", a
   await expect(page.locator('[data-project-row="project_01ACME"]')).toContainText("Acme API")
   await expect(page.getByRole("region", { name: "General" }).getByRole("button", { name: /Ideas/ })).toBeVisible()
   await expect(page.getByRole("tree")).toHaveCount(0)
-  // The only checkboxes are the selected Project's open tasks, in the detail card.
   await expect(page.locator(`[data-project-detail="${project.project.id}"]`).getByRole("checkbox")).toHaveCount(2)
   await expect(page.getByRole("checkbox")).toHaveCount(2)
 })
@@ -131,11 +126,8 @@ test("AC-4.2 a Project is one page: its sections in one column and no tabs; an o
   for (const name of ["Tasks", "Story", "Pages", "Settings", "Progress"])
     await expect(page.getByRole("region", { name, exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
-  // The sidebar's Project card has its own actions button; this is the page's, in the Project's header.
   await expect(projectHeader(page).getByRole("button", { name: "Project actions", exact: true })).toBeVisible()
-  // The sidebar has its own grouping tabs; the Project page has none.
   await expect(page.locator(`[data-project-page="${project.project.id}"]`).getByRole("tab")).toHaveCount(0)
-  // The log is part of Story now; an older `tab=log` link lands there.
   await page.goto(`/projects?project=${project.project.id}&tab=log`)
   await expect(page.getByRole("region", { name: "Story" })).toBeInViewport()
 })
@@ -143,7 +135,6 @@ test("AC-4.2 a Project is one page: its sections in one column and no tabs; an o
 test("AC-4.3 the sections show the Project's tasks, timeline, pages and log (in Story)", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  // Open shows what is not done; All adds the done task.
   await expect(page.locator("[data-task]")).toHaveCount(3)
   await page.getByRole("button", { name: "All", exact: true }).click()
   await expect(page.locator("[data-task]")).toHaveCount(4)
@@ -229,7 +220,6 @@ test("AC-4.6 conflict copies are named in a banner", async ({ page }) => {
   await expect(page.getByText("Plan (conflicted copy 2026-11-02).md")).toBeVisible()
 })
 
-// implementations/merge-notes-projects/implementation.md (Notes and Projects are one Projects page)
 test("merge AC-5 /notes links open the same Project under /projects", async ({ page }) => {
   await open(page)
   await page.goto(`/notes?project=${project.project.id}&tab=board`)

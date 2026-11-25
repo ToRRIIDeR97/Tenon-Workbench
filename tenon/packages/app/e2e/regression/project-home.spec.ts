@@ -3,12 +3,9 @@ import { fixture } from "../smoke/session-timeline.fixture"
 import { mockTenonServer } from "../utils/mock-server"
 import type { LogEntry, ProjectRecord, TimelineItem } from "../../src/features/second-brain/client"
 
-// The Project page as one column: cover and tile, the milestone road, the numbers row, then Tasks, Story, Pages and
-// Settings with a section index.
 type Log = LogEntry[] | { fail: number; entries: LogEntry[] }
 
 async function setup(page: Page, items: TimelineItem[], log: Log, clock: "fixed" | "running" = "fixed") {
-  // Fixed for most tests; running where a test needs time to pass on the page.
   if (clock === "fixed") await page.clock.setFixedTime(NOW)
   else await page.clock.install({ time: NOW })
   await mockTenonServer(page, {
@@ -39,7 +36,6 @@ async function setup(page: Page, items: TimelineItem[], log: Log, clock: "fixed"
     createdAt: date,
     updatedAt: date,
   }
-  // A log that fails its first `fail` reads, then answers.
   const logState = Array.isArray(log) ? { fail: 0, entries: log } : { ...log }
   await page.route("**/second-brain/**", async (route) => {
     const url = new URL(route.request().url())
@@ -98,7 +94,6 @@ const items: TimelineItem[] = [
   { id: "m3", title: "Release", kind: "milestone", status: "todo", start: "2026-12-12" },
   { id: "t4", title: "Release notes", kind: "task", status: "todo" },
 ]
-// The page's clock is pinned to midday, so "Today" holds whenever the suite runs.
 const NOW = new Date(2026, 10, 23, 12, 0)
 const note = (minutesAgo: number, text: string): LogEntry => ({
   at: new Date(NOW.getTime() - minutesAgo * 60_000).toISOString(),
@@ -130,12 +125,10 @@ test("the Project page shows its road, numbers and story, and old log links land
   await expect(page.locator("[data-project-blocker-chip]")).toContainText("Waiting on review")
 
   const story = page.getByRole("region", { name: "Story" })
-  // Below the fold on open, so the section links' landing on Story below is a real scroll.
   await expect(story).not.toBeInViewport()
   await expect(story.locator('[data-story-entry="milestone"]')).toContainText("Beta")
   await expect(story.locator('[data-story-entry="log"]')).toHaveText(/Started the one-column Project page\./)
   await expect(story.getByRole("heading", { name: "Today", exact: true })).toBeVisible()
-  // What was there when the page opened doesn't slide in; only later arrivals do.
   await expect(story.locator("[data-entering]")).toHaveCount(0)
   await expect(page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Design notes/ })).toBeVisible()
   const index = page.getByRole("navigation", { name: "Project sections" })
@@ -143,14 +136,12 @@ test("the Project page shows its road, numbers and story, and old log links land
   await expect(index.getByRole("link", { name: "Tasks", exact: true })).toHaveAttribute("aria-current", "location")
   await page.screenshot({ path: testInfo.outputPath("project-home.png") })
 
-  // Scrolled to the end by the wheel, the short last section is the current one; back at the top, Tasks is again.
   await page.getByRole("heading", { name: "Home Project", level: 1 }).hover()
   await page.mouse.wheel(0, 20_000)
   await expect(index.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "location")
   await page.mouse.wheel(0, -20_000)
   await expect(index.getByRole("link", { name: "Tasks", exact: true })).toHaveAttribute("aria-current", "location")
 
-  // Agent-write cards still link to `section=log`, and older links to `section=threads`; both open on Story.
   await page.goto("/projects?project=project_home&section=log")
   await expect(page.getByRole("region", { name: "Story" })).toBeInViewport()
   await page.goto("/projects?project=project_home&section=threads")
@@ -166,7 +157,6 @@ test("a failed log keeps Story open with a retry, and long stories fold", async 
   const story = page.getByRole("region", { name: "Story" })
   const failed = story.getByRole("alert")
   await expect(failed).toHaveText(/The Project log couldn't load\./)
-  // The milestone ahead and New thread stay while the log is down.
   await expect(story.locator('[data-story-entry="milestone"]')).toContainText("Beta")
   await expect(story.getByRole("button", { name: "New thread", exact: true })).toBeVisible()
 
@@ -183,14 +173,12 @@ test("an entry that arrives after the page opened slides in, once, and Show olde
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const older = Array.from({ length: 13 }, (_, index) => note(index + 1, `Older ${index + 1}`))
-  // Stamped half a minute after the page opens; the log only answers on Try again.
   const arrival: LogEntry = { ...note(0, "Arrived after open"), at: new Date(NOW.getTime() + 30_000).toISOString() }
   await setup(page, items, { fail: 1, entries: [arrival, ...older] }, "running")
   await page.goto("/projects?project=project_home")
   const story = page.getByRole("region", { name: "Story" })
   const failed = story.getByRole("alert")
   await expect(failed).toBeVisible()
-  // Let the page's minute clock pass the arrival's stamp, then load the log.
   await page.clock.fastForward(61_000)
   await failed.getByRole("button", { name: "Try again", exact: true }).click()
   const entering = story.locator("[data-entering]")
@@ -211,11 +199,9 @@ test("on a wide window the page becomes a dashboard: full-bleed cover, side colu
   const cover = projectPage.locator('[data-project-cover="bleed"]')
   await expect(cover).toBeVisible()
   await expect(projectPage.locator('[data-project-cover="band"]')).toBeHidden()
-  // The cover runs edge to edge across the page.
   const width = (element: { getBoundingClientRect(): DOMRect }) => element.getBoundingClientRect().width
   const pageWidth = await projectPage.evaluate(width)
   await expect.poll(() => cover.evaluate(width)).toBe(pageWidth)
-  // Pages and Settings in the left column, Tasks and Story beside them; the index steps aside.
   const left = (name: string) =>
     page.getByRole("region", { name, exact: true }).evaluate((element) => element.getBoundingClientRect().left)
   const tasksLeft = await left("Tasks")

@@ -5,7 +5,6 @@
     width: 100%;
     color: var(--v2-text-text-base);
 
-    /* text-14-regular */
     font-family: var(--font-family-sans);
     font-size: 14px;
     font-style: normal;
@@ -55,7 +54,6 @@
         border-color: var(--v2-border-border-strong);
       }
 
-      /* 2px focus ring: the 1px border plus a 1px outer ring, both in border-focus. */
       &:focus-within:not(:has([data-readonly])) {
         border-color: var(--v2-border-border-focus);
         box-shadow: 0 0 0 1px var(--v2-border-border-focus);
@@ -88,7 +86,6 @@
       background: transparent;
       border: none;
 
-      /* text-14-regular */
       font-family: var(--font-family-sans);
       font-size: 14px;
       font-style: normal;

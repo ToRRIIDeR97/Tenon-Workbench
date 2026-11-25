@@ -64,8 +64,6 @@ let deferredFrame: number | undefined
 
 function flushDeferredMounts() {
   while (deferredMounts.length > 0) {
-    // Timeline tools are mounted top-to-bottom, but the viewport starts at the latest turn.
-    // Pop from the end so heavy default-open bodies near the bottom become interactive first.
     const item = deferredMounts.pop()!
     if (item.active) {
       deferredFrame = deferredMounts.length > 0 ? requestAnimationFrame(flushDeferredMounts) : undefined
@@ -97,7 +95,6 @@ function scheduleFrameMount(fn: () => void) {
   return () => cancelAnimationFrame(frame)
 }
 
-/** The formatted time of the tool call a card belongs to, given by the tool part around it (#322). */
 export const ToolTimeContext = createContext<Accessor<string | undefined>>()
 
 export function BasicTool(props: BasicToolProps) {
@@ -272,7 +269,6 @@ export function BasicTool(props: BasicToolProps) {
           {trigger()}
         </Collapsible.Trigger>
       </Show>
-      {/* The body opens and closes at once: a timeline row must reach its final height in one frame. */}
       <Show when={hasChildren() && !props.hideDetails}>
         <Collapsible.Content>
           <Show when={!props.defer || ready()}>{props.children}</Show>
@@ -282,7 +278,6 @@ export function BasicTool(props: BasicToolProps) {
   )
 }
 
-/** Fallback row for tools without a renderer (Codex, ACP, MCP): icon, verb and target from `stepOf`. */
 export function GenericTool(props: {
   tool: string
   status?: string
@@ -297,7 +292,6 @@ export function GenericTool(props: {
   const data = useData()
   const step = createMemo(() => toolStep(props.tool, props.input, { mcpServers: Object.keys(data.store.mcp ?? {}) }))
   const running = () => props.status === "pending" || props.status === "running"
-  // Subagent rows name the agent ("Explore Agent"), as the built-in task row does.
   const title = () => {
     const agent = props.input?.subagent_type
     if (step().kind !== "subagent" || typeof agent !== "string" || !agent)

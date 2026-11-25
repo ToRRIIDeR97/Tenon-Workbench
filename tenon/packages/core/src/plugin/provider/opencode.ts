@@ -134,7 +134,6 @@ export const OpencodePlugin = define<HttpClient.HttpClient | EventV2.Service | S
             if (config.name !== undefined) model.name = config.name
             if (config.id !== undefined) model.api.id = config.id
             if (config.provider !== undefined) {
-              // An endpoint-only override keeps the provider's SDK package.
               const npm = config.provider.npm ?? item.npm
               model.api = npm
                 ? {

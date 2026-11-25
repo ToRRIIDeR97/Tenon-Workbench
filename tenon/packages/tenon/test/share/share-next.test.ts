@@ -80,8 +80,6 @@ const seed = (url: string, org?: string) =>
     }),
   )
 
-// Share settings count only from user or admin config, never from a folder's own config, so the share
-// server is set in the (test) home's ~/.opencode for the length of a test.
 const userShareServer = <A, E, R>(effect: Effect.Effect<A, E, R>) => {
   const dir = path.join(Global.Path.home, ".opencode")
   const file = path.join(dir, "opencode.json")

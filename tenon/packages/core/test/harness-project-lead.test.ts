@@ -8,9 +8,6 @@ import { LocationServiceMap } from "@tenon/core/location-service-map"
 import { SessionV2 } from "@tenon/core/session"
 import { SessionTodo } from "@tenon/core/session/todo"
 
-// The Command Centre runs Projects, not their agents: it gives a Project's goal to one lead thread in that Project,
-// reuses that lead for later goals, and leaves the lead to run its own delegates.
-
 type Row = {
   id: string
   title: string
@@ -150,13 +147,11 @@ test("a later goal from another Command Centre thread goes to the same lead, whi
         yield* tick()
         const second = (yield* lead("ses_cc2", "Polish the HUD", { agent: "codex" })) as HarnessDelegation.TaskResult
         expect(second.taskID).toBe(first.taskID)
-        // Agent and model only apply to a new lead.
         expect(world.rows.get(first.taskID)!.harnessInstanceID).toBe("claude-code")
         const goals = world.prompts.filter((prompt) => prompt.sessionID === first.taskID)
         expect(goals).toHaveLength(2)
         expect(goals[1]!.text.startsWith("New goal from the Command Centre:")).toBe(true)
         expect(goals[1]!.text).toContain("Polish the HUD")
-        // Any Command Centre thread may read the lead.
         const read = yield* Effect.promise(() =>
           HarnessDelegation.invoke("task_result", { task_id: first.taskID, wait_seconds: 0 }, "ses_cc2"),
         )

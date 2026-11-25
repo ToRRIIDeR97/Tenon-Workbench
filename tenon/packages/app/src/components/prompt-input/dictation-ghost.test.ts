@@ -63,7 +63,6 @@ describe("the ghost layer", () => {
     layer.write("Can you move it")
     const copy = root.querySelector<HTMLElement>('[aria-hidden="true"]')!
     expect(copy.getAttribute("contenteditable")).toBeNull()
-    // Spaced from the text before the caret, before the text after it.
     expect(copy.textContent).toBe("Quick note: Can you move it rest")
     expect(copy.querySelectorAll('[data-slot="dictation-ghost-word"]').length).toBe(4)
     expect(editor.style.visibility).toBe("hidden")

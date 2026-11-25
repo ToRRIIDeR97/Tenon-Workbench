@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { designDocument } from "./design-fence"
 import { DESIGN_INSPECT, designInspectScript, pickedDesignElement } from "./design-inspect"
 
-// #326: the picker runs inside the sandboxed frame; the app only trusts the plain data it sends back.
 describe("AC-14 the inspect picker in a design frame", () => {
   test("a finished design gets the picker only when asked", () => {
     expect(designDocument("<p>Hi</p>", { inspect: true })).toContain(DESIGN_INSPECT)
@@ -13,7 +12,6 @@ describe("AC-14 the inspect picker in a design frame", () => {
     const path = new Function(`${designInspectScript.replace(/<\/?script>/g, "")}; return tenonCssPath`)() as (
       element: unknown,
     ) => string
-    // session-ui tests run without a DOM: a minimal element tree with the fields the picker reads.
     type Node = { tagName: string; id: string; classList: string[]; parentElement?: Node; children: Node[] }
     const node = (tagName: string, props: { id?: string; classes?: string[] } = {}, children: Node[] = []): Node => {
       const self: Node = { tagName, id: props.id ?? "", classList: props.classes ?? [], children }

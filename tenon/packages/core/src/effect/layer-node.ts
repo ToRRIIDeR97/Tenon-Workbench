@@ -66,8 +66,6 @@ export function tags<const Config extends { readonly [Name in keyof Config]: rea
   }
 }
 
-// Nodes ---------------------------------------------------------------------
-
 type MakeInput<
   Implementation extends Layer.Any,
   Items extends NodeList,
@@ -158,8 +156,6 @@ function nodeMakeIdentity(node: AnyNode): NodeIdentity {
 function isNode(input: Layer.Any | AnyNode): input is AnyNode {
   return "kind" in input && "dependencies" in input
 }
-
-// Tree -----------------------------------------------------------------------
 
 type Visit<Result> = (node: AnyNode, context: VisitContext<Result>) => Result
 
@@ -326,7 +322,6 @@ export function hasUnbound(root: Node<unknown, unknown, any>, source: AnyNode): 
   })
 }
 
-/** Whether `source` appears anywhere in `root`'s graph. */
 export function contains(root: AnyNode, source: AnyNode): boolean {
   return walk<boolean>(root, (node, context) => {
     if (node === source || node.name === source.name) return true

@@ -50,9 +50,7 @@ export type Draft = {
 
 export interface Interface extends State.Transformable<Draft> {
   readonly sources: () => Effect.Effect<Source[]>
-  /** Skills the agent can use: every loaded skill except those switched off in Settings → Skills. */
   readonly list: () => Effect.Effect<Info[]>
-  /** Every loaded skill, switched off or not. */
   readonly all: () => Effect.Effect<Info[]>
 }
 
@@ -109,8 +107,6 @@ const layer = Layer.effect(
       return skills
     })
 
-    // QUESTION(Dax): Should local skill sources invalidate on filesystem watch
-    // events, following the reload policy chosen for other context sources?
     const cache = new Map<string, Info[]>()
     const all = Effect.fn("SkillV2.all")(function* () {
       const skills = new Map<string, Info>()
@@ -124,7 +120,6 @@ const layer = Layer.effect(
     })
 
     const list = Effect.fn("SkillV2.list")(function* () {
-      // Read on every call so a switch in Settings applies to the next turn without a reload.
       const disabled = yield* SkillToggle.disabled(Global.make().config)
       return (yield* all()).filter((skill) => !disabled.has(skill.name))
     })

@@ -8,8 +8,6 @@ import { dictationLanguage } from "./dictation-language"
 import { harnessModelFor, withRememberedModels } from "./harness-memory"
 import { createHarnessSwitchQueue } from "./harness-switch"
 
-// Verification tests for implementations/harness-ux-batch-2: edge cases beyond the acceptance criteria.
-
 const instance = (id: string, models: string[], status: "available" | "unavailable" = "available") =>
   ({
     id: Harness.InstanceID.make(id),
@@ -66,7 +64,6 @@ describe("verify createHarnessSwitchQueue", () => {
     expect(errors).toHaveLength(1)
   })
 
-  // Added after the panel review: a send waiting on a failed switch must not go to the old harness.
   test("settled says whether the last pick reached the server", async () => {
     const failing = createHarnessSwitchQueue<string>({
       send: async () => {
@@ -156,7 +153,6 @@ describe("verify running context fallback", () => {
     expect(context?.reported).toBe(false)
   })
 
-  // Added after the panel review: a report from before a compaction is not the context after it.
   test("a report from before a compaction is not reused", () => {
     const messages = [
       assistant("msg_a1", "opencode-acp", 190_000),
