@@ -6,6 +6,7 @@ import { CommandActions } from "@/agents/command-actions"
 import { CommandMemory } from "@/agents/command-memory"
 import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
+import { TokenUsage } from "@/agents/token-usage"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/http-api"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
@@ -77,6 +78,7 @@ export const SecondBrainPaths = {
   commandMemory: "/command-centre/memory",
   commandMemoryCompact: "/command-centre/memory/compact",
   commandActions: "/command-centre/actions",
+  usage: "/second-brain/usage",
 } as const
 
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
@@ -283,6 +285,18 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         success: described(
           Schema.Array(CommandActions.Action),
           "What the Command Centre agent did to other threads (messages, stops), newest first; since keeps those at or after that time in epoch milliseconds",
+        ),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readUsage", SecondBrainPaths.usage, {
+        query: Schema.Struct({
+          ...WorkspaceRoutingQueryFields,
+          since: Schema.optional(Schema.NumberFromString),
+          offset: Schema.optional(Schema.NumberFromString),
+        }),
+        success: described(
+          TokenUsage.Summary,
+          "Token usage across every thread since a time in epoch milliseconds, including subagents; offset is the viewer's timezone offset in minutes for day buckets",
         ),
         error: errors,
       }),

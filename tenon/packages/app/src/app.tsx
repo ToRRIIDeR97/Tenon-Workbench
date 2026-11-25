@@ -90,6 +90,7 @@ const pageLoaders = {
   brainHome: () => import("@/pages/brain-home"),
   commandCentre: () => import("@/pages/command-centre"),
   routines: () => import("@/pages/routines"),
+  usage: () => import("@/pages/usage"),
 }
 function prefetchPages() {
   const run = () =>
@@ -107,6 +108,7 @@ const ProjectOverviewPage = lazy(pageLoaders.projectOverview)
 const BrainHomePage = lazy(pageLoaders.brainHome)
 const CommandCentrePage = lazy(pageLoaders.commandCentre)
 const RoutinesPage = lazy(pageLoaders.routines)
+const UsagePage = lazy(pageLoaders.usage)
 
 function TargetServerRoute(props: ParentProps) {
   const params = useParams<{ serverKey: string; id: string }>()
@@ -604,6 +606,7 @@ function Routes() {
       <Route path="/projects/overview" component={ProjectOverviewPage} />
       <Route path="/command" component={CommandCentrePage} />
       <Route path="/routines" component={RoutinesPage} />
+      <Route path="/usage" component={UsagePage} />
       <Route path="/activity" component={() => <Navigate href="/command" />} />
       <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       <Route path={NEW_THREAD_PATH} component={DraftRoute} />

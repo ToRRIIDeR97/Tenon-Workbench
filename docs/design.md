@@ -60,7 +60,7 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Page:** every page sits on one such card built from
   `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`,
   `PageEmpty`; `pagePanelClass` for pages with their own layout): Home,
-  Projects, Calendar, Command Centre, the new thread and the thread itself.
+  Projects, Calendar, Command Centre, Usage, the new thread and the thread itself.
 - **Left shell:** the navigation rail and the Projects panel are one card
   that clips them. The rail is a 64px tinted strip (`bg-layer-01`) with a
   hairline on its right while the panel shows; the Projects panel keeps
