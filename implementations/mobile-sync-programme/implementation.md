@@ -456,6 +456,7 @@ ThreadSync.manager(input: {
   db: Database.Interface["db"]; events: EventV2.Interface
   settingsFile: string
   credentials: { key(): Promise<Uint8Array | undefined>; store(bucket: string): Promise<ThreadSync.Store | undefined> }
+  projects: { resolve(directory: string): Promise<{ id: string; worktree: string }> }
   hostname: string
 }): {
   status(): Effect<Status>
@@ -484,7 +485,7 @@ New error code: `not_ready` (sync is off, or the bucket, key or store is missing
   choices; it never holds the key or a token. A file that cannot be parsed is renamed aside and
   defaults are used. `configure` validates the bucket name (3 to 63 characters of lower-case letters,
   digits, `-`, `_` and `.`, starting and ending with a letter or digit) and a machine name of 1 to 64
-  characters after trimming, else `invalid_name`. `status().missing` lists what is absent, and `ready` is
+  characters after trimming (stored trimmed), else `invalid_name`. `status().missing` lists what is absent, and `ready` is
   true only when sync is enabled and nothing is missing.
 - **AC-P5a-2 Not ready.** `threads`, `push`, `pull`, `continueHere` and `remove` fail with `not_ready`
   when `ready` is false, and touch neither the store nor the database. `settled` never fails: it returns
@@ -500,10 +501,13 @@ New error code: `not_ready` (sync is off, or the bucket, key or store is missing
   instead of failing; a later successful push clears it).
 - **AC-P5a-5 Continue here.** `continueHere(sessionID, { directory })` takes the thread over (pulling
   first) and records `directory` as this computer's folder for it. From then on, on this computer only,
-  the thread's session row has that directory and the project that folder belongs to, so the thread is
-  listed under that folder and its next turn runs there. The choice survives later pulls and a new
-  manager on the same files (it is re-applied after every pull), is never written to the event log or
-  the store, and does not change the thread's folder on any other computer. A relative or empty
+  the thread's session row has that directory and the project `projects.resolve` names for it (creating
+  the project row when it is new), so the thread is listed under that folder and its next turn runs
+  there. The choice survives later pulls and a new
+  manager on the same files (it is re-applied after every pull, including one that applies nothing), is
+  never written to the event log, and does not change the thread's folder on any other computer; the
+  stored manifest's `directory` keeps meaning the folder on the computer that last pushed. A failed
+  `continueHere` records nothing. A relative or empty
   `directory` is `invalid_name`. Continuing a thread this computer already owns only records the folder.
 - **AC-P5a-6 Routes.** A new group serves the manager under `/api/thread-sync`: `GET` (status), `PUT`
   (configure), `GET /threads`, `POST /threads/:sessionID/push`, `/pull`, `/continue` (body
