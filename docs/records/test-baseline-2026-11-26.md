@@ -20,7 +20,7 @@ time, root scripts from the repository root.
 | `bun run build` | repository root | pass | | 0 | Desktop build; Vite warns about chunks over 500 kB |
 | `bun run test:engine` | repository root | fail | 1515 | 3 | `tenon/packages/core`: 1515 pass, 15 skip, 3 fail. The `&&` stops it there, so `tenon/packages/tenon` never ran; see the extra run below |
 | `bun run test:routes` | repository root | pass | 11 | 0 | Three Playwright route specs, one worker |
-| `bun run test:desktop` | repository root | pass | 259 | 0 | Bun: 254 pass, 6 skip. Node `draft-store.node-test.ts`: 5 pass of 6 |
+| `bun run test:desktop` | repository root | pass | 259 | 0 | Bun: 254 pass, 6 skip. Node `draft-store.node-test.ts`: 6 tests, 5 pass and 1 skipped |
 | `bun run test:app` | repository root | pass | 1532 | 0 | Unit 1471 pass, browser 61 pass |
 | `bun run test:e2e` | `tenon/packages/app` | fail | 155 | 66 | 222 tests in 5.5 minutes, 1 skipped. Eight failures rerun alone with `--workers=1` failed the same way, so these are not load flakes |
 
