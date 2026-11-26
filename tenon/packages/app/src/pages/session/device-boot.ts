@@ -22,12 +22,19 @@ export function fitFrame(input: {
   imageWidth: number
   imageHeight: number
   inset: number
+  below?: number
 }): { width: number; height: number } {
-  const room = { width: input.boxWidth - 2 * input.inset, height: input.boxHeight - 2 * input.inset }
+  const room = {
+    width: input.boxWidth - 2 * input.inset,
+    height: input.boxHeight - 2 * input.inset - (input.below ?? 0),
+  }
   if (input.imageWidth <= 0 || input.imageHeight <= 0 || room.width <= 0 || room.height <= 0)
     return { width: 0, height: 0 }
   const scale = Math.min(room.width / input.imageWidth, room.height / input.imageHeight, 1)
-  return { width: Math.floor(input.imageWidth * scale), height: Math.floor(input.imageHeight * scale) }
+  return {
+    width: Math.min(Math.round(input.imageWidth * scale), Math.floor(room.width)),
+    height: Math.min(Math.round(input.imageHeight * scale), Math.floor(room.height)),
+  }
 }
 
 export function deviceError(cause: unknown): string {

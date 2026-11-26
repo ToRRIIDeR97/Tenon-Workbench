@@ -23,6 +23,8 @@ import {
 } from "./device-boot"
 
 const FRAME_MS = 700
+const TOOLBAR_GAP = 12
+const TOOLBAR_HEIGHT = 28
 const BOOT_MESSAGES = {
   idle: "secondBrain.device.boot.starting",
   starting: "secondBrain.device.boot.starting",
@@ -41,6 +43,7 @@ type DeviceTabState = {
   shown: string
   natural: { width: number; height: number }
   box: { width: number; height: number }
+  toolbar: number
 }
 
 export function SessionDeviceTab() {
@@ -60,6 +63,7 @@ export function SessionDeviceTab() {
     shown: "",
     natural: { width: 0, height: 0 },
     box: { width: 0, height: 0 },
+    toolbar: TOOLBAR_HEIGHT,
   })
   const devices = createMemo(() =>
     state.os === "android" ? (status.latest?.android.devices ?? []) : (status.latest?.ios.devices ?? []),
@@ -110,6 +114,7 @@ export function SessionDeviceTab() {
     return fitFrame({
       boxWidth: state.box.width,
       boxHeight: state.box.height,
+      below: state.toolbar + TOOLBAR_GAP,
       imageWidth: natural.width,
       imageHeight: natural.height,
       inset: FRAME_INSET,
@@ -166,6 +171,11 @@ export function SessionDeviceTab() {
       if (entry)
         setState("box", { width: Math.floor(entry.contentRect.width), height: Math.floor(entry.contentRect.height) })
     })
+    observer.observe(element)
+    onCleanup(() => observer.disconnect())
+  }
+  const measureToolbar = (element: HTMLDivElement) => {
+    const observer = new ResizeObserver(() => setState("toolbar", Math.ceil(element.getBoundingClientRect().height)))
     observer.observe(element)
     onCleanup(() => observer.disconnect())
   }
@@ -295,8 +305,12 @@ export function SessionDeviceTab() {
             </div>
           }
         >
-          <div class="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-2" data-slot="device-stage">
-            <div class="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center" ref={measure}>
+          <div
+            class="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center py-3"
+            data-slot="device-stage"
+            ref={measure}
+          >
+            <div class="flex flex-col items-center" style={{ gap: `${TOOLBAR_GAP}px` }} data-slot="device-group">
               <Show when={screen().width > 0}>
                 <div
                   class="rounded-[var(--v2-radius-xl)] bg-[#171717] shadow-[var(--v2-elevation-raised)]"
@@ -330,45 +344,46 @@ export function SessionDeviceTab() {
                   </Show>
                 </div>
               </Show>
-            </div>
-            <div
-              class="flex shrink-0 items-center gap-0.5 rounded-full bg-v2-background-bg-layer-01 p-0.5"
-              role="toolbar"
-              aria-label={language.t("secondBrain.device.controls")}
-            >
-              <TooltipV2 placement="top" value={language.t("secondBrain.device.home")}>
-                <IconButtonV2
-                  icon={<Icon name="home" />}
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("secondBrain.device.home")}
-                  data-action="device-home"
-                  onClick={() => key("home")}
-                />
-              </TooltipV2>
-              <Show when={state.os === "android"}>
-                <TooltipV2 placement="top" value={language.t("secondBrain.device.back")}>
+              <div
+                class="flex shrink-0 items-center gap-0.5 rounded-full bg-v2-background-bg-layer-01 p-0.5"
+                role="toolbar"
+                ref={measureToolbar}
+                aria-label={language.t("secondBrain.device.controls")}
+              >
+                <TooltipV2 placement="top" value={language.t("secondBrain.device.home")}>
                   <IconButtonV2
-                    icon={<Icon name="arrow-left" />}
+                    icon={<Icon name="home" />}
                     variant="ghost"
                     size="small"
-                    aria-label={language.t("secondBrain.device.back")}
-                    data-action="device-back"
-                    onClick={() => key("back")}
+                    aria-label={language.t("secondBrain.device.home")}
+                    data-action="device-home"
+                    onClick={() => key("home")}
                   />
                 </TooltipV2>
-              </Show>
-              <TooltipV2 placement="top" value={language.t("secondBrain.device.attach")}>
-                <IconButtonV2
-                  icon={<Icon name="photo" />}
-                  variant="ghost"
-                  size="small"
-                  aria-label={language.t("secondBrain.device.attach")}
-                  data-action="device-attach"
-                  disabled={!state.frame}
-                  onClick={() => void attach()}
-                />
-              </TooltipV2>
+                <Show when={state.os === "android"}>
+                  <TooltipV2 placement="top" value={language.t("secondBrain.device.back")}>
+                    <IconButtonV2
+                      icon={<Icon name="arrow-left" />}
+                      variant="ghost"
+                      size="small"
+                      aria-label={language.t("secondBrain.device.back")}
+                      data-action="device-back"
+                      onClick={() => key("back")}
+                    />
+                  </TooltipV2>
+                </Show>
+                <TooltipV2 placement="top" value={language.t("secondBrain.device.attach")}>
+                  <IconButtonV2
+                    icon={<Icon name="photo" />}
+                    variant="ghost"
+                    size="small"
+                    aria-label={language.t("secondBrain.device.attach")}
+                    data-action="device-attach"
+                    disabled={!state.frame}
+                    onClick={() => void attach()}
+                  />
+                </TooltipV2>
+              </div>
             </div>
           </div>
         </Show>

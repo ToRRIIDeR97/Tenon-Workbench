@@ -3295,13 +3295,14 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   `emulator` on macOS and Windows; the iOS Simulator through `simctl` on macOS
   (`idb` for taps). The screen is polled as PNG frames; a click is a tap
   (`desktop/src/main/device.ts`, `app/src/pages/session/device-tab.tsx`).
-  The phone is centred in the panel: the screen image is sized to the
-  largest size that fits at its own aspect ratio, never above its pixel size
+  The phone and its toolbar are centred together in the panel as one group:
+  the screen image is sized to the largest size that fits at its own aspect
+  ratio, never above its pixel size, after leaving room for the toolbar
   (`fitFrame`), and the bezel wraps it with the same 8 px on every side, so
   the image box is the bitmap and a click maps straight to device pixels. The
   placeholder before the first frame has the same shape. Home, Back (Android
   only) and Screenshot to thread are icon buttons with tooltips in one
-  toolbar under the phone. When the shown device goes away, its last frame
+  toolbar 12 px under the bezel, in portrait and landscape. When the shown device goes away, its last frame
   and error are cleared and the tab offers to start a device again; errors
   are shown without Electron's `Error invoking remote method` prefix
   (`deviceError`). The device list is read with the resource's latest value,

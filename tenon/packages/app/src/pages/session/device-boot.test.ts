@@ -42,6 +42,15 @@ describe("fitFrame", () => {
     expect(fitted.height + 16).toBeLessThanOrEqual(271)
   })
 
+  test("reserves the space below the frame for the toolbar", () => {
+    const fitted = fitFrame({ boxWidth: 400, boxHeight: 556, imageWidth: 1080, imageHeight: 2400, inset: 8, below: 40 })
+    expect(fitted).toEqual({ width: 225, height: 500 })
+    expect(fitted.height + 16 + 40).toBeLessThanOrEqual(556)
+    expect(
+      fitFrame({ boxWidth: 400, boxHeight: 60, imageWidth: 1080, imageHeight: 2400, inset: 8, below: 44 }),
+    ).toEqual({ width: 0, height: 0 })
+  })
+
   test("returns nothing when there is no room or no image", () => {
     expect(fitFrame({ boxWidth: 10, boxHeight: 500, imageWidth: 1080, imageHeight: 2400, inset: 8 })).toEqual({
       width: 0,
