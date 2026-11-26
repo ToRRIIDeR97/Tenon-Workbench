@@ -1,0 +1,10 @@
+export * as RemoteAccess from "./remote-access"
+
+export { registry, hashToken } from "./remote-access/registry"
+export type { Registry } from "./remote-access/registry"
+export { allows, allowsRoute, allowed, denied, opensStream, streams } from "./remote-access/scope"
+export type { Route } from "./remote-access/scope"
+export { PairError } from "./remote-access/error"
+export type { PairCode } from "./remote-access/error"
+export { limiter, streamTickets, PAIR_ATTEMPTS_PER_MINUTE, STREAM_TICKET_TTL } from "./remote-access/limits"
+export type { Limiter, StreamTickets } from "./remote-access/limits"

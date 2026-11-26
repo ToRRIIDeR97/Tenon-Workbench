@@ -6,6 +6,7 @@ import { EventV2 } from "@tenon/core/event"
 import { Credential } from "@tenon/core/credential"
 import { PermissionSaved } from "@tenon/core/permission/saved"
 import { PtyTicket } from "@tenon/core/pty/ticket"
+import { RemoteAccessService } from "@tenon/core/remote-access/service"
 import { SessionV2 } from "@tenon/core/session"
 import { SessionExecution } from "@tenon/core/session/execution"
 import { LocationServiceMap } from "@tenon/core/location-service-map"
@@ -31,6 +32,7 @@ const applicationServices = LayerNode.group([
   SessionV2.node,
   PermissionSaved.node,
   PtyTicket.node,
+  RemoteAccessService.node,
   Credential.node,
   PtyEnvironment.node,
   LocationServiceMap.node,

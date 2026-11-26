@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 560" width="980" height="560" role="img" aria-labelledby="title desc">
+<title id="title">Pairing a phone and its companion access</title>
+<desc id="desc">Sequence. The owner, signed in with the server password, asks the server for a pairing code; the code lives only in memory for five minutes. The phone sends the code and a name to POST /remote/pair, the one route without a credential, limited to ten attempts a minute per address. The server writes the SHA-256 of a new random token to remote-devices.json through a temporary file and a rename, private to the user, and returns the token once. The phone then sends the token in an Authorization Bearer header: a route in the companion scope runs, a route outside it answers 403 before its handler, and an unknown or revoked token answers 401. For an event stream the phone asks for a one-minute single-use ticket and passes it as the ticket query parameter. The owner revokes the device, after which its next request answers 401.</desc>
+
+<style>
+  .bg{fill:#ffffff}
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;fill:#1f2328}
+  .t{font-weight:600}
+  .s{font-size:11.5px;fill:#57606a}
+  .h{font-size:16px;font-weight:600}
+  .lbl{font-size:12px;fill:#1f2328}
+  .note{font-size:11px;fill:#57606a}
+  .box{fill:#f6f8fa;stroke:#57606a;stroke-width:1.2}
+  .store{fill:#fff8e5;stroke:#9a6700;stroke-width:1.2}
+  .ext{fill:#ddf4ff;stroke:#0969da;stroke-width:1.2}
+  .proc{fill:#fbefff;stroke:#8250df;stroke-width:1.2}
+  .life{stroke:#8c959f;stroke-width:1;stroke-dasharray:5 4}
+  .e{fill:none;stroke:#57606a;stroke-width:1.3}
+  .r{fill:none;stroke:#57606a;stroke-width:1.1;stroke-dasharray:4 3}
+  .deny{fill:none;stroke:#cf222e;stroke-width:1.3}
+  .ah{fill:#57606a}
+  .dh{fill:#cf222e}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#0d1117}
+    text{fill:#e6edf3}
+    .s{fill:#9198a1} .lbl{fill:#e6edf3} .note{fill:#9198a1}
+    .box{fill:#161b22;stroke:#8b949e}
+    .store{fill:#2b2111;stroke:#d29922} .ext{fill:#0c2d4a;stroke:#4493f8}
+    .proc{fill:#271a3d;stroke:#ab7df8}
+    .life{stroke:#6e7681}
+    .e,.r{stroke:#9198a1} .ah{fill:#9198a1}
+    .deny{stroke:#ff7b72} .dh{fill:#ff7b72}
+  }
+</style>
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+  <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="dh" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="980" height="560"/>
+<text x="20" y="28" class="h">Pairing a phone and its companion access</text>
+<text x="20" y="46" class="s">sequence view · core/src/remote-access · both authorization middlewares · loopback only in this phase</text>
+
+<rect class="ext" x="30" y="66" width="140" height="40" rx="6"/>
+<text x="100" y="91" class="t" text-anchor="middle">Owner (password)</text>
+<rect class="proc" x="290" y="66" width="160" height="40" rx="6"/>
+<text x="370" y="91" class="t" text-anchor="middle">Server middleware</text>
+<rect class="store" x="540" y="66" width="170" height="40" rx="6"/>
+<text x="625" y="91" class="t" text-anchor="middle">remote-devices.json</text>
+<rect class="box" x="800" y="66" width="150" height="40" rx="6"/>
+<text x="875" y="91" class="t" text-anchor="middle">Phone</text>
+
+<line class="life" x1="100" y1="106" x2="100" y2="540"/>
+<line class="life" x1="370" y1="106" x2="370" y2="540"/>
+<line class="life" x1="625" y1="106" x2="625" y2="540"/>
+<line class="life" x1="875" y1="106" x2="875" y2="540"/>
+
+<line class="e" x1="100" y1="135" x2="366" y2="135" marker-end="url(#a)"/>
+<text x="110" y="129" class="lbl">POST /api/remote/pairing-code</text>
+<line class="r" x1="370" y1="160" x2="104" y2="160" marker-end="url(#a)"/>
+<text x="110" y="155" class="lbl">code, 5 minutes, memory only</text>
+
+<line class="r" x1="100" y1="188" x2="871" y2="188" marker-end="url(#a)"/>
+<text x="480" y="182" class="note">shown on screen, typed on the phone</text>
+
+<line class="e" x1="875" y1="218" x2="374" y2="218" marker-end="url(#a)"/>
+<text x="660" y="212" class="lbl">POST /remote/pair { code, name }</text>
+<text x="660" y="232" class="note">no credential · 10 attempts a minute per address</text>
+<line class="e" x1="370" y1="250" x2="621" y2="250" marker-end="url(#a)"/>
+<text x="380" y="244" class="lbl">SHA-256(token), temp + rename</text>
+<text x="380" y="265" class="note">0600 · icacls current user on Windows</text>
+<line class="r" x1="370" y1="282" x2="871" y2="282" marker-end="url(#a)"/>
+<text x="660" y="276" class="lbl">{ id, name, token } once</text>
+
+<line class="e" x1="875" y1="318" x2="374" y2="318" marker-end="url(#a)"/>
+<text x="560" y="312" class="lbl">GET /api/session · Bearer token</text>
+<line class="r" x1="370" y1="342" x2="871" y2="342" marker-end="url(#a)"/>
+<text x="560" y="336" class="lbl">200: hash matched, route allowed</text>
+
+<line class="e" x1="875" y1="374" x2="374" y2="374" marker-end="url(#a)"/>
+<text x="560" y="368" class="lbl">POST /api/pty · Bearer token</text>
+<line class="deny" x1="370" y1="398" x2="871" y2="398" marker-end="url(#d)"/>
+<text x="560" y="392" class="lbl">403 before the handler</text>
+
+<line class="e" x1="875" y1="430" x2="374" y2="430" marker-end="url(#a)"/>
+<text x="540" y="424" class="lbl">POST /api/remote/stream-ticket, then</text>
+<text x="540" y="446" class="lbl">GET /api/event?ticket= (1 minute, one use)</text>
+
+<line class="e" x1="100" y1="480" x2="366" y2="480" marker-end="url(#a)"/>
+<text x="110" y="474" class="lbl">DELETE /api/remote/devices/:id</text>
+<line class="deny" x1="370" y1="515" x2="871" y2="515" marker-end="url(#d)"/>
+<text x="560" y="509" class="lbl">next phone request: 401</text>
+</svg>

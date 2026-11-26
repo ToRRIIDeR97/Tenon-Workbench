@@ -149,6 +149,10 @@ export type ProjectCopyError = {
 export const isProjectCopyError = (value: unknown): value is ProjectCopyError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "ProjectCopyError"
 
+export type ForbiddenError = { readonly _tag: "ForbiddenError"; readonly message: string }
+export const isForbiddenError = (value: unknown): value is ForbiddenError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ForbiddenError"
+
 export type HealthGetOutput = { readonly healthy: true }
 
 export type LocationGetInput = {
@@ -4288,3 +4292,20 @@ export type ProjectCopiesRefreshInput = {
 }
 
 export type ProjectCopiesRefreshOutput = void
+
+export type ServerRemotePairingCodeOutput = { readonly code: string; readonly expiresAt: number }
+
+export type ServerRemoteDevicesOutput = {
+  readonly devices: ReadonlyArray<{
+    readonly id: string
+    readonly name: string
+    readonly createdAt: number
+    readonly lastSeenAt: number | null
+  }>
+}
+
+export type ServerRemoteRevokeInput = { readonly id: { readonly id: string }["id"] }
+
+export type ServerRemoteRevokeOutput = { readonly removed: boolean }
+
+export type ServerRemoteStreamTicketOutput = { readonly ticket: string; readonly expiresAt: number }

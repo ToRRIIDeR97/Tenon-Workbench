@@ -223,6 +223,10 @@ RunAsNode.
 - **Credential checks.** `ServerAuth.authorized` compares the username and
   password in constant time. `httpapi-route-auth-coverage.test.ts` sends an
   unauthenticated request to every declared HttpApi operation and expects 401.
+  A paired device's `Authorization: Bearer` token is checked against the
+  device registry and held to the companion scope, password or not; `POST
+  /remote/pair` is the one route without a credential (see
+  [Remote access](#remote-access)).
 - **Workspace proxy.** Requests forwarded to a remote workspace lose their
   `authorization` and `cookie` headers and the `auth_token` query parameter.
   Only the target's configured headers supply credentials.
@@ -1458,6 +1462,405 @@ are trusted. No route, setting or UI calls the engine yet.
   image blobs) are not synced, so they are not exposed but also not
   available on the other computer. The verification of the real Cloud Storage
   API is against a local fake; the live API has not been exercised.
+
+## Remote access
+
+A phone can be paired with this computer and then talk to its server with its
+own revocable token, limited to a companion scope that the server enforces
+(`core/src/remote-access.ts`, `core/src/remote-access/`, see
+[architecture](../architecture/README.md#remote-access)). This is the server
+half only: the server still listens on loopback, the bind guard still refuses
+a wider address without `TENON_SERVER_PASSWORD`, and no window or phone app
+uses these routes yet. A later phase adds the second listener, the QR code and
+device management in Settings.
+
+![Pairing sequence: the owner makes a code, the phone trades it for a token, then uses the token in a header and a ticket for event streams](../diagrams/remote-pairing.svg)
+
+- **Device registry.** `remote-devices.json` in the server's data folder
+  (`Global.Path.data`, beside `tenon.db`). Per device it holds a random ID
+  (`dev_` and 16 hex characters), the name given at pairing (1 to 64
+  characters after trimming), the SHA-256 of its token in hex, and when it was
+  paired and last seen. It never holds a token or a pairing code. It is
+  written to a temporary file in the same folder and renamed over the old
+  one. A file that cannot be parsed, or parses to the wrong shape, is renamed
+  to `remote-devices.json.broken-<milliseconds>` and the registry starts
+  empty, so every phone must pair again. Last seen is written at most once a
+  minute per device. The file is read again on every device request, so a
+  revocation made through any registry on the same file applies at once.
+- **File protection.** On macOS and Linux the temporary file is created with
+  mode `0600` and the rename keeps it; the data folder itself is `0700`. On
+  Windows the mode is ignored, so after writing the temporary file the
+  registry runs `%SystemRoot%\System32\icacls.exe <file> /inheritance:r
+  /grant:r <DOMAIN>\<user>:F` through `execFile` with an argument array (no
+  shell, no `PATH` lookup). The access list then names only the current user:
+  `SYSTEM` and `Administrators` lose their inherited entries, although an
+  administrator can still take ownership. If `icacls` fails the write still
+  goes ahead and the file keeps the access list inherited from the profile
+  folder (the user, `SYSTEM` and `Administrators`). The file holds hashes,
+  not tokens, so reading it does not let anyone sign in.
+- **Tokens.** 32 bytes from `node:crypto` `randomBytes`, base64url encoded
+  (43 characters), returned once by `POST /remote/pair`. `authenticate`
+  hashes the presented token and compares it with every stored hash using
+  `timingSafeEqual`, without stopping at the first match. Tokens travel only
+  in `Authorization: Bearer`. A token in a query string is never read as a
+  device token: `auth_token` is only ever decoded as the Basic password
+  credential, and `ticket` only as a terminal or stream ticket, so either
+  answers 401.
+- **Pairing codes.** The owner asks for a code with
+  `POST /api/remote/pairing-code` (password required). A code is eight
+  characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (no `0`, `O`, `1` or
+  `I`), each from one `randomBytes` byte modulo 32, which is unbiased. It is
+  held in memory only, is good for five minutes up to and including its last
+  millisecond, and pairs once. A new code cancels the previous one. Matching
+  ignores case, spaces and hyphens and compares in constant time. The fifth
+  wrong attempt cancels the code and `pair` answers `locked` until a new code
+  is made; with no code it answers `bad_code`, and past its time `expired`.
+  An attacker therefore gets five guesses at one of 32^8 (about 1.1 x 10^12)
+  codes per code the owner makes.
+- **The pairing route.** `POST /remote/pair` is the one route that needs no
+  credential. Body `{ code, name }`; it answers `{ id, name, token }` once.
+  A refused code is 403 with `code` `bad_code`, `expired` or `locked`; a bad
+  name is 400 `invalid_name`; more than ten attempts in a minute from one
+  client address is 429. Behind the embedded web handler the client address
+  is unknown, so all such callers share one budget.
+- **Owner-only routes.** `POST /api/remote/pairing-code`,
+  `GET /api/remote/devices` and `DELETE /api/remote/devices/:id` are in the
+  denied list, so a device token can never call them (403); only the
+  password can. Revoking a device makes its next request 401.
+- **Enforcement.** The authorization middleware of both route sets (the
+  instance routes and `/api`, plus the router middleware in front of `/doc`
+  and the web UI) handles `Authorization: Bearer` before anything else, with
+  or without a server password. An unknown, revoked or empty token is 401
+  with `WWW-Authenticate: Bearer`. For a known device the method and the raw
+  request path, as received and before the router normalises it, must pass
+  `RemoteAccess.allows`, and the route the router matched must be an allowed
+  route; otherwise the answer is 403 and no handler runs. The router matches
+  letter case and doubled slashes loosely (`/SESSION` and `//session` reach
+  `/session`), which is why the raw path is checked as well. The password,
+  `auth_token` and terminal tickets behave exactly as before.
+- **Event streams.** A browser's `EventSource` cannot set a header, so a
+  device asks `POST /api/remote/stream-ticket` (with its token) for a ticket:
+  32 random bytes kept in memory, bound to the device, good for one minute
+  and one use. It is accepted only as `?ticket=` on `GET /api/event`,
+  `GET /event`, `GET /global/event` and `GET /api/session/:sessionID/event`,
+  and only while the device is still paired. Terminal sockets are outside the
+  scope, so a device can never get a terminal ticket. A stream that is
+  already open keeps streaming after its device is revoked until it closes.
+- **Scope rules.** `RemoteAccess.allows` is default deny: the method
+  (any letter case) and the path must match a row of the table below, and the
+  most specific matching row decides, so a literal segment beats a parameter
+  (`/api/session/active` and `/api/permission/saved` are decided by their own
+  rows). The query string is ignored and one trailing slash is tolerated.
+  Literal segments must match exactly, including letter case. A parameter
+  must look like `[A-Za-z0-9_~-][A-Za-z0-9._~-]*`, so an empty segment (a
+  doubled slash), `.`, `..`, percent encoding and backslashes never match. A
+  path without a leading slash, including a full URL, is denied.
+  `tenon/test/server/remote-access-scope.test.ts` reflects every HttpApi the
+  server builds and fails when a route is in neither list or in both, so a
+  new route must be classified before it ships; the `/api/thread-sync` routes
+  are already listed as denied. `core/test/remote-access/scope.test.ts` fails
+  when this table differs from the data.
+- **What a stolen phone can do until it is revoked.** Read every thread, its
+  messages and the event streams (which carry prompts, replies, tool output
+  and the file paths in them); start a thread, prompt, steer, interrupt and
+  answer permission requests and questions. Because it can prompt and approve
+  permission requests, an unlocked phone can have an agent do whatever an
+  agent can do in a Project folder, including running commands through the
+  agent's tools: the scope stops direct terminal, file, configuration and
+  credential access, not what an agent does when asked. It can also read and
+  write vault pages, timelines and logs (not delete a page), read and write
+  the calendar, and read the Command Centre, project threads and usage. It
+  cannot open terminals, read or write files outside the vault routes, change
+  settings, credentials or sign-ins, install or upgrade anything, pair other
+  devices or manage devices. The owner revokes it with
+  `DELETE /api/remote/devices/:id`.
+- **Transport.** The link will be plain HTTP on a network the user trusts (a
+  local network or a VPN) until a later phase adds a relay. Anyone who can
+  watch that network can read the token, the tickets and every thread the
+  phone reads, and can replay the token until it is revoked.
+
+### Companion scope table
+
+| Method | Path | Device |
+| --- | --- | --- |
+| `GET` | `/api/health` | allowed |
+| `GET` | `/global/health` | allowed |
+| `GET` | `/api/event` | allowed |
+| `GET` | `/event` | allowed |
+| `GET` | `/global/event` | allowed |
+| `GET` | `/api/session/:sessionID/event` | allowed |
+| `POST` | `/api/remote/stream-ticket` | allowed |
+| `GET` | `/api/session` | allowed |
+| `POST` | `/api/session` | allowed |
+| `GET` | `/api/session/active` | allowed |
+| `GET` | `/api/session/:sessionID` | allowed |
+| `GET` | `/api/session/:sessionID/history` | allowed |
+| `GET` | `/api/session/:sessionID/message` | allowed |
+| `GET` | `/api/session/:sessionID/message/:messageID` | allowed |
+| `POST` | `/api/session/:sessionID/prompt` | allowed |
+| `POST` | `/api/session/:sessionID/interrupt` | allowed |
+| `POST` | `/api/session/:sessionID/wait` | allowed |
+| `GET` | `/api/session/:sessionID/queued` | allowed |
+| `DELETE` | `/api/session/:sessionID/queued/:messageID` | allowed |
+| `POST` | `/api/session/:sessionID/queued/:messageID/steer` | allowed |
+| `GET` | `/api/permission/request` | allowed |
+| `GET` | `/api/session/:sessionID/permission` | allowed |
+| `GET` | `/api/session/:sessionID/permission/:requestID` | allowed |
+| `POST` | `/api/session/:sessionID/permission/:requestID/reply` | allowed |
+| `GET` | `/api/question/request` | allowed |
+| `GET` | `/api/session/:sessionID/question` | allowed |
+| `POST` | `/api/session/:sessionID/question/:requestID/reply` | allowed |
+| `POST` | `/api/session/:sessionID/question/:requestID/reject` | allowed |
+| `GET` | `/api/model` | allowed |
+| `GET` | `/api/harness` | allowed |
+| `GET` | `/api/harness/usage` | allowed |
+| `GET` | `/session` | allowed |
+| `POST` | `/session` | allowed |
+| `GET` | `/session/status` | allowed |
+| `GET` | `/session/:sessionID` | allowed |
+| `GET` | `/session/:sessionID/children` | allowed |
+| `GET` | `/session/:sessionID/todo` | allowed |
+| `GET` | `/session/:sessionID/message` | allowed |
+| `GET` | `/session/:sessionID/message/:messageID` | allowed |
+| `POST` | `/session/:sessionID/message` | allowed |
+| `POST` | `/session/:sessionID/prompt_async` | allowed |
+| `POST` | `/session/:sessionID/abort` | allowed |
+| `POST` | `/session/:sessionID/permissions/:permissionID` | allowed |
+| `GET` | `/permission` | allowed |
+| `POST` | `/permission/:requestID/reply` | allowed |
+| `GET` | `/question` | allowed |
+| `POST` | `/question/:requestID/reply` | allowed |
+| `POST` | `/question/:requestID/reject` | allowed |
+| `GET` | `/second-brain/vault` | allowed |
+| `GET` | `/second-brain/vault/pages` | allowed |
+| `GET` | `/second-brain/vault/page` | allowed |
+| `PUT` | `/second-brain/vault/page` | allowed |
+| `GET` | `/second-brain/vault/page/history` | allowed |
+| `GET` | `/second-brain/vault/timeline` | allowed |
+| `PUT` | `/second-brain/vault/timeline` | allowed |
+| `GET` | `/second-brain/vault/log` | allowed |
+| `POST` | `/second-brain/vault/log` | allowed |
+| `GET` | `/second-brain/vault/conflicts` | allowed |
+| `GET` | `/second-brain/calendar` | allowed |
+| `PUT` | `/second-brain/calendar` | allowed |
+| `POST` | `/command-centre/directory` | allowed |
+| `GET` | `/command-centre/folders` | allowed |
+| `GET` | `/command-centre/memory` | allowed |
+| `GET` | `/command-centre/actions` | allowed |
+| `GET` | `/second-brain/routines` | allowed |
+| `GET` | `/second-brain/project-threads` | allowed |
+| `GET` | `/second-brain/usage` | allowed |
+| `POST` | `/remote/pair` | denied |
+| `POST` | `/api/remote/pairing-code` | denied |
+| `GET` | `/api/remote/devices` | denied |
+| `DELETE` | `/api/remote/devices/:id` | denied |
+| `GET` | `/api/thread-sync` | denied |
+| `PUT` | `/api/thread-sync` | denied |
+| `GET` | `/api/thread-sync/threads` | denied |
+| `POST` | `/api/thread-sync/threads/:sessionID/push` | denied |
+| `POST` | `/api/thread-sync/threads/:sessionID/pull` | denied |
+| `POST` | `/api/thread-sync/threads/:sessionID/continue` | denied |
+| `DELETE` | `/api/thread-sync/threads/:sessionID` | denied |
+| `GET` | `/api/pty` | denied |
+| `POST` | `/api/pty` | denied |
+| `GET` | `/api/pty/:ptyID` | denied |
+| `PUT` | `/api/pty/:ptyID` | denied |
+| `DELETE` | `/api/pty/:ptyID` | denied |
+| `POST` | `/api/pty/:ptyID/connect-token` | denied |
+| `GET` | `/api/pty/:ptyID/connect` | denied |
+| `GET` | `/pty/shells` | denied |
+| `GET` | `/pty` | denied |
+| `POST` | `/pty` | denied |
+| `GET` | `/pty/:ptyID` | denied |
+| `PUT` | `/pty/:ptyID` | denied |
+| `DELETE` | `/pty/:ptyID` | denied |
+| `POST` | `/pty/:ptyID/connect-token` | denied |
+| `GET` | `/pty/:ptyID/connect` | denied |
+| `POST` | `/session/:sessionID/shell` | denied |
+| `POST` | `/session/:sessionID/command` | denied |
+| `GET` | `/api/command` | denied |
+| `DELETE` | `/session/:sessionID` | denied |
+| `PATCH` | `/session/:sessionID` | denied |
+| `POST` | `/session/:sessionID/fork` | denied |
+| `POST` | `/session/:sessionID/init` | denied |
+| `POST` | `/session/:sessionID/share` | denied |
+| `DELETE` | `/session/:sessionID/share` | denied |
+| `POST` | `/session/:sessionID/summarize` | denied |
+| `POST` | `/session/:sessionID/revert` | denied |
+| `POST` | `/session/:sessionID/unrevert` | denied |
+| `GET` | `/session/:sessionID/diff` | denied |
+| `DELETE` | `/session/:sessionID/message/:messageID` | denied |
+| `DELETE` | `/session/:sessionID/message/:messageID/part/:partID` | denied |
+| `PATCH` | `/session/:sessionID/message/:messageID/part/:partID` | denied |
+| `POST` | `/api/session/:sessionID/fork` | denied |
+| `GET` | `/api/session/:sessionID/diff` | denied |
+| `POST` | `/api/session/:sessionID/agent` | denied |
+| `POST` | `/api/session/:sessionID/model` | denied |
+| `POST` | `/api/session/:sessionID/harness` | denied |
+| `POST` | `/api/session/:sessionID/compact` | denied |
+| `POST` | `/api/session/:sessionID/revert/stage` | denied |
+| `POST` | `/api/session/:sessionID/revert/clear` | denied |
+| `POST` | `/api/session/:sessionID/revert/commit` | denied |
+| `GET` | `/api/session/:sessionID/context` | denied |
+| `POST` | `/api/session/:sessionID/permission` | denied |
+| `GET` | `/api/permission/saved` | denied |
+| `DELETE` | `/api/permission/saved/:id` | denied |
+| `GET` | `/find` | denied |
+| `GET` | `/find/file` | denied |
+| `GET` | `/find/symbol` | denied |
+| `GET` | `/file` | denied |
+| `GET` | `/file/content` | denied |
+| `PUT` | `/file/content` | denied |
+| `GET` | `/file/status` | denied |
+| `GET` | `/api/fs/read/*` | denied |
+| `GET` | `/api/fs/list` | denied |
+| `GET` | `/api/fs/find` | denied |
+| `GET` | `/api/reference` | denied |
+| `GET` | `/config` | denied |
+| `PATCH` | `/config` | denied |
+| `GET` | `/config/providers` | denied |
+| `GET` | `/config/trust` | denied |
+| `POST` | `/config/trust` | denied |
+| `GET` | `/global/config` | denied |
+| `PATCH` | `/global/config` | denied |
+| `DELETE` | `/global/config/mcp/:name` | denied |
+| `POST` | `/global/config/mcp/:name/edit` | denied |
+| `GET` | `/global/config/mcp/:name/names` | denied |
+| `PUT` | `/auth/:providerID` | denied |
+| `DELETE` | `/auth/:providerID` | denied |
+| `PATCH` | `/api/credential/:credentialID` | denied |
+| `DELETE` | `/api/credential/:credentialID` | denied |
+| `GET` | `/api/integration` | denied |
+| `GET` | `/api/integration/:integrationID` | denied |
+| `POST` | `/api/integration/:integrationID/connect/key` | denied |
+| `POST` | `/api/integration/:integrationID/connect/oauth` | denied |
+| `GET` | `/api/integration/attempt/:attemptID` | denied |
+| `POST` | `/api/integration/attempt/:attemptID/complete` | denied |
+| `DELETE` | `/api/integration/attempt/:attemptID` | denied |
+| `GET` | `/provider` | denied |
+| `GET` | `/provider/auth` | denied |
+| `POST` | `/provider/:providerID/oauth/authorize` | denied |
+| `POST` | `/provider/:providerID/oauth/callback` | denied |
+| `GET` | `/api/provider` | denied |
+| `GET` | `/api/provider/:providerID` | denied |
+| `GET` | `/mcp` | denied |
+| `GET` | `/mcp/tools` | denied |
+| `POST` | `/mcp` | denied |
+| `POST` | `/mcp/:name/auth` | denied |
+| `POST` | `/mcp/:name/auth/callback` | denied |
+| `POST` | `/mcp/:name/auth/authenticate` | denied |
+| `DELETE` | `/mcp/:name/auth` | denied |
+| `POST` | `/mcp/:name/connect` | denied |
+| `POST` | `/mcp/:name/disconnect` | denied |
+| `GET` | `/api/harness/settings` | denied |
+| `GET` | `/api/harness/title-agent` | denied |
+| `PUT` | `/api/harness/title-agent` | denied |
+| `POST` | `/api/harness/discover` | denied |
+| `GET` | `/api/harness/assistant-directory` | denied |
+| `POST` | `/api/harness/verify` | denied |
+| `POST` | `/api/harness/registry` | denied |
+| `PATCH` | `/api/harness/registry/:id` | denied |
+| `DELETE` | `/api/harness/registry/:id` | denied |
+| `POST` | `/api/harness/refresh` | denied |
+| `GET` | `/api/harness/updates` | denied |
+| `POST` | `/api/harness/upgrade/:id` | denied |
+| `GET` | `/api/harness/setup` | denied |
+| `POST` | `/api/harness/setup/:id/install` | denied |
+| `POST` | `/api/harness/setup/:id/sign-in` | denied |
+| `PUT` | `/api/harness/setup/:id/api-key` | denied |
+| `DELETE` | `/api/harness/setup/:id/api-key` | denied |
+| `GET` | `/api/computer-use` | denied |
+| `POST` | `/api/computer-use` | denied |
+| `GET` | `/api/agent` | denied |
+| `GET` | `/api/location` | denied |
+| `GET` | `/api/skill` | denied |
+| `GET` | `/api/skill/catalog` | denied |
+| `POST` | `/api/skill/enabled` | denied |
+| `POST` | `/api/github/work` | denied |
+| `GET` | `/second-brain/instructions` | denied |
+| `PUT` | `/second-brain/instructions` | denied |
+| `DELETE` | `/second-brain/instructions` | denied |
+| `GET` | `/second-brain/projects` | denied |
+| `POST` | `/second-brain/projects` | denied |
+| `POST` | `/second-brain/projects/workspace` | denied |
+| `POST` | `/second-brain/projects/scan` | denied |
+| `POST` | `/second-brain/projects/link` | denied |
+| `POST` | `/second-brain/projects/unlink` | denied |
+| `GET` | `/second-brain/project` | denied |
+| `PATCH` | `/second-brain/project` | denied |
+| `GET` | `/second-brain/project/cover` | denied |
+| `PUT` | `/second-brain/project/cover` | denied |
+| `DELETE` | `/second-brain/project/cover` | denied |
+| `DELETE` | `/second-brain/vault/page` | denied |
+| `POST` | `/second-brain/vault/migrate` | denied |
+| `POST` | `/second-brain/writes/:undo/undo` | denied |
+| `POST` | `/second-brain/routines/:id/run` | denied |
+| `POST` | `/second-brain/routines/:id/approve` | denied |
+| `POST` | `/command-centre/memory/compact` | denied |
+| `POST` | `/instance/dispose` | denied |
+| `POST` | `/global/dispose` | denied |
+| `POST` | `/global/upgrade` | denied |
+| `POST` | `/log` | denied |
+| `GET` | `/path` | denied |
+| `GET` | `/vcs` | denied |
+| `GET` | `/vcs/status` | denied |
+| `GET` | `/vcs/diff` | denied |
+| `GET` | `/vcs/diff/raw` | denied |
+| `POST` | `/vcs/apply` | denied |
+| `GET` | `/vcs/branches` | denied |
+| `POST` | `/vcs/branch` | denied |
+| `GET` | `/command` | denied |
+| `GET` | `/agent` | denied |
+| `GET` | `/skill` | denied |
+| `GET` | `/lsp` | denied |
+| `GET` | `/formatter` | denied |
+| `GET` | `/project` | denied |
+| `GET` | `/project/current` | denied |
+| `POST` | `/project/git/init` | denied |
+| `PATCH` | `/project/:projectID` | denied |
+| `GET` | `/project/:projectID/directories` | denied |
+| `POST` | `/experimental/project/:projectID/copy` | denied |
+| `DELETE` | `/experimental/project/:projectID/copy` | denied |
+| `POST` | `/experimental/project/:projectID/copy/refresh` | denied |
+| `POST` | `/experimental/project/:projectID/copy/generate-name` | denied |
+| `POST` | `/experimental/control-plane/move-session` | denied |
+| `GET` | `/experimental/capabilities` | denied |
+| `GET` | `/experimental/console` | denied |
+| `GET` | `/experimental/console/orgs` | denied |
+| `POST` | `/experimental/console/switch` | denied |
+| `GET` | `/experimental/tool` | denied |
+| `GET` | `/experimental/tool/ids` | denied |
+| `GET` | `/experimental/worktree` | denied |
+| `POST` | `/experimental/worktree` | denied |
+| `DELETE` | `/experimental/worktree` | denied |
+| `POST` | `/experimental/worktree/reset` | denied |
+| `GET` | `/experimental/session` | denied |
+| `POST` | `/experimental/session/:sessionID/background` | denied |
+| `GET` | `/experimental/resource` | denied |
+| `GET` | `/experimental/workspace/adapter` | denied |
+| `GET` | `/experimental/workspace` | denied |
+| `POST` | `/experimental/workspace` | denied |
+| `POST` | `/experimental/workspace/sync-list` | denied |
+| `GET` | `/experimental/workspace/status` | denied |
+| `DELETE` | `/experimental/workspace/:id` | denied |
+| `POST` | `/experimental/workspace/warp` | denied |
+| `POST` | `/sync/start` | denied |
+| `POST` | `/sync/replay` | denied |
+| `POST` | `/sync/steal` | denied |
+| `POST` | `/sync/history` | denied |
+| `POST` | `/tui/append-prompt` | denied |
+| `POST` | `/tui/open-help` | denied |
+| `POST` | `/tui/open-sessions` | denied |
+| `POST` | `/tui/open-themes` | denied |
+| `POST` | `/tui/open-models` | denied |
+| `POST` | `/tui/submit-prompt` | denied |
+| `POST` | `/tui/clear-prompt` | denied |
+| `POST` | `/tui/execute-command` | denied |
+| `POST` | `/tui/show-toast` | denied |
+| `POST` | `/tui/publish` | denied |
+| `POST` | `/tui/select-session` | denied |
+| `GET` | `/tui/control/next` | denied |
+| `POST` | `/tui/control/response` | denied |
 
 ## Agent-authored SVG in chat
 

@@ -5,6 +5,7 @@ export { Authorization } from "@tenon/protocol/middleware/authorization"
 import { hasPtyConnectTicketURL } from "@tenon/protocol/groups/pty"
 import { PtyTicket } from "@tenon/core/pty/ticket"
 import { CorsConfig, isAllowedRequestOrigin } from "../cors"
+import { RemoteDevice } from "./remote-device"
 import { Effect, Layer, Redacted } from "effect"
 import { Base64 } from "effect/encoding"
 import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/http"
@@ -42,11 +43,22 @@ export const authorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
-    if (!ServerAuth.required(config)) return Authorization.of((effect) => effect)
-    const tickets = yield* PtyTicket.Service
-    return Authorization.of((effect) =>
+    const required = ServerAuth.required(config)
+    const tickets = required ? yield* PtyTicket.Service : undefined
+    return Authorization.of((effect, options) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        const device = RemoteDevice.bearerToken(request)
+        if (device !== undefined) {
+          const verdict = yield* RemoteDevice.check(request, device, options.endpoint)
+          if (verdict === "allowed") return yield* effect
+          if (verdict === "outside") return RemoteDevice.forbidden()
+          yield* HttpEffect.appendPreResponseHandler((_request, response) =>
+            Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", RemoteDevice.BEARER_CHALLENGE)),
+          )
+          return yield* new UnauthorizedError({ message: "Authentication required" })
+        }
+        if (!required || !tickets) return yield* effect
         const url = new URL(request.url, "http://localhost")
         if (hasPtyConnectTicketURL(url)) {
           const ptyID = url.pathname.split("/")[3] ?? ""
@@ -54,6 +66,10 @@ export const authorizationLayer = Layer.effect(
             isAllowedRequestOrigin(request.headers.origin, request.headers.host, yield* CorsConfig) &&
             (yield* tickets.check({ ticket: url.searchParams.get("ticket") ?? "", ptyID }))
           if (allowed) return yield* effect
+          return yield* new UnauthorizedError({ message: "Authentication required" })
+        }
+        if (RemoteDevice.hasStreamTicket(request, options.endpoint)) {
+          if (yield* RemoteDevice.redeemStreamTicket(request)) return yield* effect
           return yield* new UnauthorizedError({ message: "Authentication required" })
         }
         const credential = yield* credentialFromRequest(request)

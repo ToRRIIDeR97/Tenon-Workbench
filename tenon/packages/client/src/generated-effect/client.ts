@@ -1017,6 +1017,27 @@ const adaptGroup20 = (raw: RawClient["server.projectCopy"]) => ({
   refresh: Endpoint20_2(raw),
 })
 
+const Endpoint21_0 = (raw: RawClient["server.remote"]) => () =>
+  raw["remote.pairingCode"]({}).pipe(Effect.mapError(mapClientError))
+
+const Endpoint21_1 = (raw: RawClient["server.remote"]) => () =>
+  raw["remote.devices"]({}).pipe(Effect.mapError(mapClientError))
+
+type Endpoint21_2Request = Parameters<RawClient["server.remote"]["remote.revoke"]>[0]
+type Endpoint21_2Input = { readonly id: Endpoint21_2Request["params"]["id"] }
+const Endpoint21_2 = (raw: RawClient["server.remote"]) => (input: Endpoint21_2Input) =>
+  raw["remote.revoke"]({ params: { id: input["id"] } }).pipe(Effect.mapError(mapClientError))
+
+const Endpoint21_3 = (raw: RawClient["server.remote"]) => () =>
+  raw["remote.streamTicket"]({}).pipe(Effect.mapError(mapClientError))
+
+const adaptGroup21 = (raw: RawClient["server.remote"]) => ({
+  pairingCode: Endpoint21_0(raw),
+  devices: Endpoint21_1(raw),
+  revoke: Endpoint21_2(raw),
+  streamTicket: Endpoint21_3(raw),
+})
+
 const adaptClient = (raw: RawClient) => ({
   health: adaptGroup0(raw["server.health"]),
   location: adaptGroup1(raw["server.location"]),
@@ -1039,6 +1060,7 @@ const adaptClient = (raw: RawClient) => ({
   questions: adaptGroup18(raw["server.question"]),
   references: adaptGroup19(raw["server.reference"]),
   projectCopies: adaptGroup20(raw["server.projectCopy"]),
+  "server.remote": adaptGroup21(raw["server.remote"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>
