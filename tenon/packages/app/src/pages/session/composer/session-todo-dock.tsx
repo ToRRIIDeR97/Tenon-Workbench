@@ -24,7 +24,7 @@ export function SessionTodoDock(props: {
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
-    height: ROW,
+    height: undefined as number | undefined,
   })
 
   const total = createMemo(() => props.todos.filter((todo) => todo.status !== "cancelled").length)
@@ -50,13 +50,14 @@ export function SessionTodoDock(props: {
   const shut = createMemo(() => 1 - Math.max(0, Math.min(1, props.dockProgress)))
   const hide = createMemo(() => Math.max(value(), shut()))
   const off = createMemo(() => hide() > 0.98)
-  const full = createMemo(() => Math.max(ROW, store.height))
   let contentRef: HTMLDivElement | undefined
 
   createEffect(() => {
     const el = contentRef
     if (!el) return
-    const update = () => setStore("height", el.scrollHeight)
+    const update = () => {
+      if (el.scrollHeight > 0) setStore("height", el.scrollHeight)
+    }
     update()
     createResizeObserver(el, update)
   })
@@ -65,7 +66,7 @@ export function SessionTodoDock(props: {
     <div
       data-component="session-todo-dock"
       class="flex min-w-0 flex-col justify-end overflow-hidden"
-      style={{ "max-height": `${full() - value() * (full() - ROW)}px`, opacity: `${1 - shut()}` }}
+      style={{ "max-height": todoDockMaxHeight(store.height, value()), opacity: `${1 - shut()}` }}
     >
       <div ref={contentRef} class="flex min-w-0 shrink-0 flex-col">
         <div
@@ -167,6 +168,12 @@ export function SessionTodoDock(props: {
 }
 
 const ROW = 36
+
+export function todoDockMaxHeight(measured: number | undefined, collapse: number) {
+  if (measured === undefined) return collapse > 0 ? `${ROW}px` : undefined
+  const full = Math.max(ROW, measured)
+  return `${full - collapse * (full - ROW)}px`
+}
 
 function TodoList(props: { todos: Todo[] }) {
   const language = useLanguage()
