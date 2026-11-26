@@ -260,6 +260,7 @@ export function make(input: {
           Effect.flatMap((after) => {
             if (after?.manifest.segments.some((segment) => segment.name === name))
               return Effect.succeed(after.manifest.owner.id)
+            if (error.code !== "conflict") return Effect.fail(error)
             return call(() => input.store.remove(name)).pipe(Effect.ignore, Effect.andThen(Effect.fail(error)))
           }),
         ),

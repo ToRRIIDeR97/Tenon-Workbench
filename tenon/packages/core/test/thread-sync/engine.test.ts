@@ -375,7 +375,7 @@ describe("thread sync engine", () => {
 describe("thread sync engine on a flaky or rolled-back store", () => {
   const pushThenPull = (input: {
     faults: Parameters<typeof flaky>[1]
-    first: "pushed" | "unavailable"
+    first: "pushed" | "unavailable" | "conflict"
     objectsAfterFailure: { manifest: boolean; segments: number }
     second: { uploaded: number; head: number }
   }) =>
@@ -388,7 +388,7 @@ describe("thread sync engine on a flaky or rolled-back store", () => {
         const id = yield* start("over a flaky network")
         const sync = yield* engine({ store: faulty, key, machine: desk })
         if (input.first === "pushed") expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
-        if (input.first === "unavailable") expect(yield* code(sync.push(id))).toBe("unavailable")
+        if (input.first !== "pushed") expect(yield* code(sync.push(id))).toBe(input.first)
         const stored = yield* Effect.promise(() => real.list(`threads/${id}/`))
         expect(stored.some((item) => item.name.endsWith("/manifest"))).toBe(input.objectsAfterFailure.manifest)
         expect(stored.filter((item) => item.name.includes("/segment-"))).toHaveLength(
@@ -422,12 +422,30 @@ describe("thread sync engine on a flaky or rolled-back store", () => {
     }),
   )
 
-  it.live("a manifest write that truly failed removes its segment", () =>
+  it.live("a manifest write the store refused with conflict removes its segment", () =>
+    pushThenPull({
+      faults: { failPut: 1, failCode: "conflict" },
+      first: "conflict",
+      objectsAfterFailure: { manifest: false, segments: 0 },
+      second: { uploaded: 3, head: 2 },
+    }),
+  )
+
+  it.live("an unavailable manifest write leaves its segment, whatever the re-read shows", () =>
     pushThenPull({
       faults: { failPut: 1 },
       first: "unavailable",
-      objectsAfterFailure: { manifest: false, segments: 0 },
+      objectsAfterFailure: { manifest: false, segments: 1 },
       second: { uploaded: 3, head: 2 },
+    }),
+  )
+
+  it.live("a manifest write that lands after the re-read keeps the thread complete", () =>
+    pushThenPull({
+      faults: { failPut: 1, landAfterRead: true },
+      first: "unavailable",
+      objectsAfterFailure: { manifest: true, segments: 1 },
+      second: { uploaded: 0, head: 2 },
     }),
   )
 
@@ -503,10 +521,17 @@ describe("thread sync engine on a flaky or rolled-back store", () => {
 
 const flaky = (
   store: ThreadSync.Store,
-  faults: { loseReply?: number; failPut?: number; failReadAfter?: number },
+  faults: {
+    loseReply?: number
+    failPut?: number
+    failReadAfter?: number
+    failCode?: "unavailable" | "conflict"
+    landAfterRead?: boolean
+  },
 ): ThreadSync.Store => {
   const left = { loseReply: faults.loseReply ?? 0, failPut: faults.failPut ?? 0, failRead: 0 }
-  const lost = () => new ThreadSync.SyncError({ code: "unavailable", message: "The reply was lost" })
+  const late: { write?: () => Promise<unknown> } = {}
+  const lost = () => new ThreadSync.SyncError({ code: faults.failCode ?? "unavailable", message: "The reply was lost" })
   const isManifest = (name: string) => name.endsWith("/manifest")
   return {
     get: async (name) => {
@@ -514,7 +539,11 @@ const flaky = (
         left.failRead -= 1
         throw lost()
       }
-      return store.get(name)
+      const read = await store.get(name)
+      const write = isManifest(name) ? late.write : undefined
+      late.write = undefined
+      if (write) await write()
+      return read
     },
     list: (prefix) => store.list(prefix),
     remove: (name) => store.remove(name),
@@ -523,6 +552,7 @@ const flaky = (
       if (left.failPut > 0) {
         left.failPut -= 1
         left.failRead = faults.failReadAfter ?? 0
+        if (faults.landAfterRead) late.write = () => store.put(name, bytes, options)
         throw lost()
       }
       const written = await store.put(name, bytes, options)

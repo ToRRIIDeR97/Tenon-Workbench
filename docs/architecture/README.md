@@ -261,15 +261,17 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   the stored head into one segment, writes it with `ifGeneration: null`, then
   writes the new manifest with the generation it read, so two computers never
   interleave segments. If the manifest write fails, push re-reads the
-  manifest: if it lists the new segment, the write landed and push succeeds;
-  if it does not (someone else moved it: `conflict`, or the write never
-  arrived), push removes its segment and fails; if the re-read fails too,
-  the segment stays, because an orphan is harmless and a listed segment
-  that is missing is not. A segment name that already holds the same bytes
-  is accepted. A takeover whose reply is lost is checked the same way. Up to
-  date is `{ uploaded: 0 }` with no write. A pull from a stored copy whose
-  head is behind this computer's log applies nothing and leaves the local
-  owner alone.
+  manifest. If the re-read lists the new segment, the write landed: push
+  succeeds and sets the local owner to whichever owner that manifest names.
+  Otherwise push fails with the original error, and it removes its segment
+  only when the store definitely refused the write (`conflict`). After any
+  other failure (`unavailable`, a timeout, a failed re-read) the segment
+  stays whatever the re-read showed, because the write may still land
+  later; an orphan is harmless and a listed segment that is missing is not.
+  A segment name that already holds the same bytes is accepted. A takeover
+  whose manifest write fails succeeds only if the re-read shows this machine
+  as owner at the same head; it writes no segment, so it removes nothing.
+  Up to date is `{ uploaded: 0 }` with no store write.
 - **Pull.** Reads and opens the manifest and every segment, checks hashes and
   ranges, then compares each local event with the stored one at the same
   sequence (ID, type, data). Any difference is `diverged` before anything
@@ -291,12 +293,17 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   `path.posix.isAbsolute` elsewhere); a folder this system cannot hold, such
   as a Windows drive path on macOS, fails `pull` and `takeOver` with
   `foreign_path` and changes nothing. A macOS path is accepted on Windows,
-  where the database stores it as is.
+  where the database stores it as is. A pull from a stored copy whose head
+  is behind this computer's log applies nothing and leaves the local owner
+  as it was.
 - **Ownership.** The manifest is the authority. `event_sequence.owner_id` on
-  each computer mirrors the owner it last saw: push and takeover set it to
-  this machine, pull to the manifest's owner. Replay skips events for a row
-  whose owner differs from the one passed in, so pull passes the row's
-  current owner and claims the manifest owner afterwards. Local prompts
+  each computer records the owner it last saw: push sets it to this machine
+  (after a lost reply, to whichever owner the re-read manifest names),
+  takeover to this machine, and pull to the manifest's owner unless the
+  stored copy is behind this computer's log, when it is left as it was.
+  Replay skips events for a row whose owner differs from the one passed in,
+  so pull passes the row's current owner and claims the manifest owner in
+  the same transaction once the replay succeeds. Local prompts
   publish without an owner check, so a pulled thread can be prompted at
   once; pushing it still needs `takeOver`, which pulls to the head and
   rewrites the manifest with this machine as owner under the generation it

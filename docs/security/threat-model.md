@@ -1405,7 +1405,9 @@ are trusted. No route, setting or UI calls the engine yet.
   `threads/<sessionID>/segment-<first>-<last>-<sha256>`, so anyone who can
   list the bucket sees session IDs (which embed a creation time), how many
   events each push carried, object sizes, write times and generations, the
-  number of threads and pushes, and which threads change together. Bucket
+  number of threads and pushes, and which threads change together. A push
+  whose manifest write failed without a definite refusal leaves its sealed
+  segment behind, so the count can include such unlisted segments. Bucket
   access logs add the client IP addresses.
 - **Integrity.** Authenticated encryption plus additional data bind each
   segment to its session ID and to the hash of the segment before it, and the
