@@ -1385,6 +1385,69 @@ workspace, and those files become instructions for every harness.
   folder is trusted like the owner. Instruction files have no backup. Sync runs
   only while Tenon is open.
 
+## Thread sync
+
+The thread sync engine (`core/src/thread-sync/`, see
+[architecture](../architecture/README.md#thread-sync)) copies a thread's event
+log, which holds prompts, replies, tool calls and file paths, to an object
+store: a folder or a Cloud Storage bucket in the person's own project. The
+store is outside Tenon's trust boundary; only computers holding the sync key
+are trusted. No route, setting or UI calls the engine yet.
+
+- **What is encrypted.** Every object the engine writes is sealed with
+  AES-256-GCM (WebCrypto) under the sync key with a fresh random nonce: event
+  segments, and the manifest with the owner's machine ID and name, the
+  thread's title, directory and project worktree, and the segment list.
+  Nothing readable about the thread is stored; tests search every stored
+  byte for the prompt text, title, directory, machine ID and machine name.
+- **What a bucket reader still learns.** Object names are
+  `threads/<sessionID>/manifest` and
+  `threads/<sessionID>/segment-<first>-<last>-<sha256>`, so anyone who can
+  list the bucket sees session IDs (which embed a creation time), how many
+  events each push carried, object sizes, write times and generations, the
+  number of threads and pushes, and which threads change together. Bucket
+  access logs add the client IP addresses.
+- **Integrity.** Authenticated encryption plus additional data bind each
+  segment to its session ID and to the hash of the segment before it, and the
+  manifest to its session ID, and the manifest lists every segment's hash. A
+  changed, truncated, reordered or moved object fails as `unreadable`; a
+  bucket writer without the key can delete or roll back objects (a denial of
+  service) but cannot forge or splice history. Replayed events still go
+  through `EventV2.replay` and the projectors, which decode them with the
+  event schemas.
+- **Ownership is cooperative, not a security control.** Every holder of the
+  key can take a thread over. Conditional writes (`ifGeneration` on every
+  engine `put`) stop two honest computers from interleaving history; they
+  do not stop a key holder. A local log that differs from the stored one is
+  refused as `diverged` before anything local changes.
+- **Where the key lives.** The engine only receives the key as bytes. The app
+  is expected to keep it in the operating system's credential store
+  (Windows Credential Manager through DPAPI, the macOS Keychain) and show the
+  phrase once so the person can enter it on another computer. It must never be
+  stored in the bucket, in `tenon.db`, in logs or in the renderer's storage.
+  This is the next phase's job and is not yet built.
+- **Losing the key.** There is no recovery: the stored copies cannot be
+  opened, and a new key starts a new store (old manifests then fail as
+  `unreadable`). The local threads on each computer are unaffected. A leaked
+  key exposes every stored thread; rotating it means removing the stored
+  copies and pushing again under a new key.
+- **Cloud Storage access.** `gcsStore` sends the bearer token from its
+  `token()` callback only to the configured endpoint (by default
+  `https://storage.googleapis.com`, HTTPS) and never logs it; the endpoint
+  is a parameter for tests and must stay HTTPS in the app. 401 and 403 are
+  `unauthorized`. The token should be scoped to the one bucket
+  (`devstorage.read_write` or a narrower IAM role) by the sign-in that
+  supplies it.
+- **Folder store.** Names are validated before any file access (parts of
+  `A-Z a-z 0-9 . _ -`, never `.` or `..`, no `\` or `:`), so no name can
+  leave the folder. Files get the user's default permissions on Windows and
+  macOS; a synced folder (Drive, OneDrive, Dropbox) carries the same
+  metadata exposure as a bucket.
+- **Known gaps.** Files that events only point to (the tool-output store,
+  image blobs) are not synced, so they are not exposed but also not
+  available on the other computer. The verification of the real Cloud Storage
+  API is against a local fake; the live API has not been exercised.
+
 ## Agent-authored SVG in chat
 
 Agents can draw diagrams by writing a fenced code block tagged `svg`. Once the
