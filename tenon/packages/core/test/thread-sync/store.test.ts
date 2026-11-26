@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import type { EventV2 } from "../../src/event"
 import { ThreadSync } from "../../src/thread-sync"
+import { limitedGcsStore } from "../../src/thread-sync/gcs"
 import { canHold } from "../../src/thread-sync/local-path"
 import { tmpdir } from "../fixture/tmpdir"
 import { fakeGcs } from "./gcs-fake"
@@ -146,6 +147,21 @@ describe("thread sync Cloud Storage store", () => {
       expect(gcs.requests.at(-1)?.path).toBe("/storage/v1/b/my-bucket/o/tenon%2Fthreads%2Fa%2Fmanifest")
     } finally {
       await gcs.stop()
+    }
+  })
+
+  test("a request that never answers ends as unavailable", async () => {
+    const silent = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Promise<Response>(() => {}) })
+    try {
+      const store = limitedGcsStore(
+        { bucket: "b", endpoint: `http://127.0.0.1:${silent.port}`, token: async () => "t" },
+        { requestTimeoutMs: 150 },
+      )
+      const started = Date.now()
+      expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
+      expect(Date.now() - started).toBeLessThan(3_000)
+    } finally {
+      await silent.stop(true)
     }
   })
 

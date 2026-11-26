@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util"
 import { asc, eq } from "drizzle-orm"
+import { Durable } from "@tenon/schema/durable-event-manifest"
 import { Effect, Option, Schema } from "effect"
 import type { Database } from "../database/database"
 import type { EventV2 } from "../event"
@@ -153,25 +154,31 @@ export function make(input: {
     })
 
   const apply = (sessionID: string, manifest: Manifest, events: EventV2.SerializedEvent[]) =>
-    Effect.gen(function* () {
-      const owner = yield* localOwner(sessionID)
-      if (manifest.project)
-        yield* input.db
-          .insert(ProjectTable)
-          .values({
-            id: manifest.project.id as ProjectSchema.ID,
-            worktree: AbsolutePath.make(manifest.project.worktree),
-            sandboxes: [],
-          })
-          .onConflictDoNothing()
-          .run()
-          .pipe(Effect.orDie)
-      yield* input.events.replayAll(events, owner ? { ownerID: owner } : {})
-    }).pipe(
-      Effect.catchDefect(() =>
-        Effect.fail(syncError("diverged", "The stored thread could not be applied to this computer's log")),
-      ),
-    )
+    input.db
+      .transaction(
+        () =>
+          Effect.gen(function* () {
+            const owner = yield* localOwner(sessionID)
+            if (manifest.project)
+              yield* input.db
+                .insert(ProjectTable)
+                .values({
+                  id: manifest.project.id as ProjectSchema.ID,
+                  worktree: AbsolutePath.make(manifest.project.worktree),
+                  sandboxes: [],
+                })
+                .onConflictDoNothing()
+                .run()
+                .pipe(Effect.orDie)
+            yield* input.events.replayAll(events, owner ? { ownerID: owner } : {})
+            yield* input.events.claim(sessionID, manifest.owner.id)
+          }),
+        { behavior: "immediate" },
+      )
+      .pipe(
+        Effect.orDie,
+        Effect.catchDefect(() => Effect.fail(syncError("unsupported", "This computer cannot apply the stored thread"))),
+      )
 
   const fetchAndApply = (sessionID: string) =>
     Effect.gen(function* () {
@@ -186,8 +193,10 @@ export function make(input: {
         return yield* Effect.fail(syncError("diverged", "This computer's copy of the thread has a different history"))
       const latest = local.at(-1)?.seq ?? -1
       const missing = remote.filter((event) => event.seq > latest)
+      if (!missing.every((event) => applicable(event, sessionID)))
+        return yield* Effect.fail(syncError("unsupported", "The stored thread holds events this version cannot apply"))
       if (missing.length > 0) yield* apply(sessionID, current.manifest, missing)
-      if (local.length > 0 || missing.length > 0) yield* input.events.claim(sessionID, current.manifest.owner.id)
+      if (missing.length === 0 && local.length > 0) yield* input.events.claim(sessionID, current.manifest.owner.id)
       return { applied: missing.length, head: current.manifest.head, current }
     })
 
@@ -286,6 +295,14 @@ function manifestName(sessionID: string) {
 
 function segmentName(sessionID: string, sealed: { first: number; last: number; hash: string }) {
   return `threads/${sessionID}/segment-${String(sealed.first).padStart(12, "0")}-${String(sealed.last).padStart(12, "0")}-${sealed.hash}`
+}
+
+function applicable(event: EventV2.SerializedEvent, sessionID: string) {
+  const definition = Durable.get(event.type)
+  if (!definition?.durable) return false
+  const data = Option.getOrUndefined(Schema.decodeUnknownOption(definition.data)(event.data))
+  if (typeof data !== "object" || data === null) return false
+  return (data as Record<string, unknown>)[definition.durable.aggregate] === sessionID
 }
 
 function differs(local: EventV2.SerializedEvent, remote: EventV2.SerializedEvent | undefined) {

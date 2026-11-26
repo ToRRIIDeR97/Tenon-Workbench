@@ -8,6 +8,7 @@ import { LayerNode } from "../../src/effect/layer-node"
 import { EventV2 } from "../../src/event"
 import { EventSequenceTable, EventTable } from "../../src/event/sql"
 import { Location } from "../../src/location"
+import { ProjectTable } from "../../src/project/sql"
 import { ProjectV2 } from "../../src/project"
 import { AbsolutePath } from "../../src/schema"
 import { SessionV2 } from "../../src/session"
@@ -277,4 +278,140 @@ describe("thread sync engine", () => {
       }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
     }),
   )
+
+  it.live("events this version cannot apply are unsupported and leave nothing behind", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const ids = yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: desk })
+        const future = yield* start("from a newer version")
+        yield* say(future, "more")
+        yield* sync.push(future)
+        const broken = yield* start("with broken data")
+        yield* sync.push(broken)
+        const good = yield* start("a good thread")
+        yield* sync.push(good)
+        return { future, broken, good }
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      yield* rewrite(store, key, ids.future, (events) =>
+        events.map((event, index) => (index === events.length - 1 ? { ...event, type: "future.event.1" } : event)),
+      )
+      yield* rewrite(store, key, ids.broken, (events) =>
+        events.map((event, index) => (index === events.length - 1 ? { ...event, data: { unexpected: true } } : event)),
+      )
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: laptop })
+        for (const sessionID of [ids.future, ids.broken]) {
+          expect(yield* code(sync.pull(sessionID))).toBe("unsupported")
+          expect(yield* code(sync.takeOver(sessionID))).toBe("unsupported")
+          expect(yield* local(sessionID)).toEqual({ events: [], owner: null })
+        }
+        expect(yield* projectCount).toBe(0)
+        expect((yield* sync.pull(ids.good)).applied).toBe(3)
+        expect((yield* local(ids.good)).owner).toBe(desk.id)
+        expect(yield* projectCount).toBe(1)
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+    }),
+  )
+
+  it.live("a pull onto a local prefix keeps the prefix and adds nothing when it cannot apply", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const onDesk = computer(path.join(tmp.path, "desk.sqlite"))
+      const onLaptop = computer(path.join(tmp.path, "laptop.sqlite"))
+      const sessionID = yield* Effect.gen(function* () {
+        const id = yield* start("first part")
+        yield* (yield* engine({ store, key, machine: desk })).push(id)
+        return id
+      }).pipe(Effect.provide(onDesk))
+      yield* Effect.gen(function* () {
+        yield* (yield* engine({ store, key, machine: laptop })).pull(sessionID)
+      }).pipe(Effect.provide(onLaptop))
+      yield* Effect.gen(function* () {
+        yield* say(sessionID, "second part")
+        yield* (yield* engine({ store, key, machine: desk })).push(sessionID)
+      }).pipe(Effect.provide(onDesk))
+      yield* rewrite(store, key, sessionID, (events) =>
+        events.map((event, index) => (index === events.length - 1 ? { ...event, type: "future.event.1" } : event)),
+      )
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: laptop })
+        const before = yield* local(sessionID)
+        expect(before.events).toHaveLength(3)
+        expect(yield* code(sync.pull(sessionID))).toBe("unsupported")
+        expect(yield* local(sessionID)).toEqual(before)
+      }).pipe(Effect.provide(onLaptop))
+    }),
+  )
+
+  it.live("a replay that fails partway is rolled back with the project row", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const sessionID = yield* Effect.gen(function* () {
+        const id = yield* start("replayed then refused")
+        yield* say(id, "more")
+        yield* (yield* engine({ store, key, machine: desk })).push(id)
+        return id
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      yield* rewrite(store, key, sessionID, (events) =>
+        events.map((event, index) => (index === events.length - 1 ? { ...event, id: events[0].id } : event)),
+      )
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: laptop })
+        expect(yield* code(sync.pull(sessionID))).toBe("unsupported")
+        expect(yield* local(sessionID)).toEqual({ events: [], owner: null })
+        expect(yield* projectCount).toBe(0)
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+    }),
+  )
 })
+
+const projectCount = Effect.gen(function* () {
+  const db = (yield* Database.Service).db
+  return (yield* db.select({ id: ProjectTable.id }).from(ProjectTable).all().pipe(Effect.orDie)).length
+})
+
+const rewrite = (
+  store: ThreadSync.Store,
+  key: Uint8Array,
+  sessionID: string,
+  change: (events: EventV2.SerializedEvent[]) => EventV2.SerializedEvent[],
+) =>
+  Effect.promise(async () => {
+    const name = `threads/${sessionID}/manifest`
+    const stored = await store.get(name)
+    const manifest = JSON.parse(await decrypt(key, manifestContext(sessionID), stored!.bytes)) as {
+      segments: Array<{ name: string; hash: string }>
+    }
+    const segments = await Promise.all(
+      manifest.segments.map(async (segment, index) =>
+        ThreadSync.open({
+          key,
+          sessionID,
+          previous: index === 0 ? null : manifest.segments[index - 1].hash,
+          bytes: (await store.get(segment.name))!.bytes,
+        }),
+      ),
+    )
+    const sealed = await ThreadSync.seal({
+      key,
+      sessionID,
+      previous: null,
+      events: change(segments.flatMap((segment) => segment.events)),
+    })
+    const segment = `threads/${sessionID}/segment-rewritten-${sealed.hash}`
+    await store.put(segment, sealed.bytes, { ifGeneration: null })
+    const changed = {
+      ...manifest,
+      segments: [{ name: segment, hash: sealed.hash, first: sealed.first, last: sealed.last }],
+    }
+    await store.put(name, await encrypt(key, manifestContext(sessionID), JSON.stringify(changed)), {
+      ifGeneration: stored!.generation,
+    })
+  })

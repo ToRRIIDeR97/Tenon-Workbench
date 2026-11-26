@@ -248,7 +248,9 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   request, percent-encodes names (slashes too), maps 412 to `conflict`, 401
   and 403 to `unauthorized`, retries network failures, 429 and 5xx up to
   four times with backoff within a two-second budget per call (retry requests
-  are aborted at its end), then reports `unavailable`, follows `nextPageToken`,
+  are aborted at its end), then reports `unavailable`; no single request
+  waits longer than 15 seconds (`AbortSignal.timeout`, set lower in tests
+  through `limitedGcsStore`). It follows `nextPageToken`,
   and with `prefix` stores objects under it and returns names without it.
 - **Push.** Only the manifest's owner pushes (`not_owner` otherwise); the
   first push makes this machine the owner. It seals the local events after
@@ -262,8 +264,17 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   sequence (ID, type, data). Any difference is `diverged` before anything
   local changes. Otherwise it inserts the project row if it is missing and
   replays the missing events through `EventV2.replayAll`, so the session,
-  messages and inputs are projected as in the sending database. A replay
-  that still fails is reported as `diverged`. Before reading segments, the
+  messages and inputs are projected as in the sending database. A pull is
+  all or nothing. First every missing event is checked: its type must be in
+  the durable event manifest, its data must decode with that event's schema
+  and name this thread. Then the project-row insert, the whole replay and
+  the owner claim run in one `BEGIN IMMEDIATE` transaction; the per-event
+  transactions inside `EventV2.replay` nest as savepoints (the SQLite client
+  is built with `releaseSavepoint`), so a replay that fails partway rolls
+  everything back. Either failure is `unsupported`: no event of that pull
+  stays, a project row it created is gone, and the local owner is unchanged.
+  `diverged` means only that a local event differs from the stored one at
+  the same sequence. Before reading segments, the
   manifest's directory and project worktree are checked with `canHold`
   (`thread-sync/local-path.ts`: `path.win32.isAbsolute` on Windows,
   `path.posix.isAbsolute` elsewhere); a folder this system cannot hold, such
@@ -285,7 +296,7 @@ later, with the Google sign-in that supplies the Cloud Storage token.
 - **Errors.** `ThreadSync.SyncError` has a `code`: `invalid_key`,
   `invalid_segment`, `unreadable`, `invalid_name`, `conflict`,
   `unauthorized`, `unavailable`, `not_found`, `not_owner`, `diverged`,
-  `foreign_path`. Store
+  `foreign_path`, `unsupported`. Store
   and segment functions reject with it, `keyFromPhrase` throws it, and engine
   effects fail with it in the error channel.
 - **Known limits.**

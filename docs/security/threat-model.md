@@ -1419,7 +1419,11 @@ are trusted. No route, setting or UI calls the engine yet.
   key can take a thread over. Conditional writes (`ifGeneration` on every
   engine `put`) stop two honest computers from interleaving history; they
   do not stop a key holder. A local log that differs from the stored one is
-  refused as `diverged` before anything local changes.
+  refused as `diverged` before anything local changes. Stored events this
+  version cannot apply (an unknown type, data that fails its schema, a
+  replay that fails partway) are refused as `unsupported`: they are checked
+  before replay, and the replay runs in one transaction, so a pull leaves
+  no event, project row or owner change behind.
 - **Where the key lives.** The engine only receives the key as bytes. The app
   is expected to keep it in the operating system's credential store
   (Windows Credential Manager through DPAPI, the macOS Keychain) and show the

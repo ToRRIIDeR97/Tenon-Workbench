@@ -8,18 +8,35 @@ const ATTEMPTS = 5
 const BACKOFF_MS = 100
 const RETRY_BUDGET_MS = 2_000
 const MIN_ATTEMPT_MS = 100
+const REQUEST_TIMEOUT_MS = 15_000
 
 type Listing = {
   items?: Array<{ name?: string; generation?: string | number; size?: string | number }>
   nextPageToken?: string
 }
 
-export function gcsStore(input: {
+type Input = {
   bucket: string
   token: () => Promise<string>
   endpoint?: string
   prefix?: string
-}): Store {
+}
+
+export function gcsStore(input: Input): Store {
+  return limitedGcsStore(input, { requestTimeoutMs: REQUEST_TIMEOUT_MS })
+}
+
+export function limitedGcsStore(input: Input, limits: { requestTimeoutMs: number }): Store {
+  const store = unguardedGcsStore(input, limits)
+  return {
+    get: (name) => store.get(name).catch(unavailable),
+    put: (name, bytes, options) => store.put(name, bytes, options).catch(unavailable),
+    list: (prefix) => store.list(prefix).catch(unavailable),
+    remove: (name) => store.remove(name).catch(unavailable),
+  }
+}
+
+function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): Store {
   const endpoint = (input.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "")
   const bucket = encodeURIComponent(input.bucket)
   const prefix = (input.prefix ?? "").replace(/\/+$/, "")
@@ -44,7 +61,11 @@ export function gcsStore(input: {
         ...(init.body ? { "content-type": "application/octet-stream" } : {}),
       },
       ...(init.body ? { body: Uint8Array.from(init.body) } : {}),
-      ...(retryUntil === undefined ? {} : { signal: AbortSignal.timeout(Math.max(1, retryUntil - Date.now())) }),
+      signal: AbortSignal.timeout(
+        retryUntil === undefined
+          ? limits.requestTimeoutMs
+          : Math.max(1, Math.min(limits.requestTimeoutMs, retryUntil - Date.now())),
+      ),
     }).catch(() => undefined)
     if (response && response.status < 500 && response.status !== 429) return refuseAuth(response)
     await response?.arrayBuffer().catch(() => undefined)
@@ -123,6 +144,11 @@ export function gcsStore(input: {
       await response.arrayBuffer().catch(() => undefined)
     },
   }
+}
+
+function unavailable(error: unknown): never {
+  if (error instanceof SyncError) throw error
+  throw syncError("unavailable", "Cloud Storage did not answer in time")
 }
 
 async function refuseAuth(response: Response) {
