@@ -229,6 +229,13 @@ as a pair from the integrated P1 and P2 commit; P3c and P3d follow.
 
 A fix that needs a file in the other part's scope is reported, not made.
 
+P3b also refreshes the matrix to the tree it works on. The matrix records the base commit `e125392b`
+(its header says so), and P1 and P2 are separate pull requests, so P1 cannot cite P2's new tests.
+The integration check found three rows P2 changes: F-1010 (its note must say input commands and SDK
+discovery are now tested and what is left), F-1212 (coverage `unit`, citing `device.test.ts`, still
+`blocked` for a real run) and F-1210 (add `device-boot.test.ts`). P3b updates them along with the rows
+its own repairs change.
+
 ### Acceptance criteria (P3a and P3b)
 
 - **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test, at least as many
