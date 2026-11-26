@@ -440,6 +440,40 @@ describe("thread sync engine on a flaky or rolled-back store", () => {
     }),
   )
 
+  it.live("a lost reply followed by another computer's takeover leaves that computer as owner", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const real = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const onLaptop = computer(path.join(tmp.path, "laptop.sqlite"))
+      const hook = { armed: true }
+      const store: ThreadSync.Store = {
+        get: (name) => real.get(name),
+        list: (prefix) => real.list(prefix),
+        remove: (name) => real.remove(name),
+        put: async (name, bytes, options) => {
+          const written = await real.put(name, bytes, options)
+          if (!name.endsWith("/manifest") || !hook.armed) return written
+          hook.armed = false
+          await Effect.runPromise(
+            Effect.gen(function* () {
+              const sync = yield* engine({ store: real, key, machine: laptop })
+              yield* sync.takeOver(name.split("/")[1])
+            }).pipe(Effect.provide(onLaptop)),
+          )
+          throw new ThreadSync.SyncError({ code: "unavailable", message: "The reply was lost" })
+        },
+      }
+      yield* Effect.gen(function* () {
+        const id = yield* start("taken over mid-push")
+        const sync = yield* engine({ store, key, machine: desk })
+        expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
+        expect((yield* local(id)).owner).toBe(laptop.id)
+        expect(yield* code(sync.push(id))).toBe("not_owner")
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+    }),
+  )
+
   it.live("an older manifest put back changes nothing on a computer that is ahead", () =>
     Effect.gen(function* () {
       const tmp = yield* temporary

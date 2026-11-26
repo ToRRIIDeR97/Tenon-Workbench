@@ -236,7 +236,7 @@ export function make(input: {
     const name = segmentName(sessionID, sealed)
     yield* call(() => writeSegment(name, sealed.bytes))
     const about = yield* describe(sessionID)
-    yield* writeManifest(
+    const owner = yield* writeManifest(
       {
         version: MANIFEST_VERSION,
         sessionID,
@@ -253,17 +253,19 @@ export function make(input: {
       },
       current?.generation ?? null,
     ).pipe(
+      Effect.as(me.id),
       Effect.catch((error) =>
         readManifest(sessionID).pipe(
           Effect.catch(() => Effect.fail(error)),
           Effect.flatMap((after) => {
-            if (after?.manifest.segments.some((segment) => segment.name === name)) return Effect.void
+            if (after?.manifest.segments.some((segment) => segment.name === name))
+              return Effect.succeed(after.manifest.owner.id)
             return call(() => input.store.remove(name)).pipe(Effect.ignore, Effect.andThen(Effect.fail(error)))
           }),
         ),
       ),
     )
-    yield* input.events.claim(sessionID, me.id)
+    yield* input.events.claim(sessionID, owner)
     return { uploaded: fresh.length, head: sealed.last }
   })
 
