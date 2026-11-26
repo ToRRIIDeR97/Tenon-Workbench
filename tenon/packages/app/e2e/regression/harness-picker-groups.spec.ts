@@ -38,20 +38,16 @@ test("Harness picker lists the built-in loop first, then external agents, with a
   )
 
   await page.goto("/")
-  const pill = page.locator('[data-action="prompt-model-pill"]')
+  const pill = page.locator('main [data-component="prompt-input-v2"] [data-action="prompt-model-pill"]')
   await expect(pill).toBeEnabled()
   await pill.click()
   await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()
 
   const list = page.locator('[data-component="prompt-model-pill-panel"]')
-  await expect(list.getByRole("menuitemradio")).toHaveText([
-    "Default agent",
-    "Codex",
-    "OpenCode",
-    "Claude Code",
-    "Custom Agent",
-    "Add harness",
-  ])
+  const order = ["Default agent", "Codex", "OpenCode", "Claude Code", "Custom Agent", "Add harness"]
+  const items = list.getByRole("menuitemradio")
+  await expect(items).toHaveCount(order.length)
+  for (const [index, name] of order.entries()) await expect(items.nth(index)).toHaveAccessibleName(name)
   const add = list.getByRole("menuitemradio", { name: "Add harness", exact: true })
   await page.screenshot({ path: testInfo.outputPath("harness-picker-groups.png") })
 

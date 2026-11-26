@@ -1,12 +1,14 @@
 export * as HarnessSetup from "./setup"
 
 import { Harness } from "@tenon/schema/harness"
+import { execFile } from "child_process"
 import { Effect, Option, Schema, Semaphore } from "effect"
 import { ChildProcess } from "effect/process"
 import fs from "fs/promises"
 import { parse } from "jsonc-parser"
 import os from "os"
 import path from "path"
+import { promisify } from "util"
 import type { AppProcess } from "../process"
 import { HarnessDelegation } from "./delegation"
 import { which } from "../util/which"
@@ -190,12 +192,28 @@ async function writeAtomic(file: string, content: string) {
   await fs.mkdir(path.dirname(file), { recursive: true })
   const temp = `${file}.${process.pid}.${Date.now()}.tmp`
   try {
+    await fs.writeFile(temp, "", { mode: 0o600 })
+    await restrictToCurrentUser(temp)
     await fs.writeFile(temp, content, { mode: 0o600 })
     await fs.rename(temp, file)
   } catch (error) {
     await fs.rm(temp, { force: true })
     throw error
   }
+}
+
+export const windowsAccountName = (env: Readonly<Record<string, string | undefined>>, username: string) =>
+  env.USERDOMAIN ? `${env.USERDOMAIN}\\${username}` : username
+
+export const icaclsPath = (env: Readonly<Record<string, string | undefined>>) =>
+  path.win32.join(env.SystemRoot ?? env.windir ?? "C:\\Windows", "System32", "icacls.exe")
+
+export const privateAccessArgs = (file: string, account: string) => [file, "/inheritance:r", "/grant:r", `${account}:F`]
+
+async function restrictToCurrentUser(file: string) {
+  if (process.platform !== "win32") return
+  const account = windowsAccountName(process.env, os.userInfo().username)
+  await promisify(execFile)(icaclsPath(process.env), privateAccessArgs(file, account), { windowsHide: true })
 }
 
 async function readJson(file: string) {

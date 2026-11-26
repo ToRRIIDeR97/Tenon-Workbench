@@ -53,7 +53,7 @@ test("AC-7.1 the rail's fourth destination is Command Centre and /activity redir
   const ids = await sidebar(page)
     .locator("nav [data-sidebar-item]")
     .evaluateAll((items) => items.map((item) => item.getAttribute("data-sidebar-item")))
-  expect(ids).toEqual(["overview", "projects", "calendar", "command", "settings"])
+  expect(ids).toEqual(["overview", "projects", "calendar", "command", "usage", "settings"])
   await sidebar(page).locator('[data-sidebar-item="command"]').click()
   await expect(page).toHaveURL(/\/command$/)
   await page.goto("/activity")

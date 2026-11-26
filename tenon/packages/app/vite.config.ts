@@ -26,6 +26,16 @@ export default defineConfig({
     allowedHosts: true,
     port: 3000,
   },
+  optimizeDeps: {
+    include: [
+      "@tenon/session-ui > @shikijs/stream",
+      "@tenon/session-ui > shiki",
+      "@tenon/session-ui > marked",
+      "@tenon/session-ui > remend",
+      "@tenon/ui > katex",
+      "@tenon/ui > marked-shiki",
+    ],
+  },
   build: {
     target: "esnext",
     sourcemap: true,

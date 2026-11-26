@@ -434,7 +434,7 @@ export default function BrainHomePage() {
                           <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                             {project.name}
                           </span>
-                          <Meter class="w-16 shrink-0" value={project.progressPercent} label={project.name} />
+                          <Meter class="w-16 shrink-0" value={project.progressPercent} />
                           <span class="w-9 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
                             {project.progressPercent}%
                           </span>

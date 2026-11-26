@@ -38,7 +38,7 @@ test("AC-9.5 the Routines page lists routines and Run now starts one", async ({ 
     return route.fulfill({ contentType: "application/json", body: JSON.stringify(routines) })
   })
   await page.goto("/command")
-  await page.getByRole("link", { name: "Routines" }).click()
+  await page.getByRole("main").getByRole("button", { name: "Routines", exact: true }).click()
   await expect(page).toHaveURL(/\/routines$/)
   const row = page.getByRole("row").filter({ hasText: "Morning brief" })
   await expect(row).toContainText("weekdays 08:30")

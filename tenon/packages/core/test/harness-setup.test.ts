@@ -1,12 +1,31 @@
 import { describe, expect, test } from "bun:test"
+import { execFile } from "child_process"
 import { Effect } from "effect"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import { promisify } from "util"
 import { Harness } from "@tenon/schema/harness"
 import { HarnessSetup } from "@tenon/core/harness/setup"
 
 const temp = () => fs.mkdtemp(path.join(os.tmpdir(), "harness-setup-"))
+
+const currentAccount = () => HarnessSetup.windowsAccountName(process.env, os.userInfo().username)
+
+const accessList = async (file: string) => {
+  const { stdout } = await promisify(execFile)(HarnessSetup.icaclsPath(process.env), [file], { windowsHide: true })
+  return stdout
+    .replace(file, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.includes(":("))
+}
+
+const protection = async (file: string) =>
+  process.platform === "win32" ? { access: await accessList(file) } : { mode: (await fs.stat(file)).mode & 0o777 }
+
+const privateProtection = () =>
+  process.platform === "win32" ? { access: [`${currentAccount()}:(F)`] } : { mode: 0o600 }
 
 describe("harness setup", () => {
   test("covers exactly the built-in external harnesses", () => {
@@ -28,12 +47,26 @@ describe("harness setup", () => {
       "claude-code": { option: "anthropic", key: "sk-1" },
       "opencode-acp": { option: "openai", key: "sk-2" },
     })
-    expect((await fs.stat(path.join(dir, HarnessSetup.fileName))).mode & 0o777).toBe(0o600)
+    expect(await protection(path.join(dir, HarnessSetup.fileName))).toEqual(privateProtection())
     await Effect.runPromise(HarnessSetup.writeKey(dir, "claude-code", undefined))
     expect(await Effect.runPromise(HarnessSetup.readKeys(dir))).toEqual({
       "opencode-acp": { option: "openai", key: "sk-2" },
     })
     expect(HarnessSetup.keysVersion()).toBe(before + 3)
+  })
+
+  test("restricts the key file on Windows to the signed-in account with icacls arguments, not a shell line", () => {
+    const file = path.win32.join("C:\\Users\\ada\\AppData\\Roaming\\Tenon", HarnessSetup.fileName)
+    expect(HarnessSetup.icaclsPath({ SystemRoot: "D:\\Windows" })).toBe("D:\\Windows\\System32\\icacls.exe")
+    expect(HarnessSetup.icaclsPath({})).toBe("C:\\Windows\\System32\\icacls.exe")
+    expect(HarnessSetup.windowsAccountName({ USERDOMAIN: "LAPTOP" }, "ada")).toBe("LAPTOP\\ada")
+    expect(HarnessSetup.windowsAccountName({}, "ada")).toBe("ada")
+    expect(HarnessSetup.privateAccessArgs(file, "LAPTOP\\ada")).toEqual([
+      file,
+      "/inheritance:r",
+      "/grant:r",
+      "LAPTOP\\ada:F",
+    ])
   })
 
   test("turns a stored key into the harness's environment variable", () => {

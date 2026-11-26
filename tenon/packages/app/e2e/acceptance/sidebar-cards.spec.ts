@@ -165,14 +165,29 @@ test("one highlight sits behind the selected row and moves with the selection", 
   await open(page)
   await page.goto("/")
   await groupBy(page).getByRole("tab", { name: "Recent" }).click()
-  const glide = sidebar(page).locator("#sidebar-threads > span[aria-hidden]").first()
-  const row = (id: string) => sidebar(page).locator(`[data-sidebar-thread="${id}"]`)
-  const offset = (id: string) =>
-    Promise.all([glide.boundingBox(), row(id).boundingBox()]).then(([a, b]) => Math.round((a?.y ?? 0) - (b?.y ?? 0)))
+  const list = sidebar(page).locator("#sidebar-threads")
+  const highlighted = list.locator("[data-sidebar-thread][data-selected]")
+  const row = (id: string) => list.locator(`[data-sidebar-thread="${id}"]`)
+  const fill = (id: string) =>
+    row(id).evaluate((element) => {
+      const css = getComputedStyle(element)
+      return { background: css.backgroundColor, slides: css.transitionProperty.includes("background") }
+    })
+  await expect(list.locator(":scope > span[aria-hidden]")).toHaveCount(0)
   await row("ses_quiet").locator("[data-sidebar-thread-open]").click()
-  await expect.poll(() => offset("ses_quiet")).toBe(0)
+  await expect(highlighted).toHaveCount(1)
+  await expect(highlighted).toHaveAttribute("data-sidebar-thread", "ses_quiet")
+  await page.mouse.move(0, 0)
+  expect(await fill("ses_quiet")).toEqual({
+    background: expect.not.stringMatching(/rgba\(0, 0, 0, 0\)/),
+    slides: false,
+  })
   await row("ses_busy").locator("[data-sidebar-thread-open]").click()
-  await expect.poll(() => offset("ses_busy")).toBe(0)
+  await expect(highlighted).toHaveCount(1)
+  await expect(highlighted).toHaveAttribute("data-sidebar-thread", "ses_busy")
+  await page.mouse.move(0, 0)
+  expect((await fill("ses_quiet")).background).toBe("rgba(0, 0, 0, 0)")
+  expect(await fill("ses_busy")).toEqual({ background: expect.not.stringMatching(/rgba\(0, 0, 0, 0\)/), slides: false })
 })
 
 test("the Attention tab counts threads that need you, and arrow keys move between tabs", async ({ page }) => {
@@ -191,7 +206,11 @@ test("a row shows its state, idle shows nothing, and the sidebar no longer pulse
   await groupBy(page).getByRole("tab", { name: "Attention" }).click()
   const row = sidebar(page).locator('[data-sidebar-thread="ses_busy"]')
   await expect(row.getByRole("img", { name: "Running" })).toBeVisible()
-  await expect(sidebar(page).locator(".running-pulse")).toHaveCount(0)
+  await expect(row.locator('[data-sidebar-status="running"]')).toHaveClass(/running-pulse/)
+  await expect(sidebar(page).locator('.running-pulse:not([data-sidebar-status="running"])')).toHaveCount(0)
+  await expect(sidebar(page).locator(".running-pulse")).toHaveCount(
+    await sidebar(page).locator('[data-sidebar-status="running"]').count(),
+  )
   await expect(sidebar(page).locator('[data-sidebar-thread="ses_quiet"]').getByRole("img")).toHaveCount(0)
 })
 
@@ -212,7 +231,18 @@ test("an approval on a child that was never listed moves its root to Needs you",
     },
   }
   const events = [asked]
-  await open(page, { sessions: [...sessions(), child], events: () => events.splice(0, 1), eventRetry: 16 })
+  const pending: unknown[] = []
+  const deliver = () => {
+    const next = events.splice(0, 1)
+    if (next.length > 0) pending.push(asked.payload.properties)
+    return next
+  }
+  await open(page, {
+    sessions: [...sessions(), child],
+    events: deliver,
+    eventRetry: 16,
+    permissions: () => pending,
+  })
   await page.addInitScript(() => {
     localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ grouping: "attention" }))
   })

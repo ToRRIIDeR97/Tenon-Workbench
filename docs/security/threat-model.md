@@ -356,8 +356,15 @@ The setup dialog ([ADR-013](../adr/ADR-013-built-in-harness-setup.md),
 - **API keys.**
   - Codex keys go straight to Codex.
   - Claude Code and OpenCode keys are stored in plain text in
-    `harness-credentials.json` (`0600`, atomic write) in the data folder, like
-    provider keys in `auth.json`.
+    `harness-credentials.json` (atomic write) in the data folder, like
+    provider keys in `auth.json`. The file is private on both platforms: mode
+    `0600` on macOS and Linux; on Windows, before any key is written, the
+    temporary file's access list is cut to the signed-in account alone
+    (`%SystemRoot%\System32\icacls.exe <file> /inheritance:r /grant:r
+    <DOMAIN>\<user>:F`, arguments passed as an array, no shell). If `icacls`
+    fails, the temporary file is removed and the save fails with
+    `write-failed`, so a key is never left in a file other accounts can read
+    (`writeAtomic` in `core/src/harness/setup.ts`).
   - Claude Code also gets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` with a stored
     key, so the commands it runs don't inherit the key. OpenCode has no such
     switch; its commands can still read a stored key.

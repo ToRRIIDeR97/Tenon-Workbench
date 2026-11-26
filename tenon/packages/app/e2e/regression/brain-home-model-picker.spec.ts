@@ -56,7 +56,8 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   )
 
   await page.goto("/")
-  const pill = page.locator('[data-action="prompt-model-pill"]')
+  const home = page.locator('main [data-component="prompt-input-v2"]')
+  const pill = home.locator('[data-action="prompt-model-pill"]')
   const row = (step: string) => page.locator(`[data-component="prompt-model-pill-panel"] [data-step="${step}"]`)
   await pill.click()
   await row("harness").click()
@@ -72,10 +73,11 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   await page.getByRole("menuitemradio", { name: "high", exact: true }).click()
   await expect(row("effort")).toContainText("high")
   await page.keyboard.press("Escape")
-  await expect(pill).toHaveText("GPT-5.6 Luna · high")
+  await expect(pill).toHaveText("GPT-5.6 Luna")
+  await expect(home.locator('[data-action="prompt-model-pill-effort"]')).toHaveText("high")
 
-  await page.getByRole("textbox", { name: "Start a thread", exact: true }).fill("Check the routes.")
-  await page.getByRole("button", { name: "Send", exact: true }).click()
+  await home.locator('[contenteditable="true"]').first().fill("Check the routes.")
+  await home.getByRole("button", { name: "Send", exact: true }).click()
 
   expect(await created.promise).toMatchObject({
     harnessInstanceID: "codex",
