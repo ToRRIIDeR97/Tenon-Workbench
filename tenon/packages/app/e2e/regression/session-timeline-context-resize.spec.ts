@@ -1,6 +1,14 @@
 import { expect, test, type Page } from "@playwright/test"
 import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
+import { expandTurnSteps } from "../performance/timeline-stability/fixture"
+import {
+  analyzeVisualObservations,
+  defineVisualRegions,
+  startVisualProbe,
+  stopVisualProbe,
+  visualPlan,
+} from "../utils/visual-stability"
 
 const directory = "C:/OpenCode/ContextResizeRegression"
 const projectID = "proj_context_resize_regression"
@@ -42,6 +50,93 @@ test.describe("regression: session timeline context group resize", () => {
     expect(samples.at(-1)?.expanded).toBe("true")
     await expect(card.locator(`[data-timeline-part-id="${contextIDs[0]}"]`)).toBeVisible()
     await expect(card.locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')).toHaveCount(2)
+  })
+
+  test("paints a stable Worked card group row while its search steps finish", async ({ page }) => {
+    const events: { directory: string; payload: Record<string, unknown> }[] = []
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await mockServer(
+      page,
+      events,
+      [...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(), ...turn(10, true, "running")],
+      "busy",
+    )
+    await configurePage(page)
+
+    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+    await expectSessionTitle(page, title)
+    await expandTurnSteps(page)
+    const devtools = await page.context().newCDPSession(page)
+    await devtools.send("Emulation.setCPUThrottlingRate", { rate: 4 })
+    const cardSelector = `[data-timeline-row="TurnSteps"][data-message-id="${id("msg_user", 10)}"]`
+    const groupSelector = `${cardSelector} [data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]:not([data-timeline-part-id])`
+    const group = page.locator(groupSelector)
+    const groupRow = group.locator(':scope > [data-slot="turn-steps-row"]')
+    const summary = page.locator(cardSelector).locator('[data-component="turn-steps-summary"]')
+    await expect(summary).toHaveAttribute("aria-expanded", "true")
+    await summary.click()
+    await expect(summary).toHaveAttribute("aria-expanded", "false")
+    await summary.click()
+    await expect(summary).toHaveAttribute("aria-expanded", "true")
+    await expectAppVisible(group)
+    await expect(groupRow).toContainText("Searched 3 times")
+    await expect(groupRow.locator('[data-slot="turn-steps-step-running"]')).toHaveCount(1)
+
+    const regions = defineVisualRegions({
+      group: { selector: groupSelector },
+      card: { selector: cardSelector },
+      following: {
+        selector: `[data-timeline-part-id="${followingTextID}"]`,
+        closest: '[data-timeline-row="AssistantPart"]',
+      },
+    })
+    await startVisualProbe(page, regions)
+    for (const [index, delay] of [120, 350, 80, 500].entries()) {
+      events.push({
+        directory,
+        payload: {
+          type: "message.part.updated",
+          properties: {
+            part: contextTool(
+              contextIDs[index]!,
+              id("msg_assistant", 10),
+              ["read", "glob", "grep", "list"][index]!,
+              [
+                { filePath: "src/recent-a.ts" },
+                { path: directory, pattern: "**/*.ts" },
+                { path: directory, pattern: "Explored" },
+                { path: "src" },
+              ][index]!,
+            ),
+          },
+        },
+      })
+      await page.waitForTimeout(delay)
+    }
+
+    await expect(groupRow.locator('[data-slot="turn-steps-step-running"]')).toHaveCount(0)
+    await page.waitForTimeout(700)
+    const trace = await stopVisualProbe<keyof typeof regions>(page)
+    const texts = trace.samples
+      .map((sample) => sample.regions.group?.text)
+      .filter((value): value is string => !!value)
+      .filter((value, index, all) => value !== all[index - 1])
+    const issues = analyzeVisualObservations(
+      trace.samples,
+      visualPlan(regions, [
+        { type: "required", regions: ["group", "card", "following"] },
+        { type: "opacity", regions: "all" },
+        { type: "continuity", regions: "all" },
+        { type: "motion", regions: "all" },
+        { type: "flow", regions: ["card", "following"] },
+      ]),
+    )
+
+    expect(texts.every((text) => text.startsWith("Searched 3 times"))).toBe(true)
+    expect(issues, JSON.stringify(trace.samples, null, 2)).toEqual([])
+    await expect(groupRow).toContainText("Searched 3 times")
+    await expect(groupRow).toHaveAttribute("aria-expanded", "false")
+    await expect(summary).toHaveAttribute("aria-expanded", "true")
   })
 })
 
