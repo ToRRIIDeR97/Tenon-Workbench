@@ -18,19 +18,29 @@ const BOOT_MESSAGES = {
   timeout: "secondBrain.device.boot.timeout",
 } as const satisfies Record<BootStage, string>
 
+type DeviceTabState = {
+  os: DeviceInfo["platform"]
+  selected: string
+  frame: string
+  error: string
+  activity: string[]
+  boot: { os: DeviceInfo["platform"]; name: string; requestedAt: number | undefined }
+  now: number
+}
+
 export function SessionDeviceTab() {
   const language = useLanguage()
   const platform = usePlatform()
   const prompt = usePrompt()
   const device = platform.device
   const [status, { refetch }] = createResource(() => device?.status())
-  const [state, setState] = createStore({
-    os: "android" as DeviceInfo["platform"],
+  const [state, setState] = createStore<DeviceTabState>({
+    os: "android",
     selected: "",
     frame: "",
     error: "",
-    activity: [] as string[],
-    boot: { os: "android" as DeviceInfo["platform"], name: "", requestedAt: undefined as number | undefined },
+    activity: [],
+    boot: { os: "android", name: "", requestedAt: undefined },
     now: Date.now(),
   })
   const devices = createMemo(() =>
@@ -127,7 +137,10 @@ export function SessionDeviceTab() {
   }
   const key = (name: "home" | "back") => {
     const target = current()
-    if (target) void device?.input(target.platform, target.id, { kind: "key", key: name })
+    if (!device || !target) return
+    void device
+      .input(target.platform, target.id, { kind: "key", key: name })
+      .catch((cause: unknown) => setState("error", cause instanceof Error ? cause.message : String(cause)))
   }
   const attach = async () => {
     if (!state.frame) return
