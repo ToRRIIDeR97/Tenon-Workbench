@@ -214,6 +214,52 @@ Invariants: `ipc.ts` handlers stay thin; no shell string is built (arguments sta
 | AC-P2-8, 9 | diff review | diff review, `bun run typecheck`, `bun run lint` |
 | Manual | | the orchestrator drives an Android emulator through the Device tab after the SDK install; iOS stays unverified |
 
+## P3: repair the baseline, then close the gaps
+
+P1's baseline on the base commit found `bun run test:e2e` failing 66 of 221 tests and
+`bun run test:engine` failing 3 (plus 2 in the half that never ran). P3 has four parts. P3a and P3b run
+as a pair from the integrated P1 and P2 commit; P3c and P3d follow.
+
+| Part | Outcome | Edit scope |
+| --- | --- | --- |
+| P3a | The thread-view end-to-end failures are repaired | `tenon/packages/app/e2e/regression/session-*.spec.ts`, `e2e/regression/terminal-*.spec.ts`, `e2e/regression/prompt-thinking-level.spec.ts`, `e2e/smoke/**`, shared `e2e/utils/**` and fixtures; product fixes under `tenon/packages/app/src/pages/session/**`, `tenon/packages/app/src/context/terminal.tsx`, `tenon/packages/session-ui/**`; `docs/records/e2e-repair-2026-11-26-thread-view.md` |
+| P3b | The other end-to-end failures and the engine failures are repaired | every other failing spec (`e2e/acceptance/**`, `e2e/user-story/**`, the remaining `e2e/regression/*.spec.ts`); product fixes elsewhere in `tenon/packages/app/src` and `tenon/packages/ui`; `tenon/packages/core/test/{git,harness-setup,workspace-instructions}.test.ts`, the harness key file code in `tenon/packages/core/src/harness/`, `tenon/packages/tenon/test/server/httpapi-session.test.ts`, `tenon/packages/tenon/test/tool/registry.test.ts`, the root `package.json` `test:engine` script and the `AGENTS.md` line that names it; `docs/records/e2e-repair-2026-11-26-app.md` |
+| P3c | Every `gap` row of the matrix has an automated test, or is reclassified with a reason the plan author accepts | new test files only, plus the matrix |
+| P3d | Every `manual` row has a recorded run in the real app with evidence | `docs/records/` only; bugs found become fixes in their own change |
+
+A fix that needs a file in the other part's scope is reported, not made.
+
+### Acceptance criteria (P3a and P3b)
+
+- **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test, at least as many
+  tests run as on the baseline (221) and no more skipped (1).
+- **AC-P3-2** Each of the 66 baseline failures has a row in that part's repair record, a table with the
+  header `| Spec | Test | Decision | Evidence | Change |`. `Spec` and `Test` are copied from the
+  baseline's failing-test table. `Decision` is `spec drifted` (the app is right and the spec was
+  updated to what the app is meant to do), `app regressed` (the spec is right and the app was fixed) or
+  `feature removed` (the test was deleted because the feature no longer exists). `Evidence` names the
+  commit, document or code that shows which side is right. `Change` names the files changed.
+- **AC-P3-3** Nothing is weakened: no new `.skip`, `.fixme` or `.only`; a test is deleted only for
+  `feature removed`; a repaired test still asserts the behaviour its title names; timeouts are raised
+  only with a measured reason in the record.
+- **AC-P3-4** `Failed to list terminals` is fixed in `context/terminal.tsx` (a non-array answer is
+  handled) with a unit test. A locator that matched two elements is fixed by naming the element
+  precisely, unless the two elements share an accessible name by mistake, which is then fixed in the app.
+- **AC-P3-5** `bun run test:engine` passes on this Windows computer and runs both packages even when
+  the first fails, exiting non-zero if either fails. Symlink tests skip, with the reason printed, only
+  when the operating system refuses to create a symlink (probed at run time, not decided by platform
+  name). The harness key file is private on Windows as well (its access list names only the current
+  user) and the test checks the protection the platform really has. The session compact test and the
+  plugin registry time-out are each decided like AC-P3-2 and recorded.
+- **AC-P3-6** `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test` and
+  `bun run test:app` still pass. No source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P3-1, 5, 6 | the suites themselves | the verifier runs them on the candidate |
+| AC-P3-2, 3 | stated here | `verification/p3-repair.test.ts` (every baseline failure has a decided row; skip, spec and test counts) and reading repaired specs against their titles |
+| AC-P3-4 | the implementor's unit test | diff review |
+
 ## P4: thread sync engine
 
 A library in `tenon/packages/core` that moves one thread's event log between computers through an
