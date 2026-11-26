@@ -392,6 +392,23 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   learns (session IDs, sizes, timing, count), where the key is expected to live and what losing it means.
   No source comments. Nothing outside the P4 edit scope changes.
 
+- **AC-P4-11 Robust against a flaky or rolled-back store** (added after review panel round 1; a reviewer's
+  probes found these, no earlier criterion covered them).
+  - A write whose reply is lost does no harm. If the manifest write reaches the store but the engine sees
+    a failure, the stored thread stays readable and complete: the engine removes the segment it just
+    wrote only after re-reading the manifest and finding the segment is not listed, and leaves it when
+    it cannot tell. The next `push` then succeeds or reports up to date truthfully, and a `pull` on
+    another computer applies every event.
+  - A stored copy that is behind this computer changes nothing here. When the stored head is lower than
+    the local log's, `pull` applies nothing and does not change the local owner.
+  - `gcsStore` treats a success reply it cannot parse as `unavailable` on every method (a listing never
+    comes back empty because its body was malformed), stops with `unavailable` when a listing repeats a
+    page token or runs past 1,000 pages, and counts the time `token()` takes inside the same limits.
+  - The threat model says plainly what someone who can write to the store without the key can still do:
+    delete objects, and put back an older genuine manifest, which can hand the lock back to a previous
+    owner and let two computers continue from the same point; the engine reports that later as
+    `diverged`, and each computer keeps its own copy.
+
 Known limit, recorded rather than solved here: files an event only points to (the tool-output store,
 image blobs) are not synced. P5 decides what to do about them.
 
