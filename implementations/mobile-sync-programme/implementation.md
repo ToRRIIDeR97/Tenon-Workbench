@@ -430,4 +430,34 @@ Baseline on the base commit: recorded under Completion evidence.
 
 ## Completion evidence
 
-Filled in as phases pass. Implementor reports and verifier results are kept apart.
+Filled in as phases pass. Implementor reports and verifier results are kept apart. All subagents ran
+on Opus 5.5 at medium effort.
+
+### P1 and P2 (2026-11-26)
+
+| Item | P1 feature test matrix | P2 Device tab |
+| --- | --- | --- |
+| Pull request | #368, branch `claude/feature-test-matrix` | #369, branch `claude/device-tab-fixes` |
+| Verified commit | `3e4ac333` | `099c7618` |
+| Correction rounds before the panel | 1 (F-1407 was `covered`; rows with failing evidence did not say so) | 3 (key errors and a lint warning; the phone layout the user asked for; the toolbar detached in landscape) |
+| Verifier, independent of the implementor | acceptance 8, verification 12, 32 rows read against code, two specs re-run | acceptance 13 + 5, verification 14 + 3, `typecheck`, `lint`, `format:check`, `test:desktop` (262), `test:app` (1482 + 61), diff read against every criterion |
+| Orchestrator's own checks | diff read; the baseline's numbers cross-checked | `bun run check` exit 0 on the tip; device functions and the Device tab driven against a live Android emulator (API 35), screenshots in `evidence/` |
+
+Integration: both merge onto the base with no conflict (verifier's local merge `1b67879f`); every test and
+check above passes on the merged tree. Local branch `claude/mobile-sync-integration` (`57ec14e9`) is the
+plan plus both phases and is the base for P3.
+
+Review panel (plan conformance, correctness and regressions, integrity and scope): round 1 on `79b3de3c`
+scored 9.5, 10 and 9. Deductions: F-1307 cited a spec that does not drive Settings › Servers; nine
+`Source` paths did not exist. The second reviewer's notes became AC-P2-12. Round 2 on `1b67879f`
+scored 10, 10 and 10.
+
+Diagrams: the proposed view's "Device tools: fixed keys, boot state" node is now built as drawn; the
+phone layout and input validation were added during the phase and are described in AC-P2-10 to 12.
+
+Left unverified: anything on iOS (no Mac; the `idb` argument lists, including Return as HID key 40, are
+unit tested only); wide and short panel sizes were simulated by forcing the panel size; the boot line
+after a three-minute timeout rests on a code read. Open notes, not fixed: a literal `%s` cannot be
+typed on Android; very long text goes to `adb` as one argument; each frame is decoded twice.
+
+The verification set gained one check the panel showed was missing (every `Source` file path exists).
