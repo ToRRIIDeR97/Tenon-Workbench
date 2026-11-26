@@ -1,14 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
-import { expandTurnSteps } from "../performance/timeline-stability/fixture"
-import {
-  analyzeVisualObservations,
-  defineVisualRegions,
-  startVisualProbe,
-  stopVisualProbe,
-  visualPlan,
-} from "../utils/visual-stability"
 
 const directory = "C:/OpenCode/ContextResizeRegression"
 const projectID = "proj_context_resize_regression"
@@ -33,96 +25,23 @@ test.describe("regression: session timeline context group resize", () => {
 
     await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
     await expectSessionTitle(page, title)
-    await expandTurnSteps(page)
-    await expectAppVisible(page.locator(`[data-timeline-part-ids="${contextIDs.join(",")}"]`).first())
-    await expectAppVisible(page.locator(`[data-timeline-part-id="${followingTextID}"]`).first())
+    const card = page.locator(`[data-timeline-row="TurnSteps"][data-message-id="${id("msg_user", 10)}"]`)
+    const summary = card.locator('[data-component="turn-steps-summary"]')
+    await expectAppVisible(summary)
+    await expect(summary).toHaveAttribute("aria-expanded", "false")
+    await expect(summary).toContainText("Read 1 file")
+    await expect(summary).toContainText("Searched 3 times")
+    await expectAppVisible(page.locator(`[data-timeline-part-id="${followingTextID}"]`))
     await settle(page)
 
-    const samples = await sampleExpansion(page)
+    const samples = await sampleExpansion(page, id("msg_user", 10))
     const visibleOverlap = samples.filter((sample) => sample.frame >= 1 && sample.overlap > 0.5)
 
     expect(samples[0]?.overlap).toBe(0)
     expect(visibleOverlap).toEqual([])
     expect(samples.at(-1)?.expanded).toBe("true")
-  })
-
-  test("paints a stable exploring to explored transition", async ({ page }) => {
-    const events: { directory: string; payload: Record<string, unknown> }[] = []
-    await page.setViewportSize({ width: 1400, height: 900 })
-    await mockServer(
-      page,
-      events,
-      [...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(), ...turn(10, true, "running")],
-      "busy",
-    )
-    await configurePage(page)
-
-    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
-    await expectSessionTitle(page, title)
-    await expandTurnSteps(page)
-    const devtools = await page.context().newCDPSession(page)
-    await devtools.send("Emulation.setCPUThrottlingRate", { rate: 4 })
-    const context = page.locator(`[data-timeline-part-ids="${contextIDs.join(",")}"]`).first()
-    await expectAppVisible(context)
-    await expect(context.locator('[data-component="tool-status-title"]')).toHaveAttribute("aria-label", "Exploring")
-
-    const contextSelector = `[data-timeline-part-ids="${contextIDs.join(",")}"]`
-    const regions = defineVisualRegions({
-      status: {
-        selector: `${contextSelector} [data-component="tool-status-title"]`,
-        opacitySelectors: ['[data-slot="tool-status-active"]', '[data-slot="tool-status-done"]'],
-      },
-      context: { selector: contextSelector, closest: '[data-timeline-row="AssistantPart"]' },
-      following: {
-        selector: `[data-timeline-part-id="${followingTextID}"]`,
-        closest: '[data-timeline-row="AssistantPart"]',
-      },
-    })
-    await startVisualProbe(page, regions)
-    for (const [index, delay] of [120, 350, 80, 500].entries()) {
-      events.push({
-        directory,
-        payload: {
-          type: "message.part.updated",
-          properties: {
-            part: contextTool(
-              contextIDs[index]!,
-              id("msg_assistant", 10),
-              ["read", "glob", "grep", "list"][index]!,
-              [
-                { filePath: "src/recent-a.ts" },
-                { path: directory, pattern: "**/*.ts" },
-                { path: directory, pattern: "Explored" },
-                { path: "src" },
-              ][index]!,
-            ),
-          },
-        },
-      })
-      await page.waitForTimeout(delay)
-    }
-
-    await expect(context.locator('[data-component="tool-status-title"]')).toHaveAttribute("aria-label", "Explored")
-    await page.waitForTimeout(700)
-    const trace = await stopVisualProbe<keyof typeof regions>(page)
-    const labels = trace.samples
-      .map((sample) => sample.regions.status?.label)
-      .filter((value): value is string => !!value)
-      .filter((value, index, all) => value !== all[index - 1])
-    const issues = analyzeVisualObservations(
-      trace.samples,
-      visualPlan(regions, [
-        { type: "required", regions: ["context", "following"] },
-        { type: "opacity", regions: "all" },
-        { type: "continuity", regions: "all" },
-        { type: "motion", regions: "all" },
-        { type: "label-stability", regions: "all" },
-        { type: "flow", regions: ["context", "following"] },
-      ]),
-    )
-
-    expect(labels).toEqual(["Exploring", "Explored"])
-    expect(issues, JSON.stringify(trace.samples, null, 2)).toEqual([])
+    await expect(card.locator(`[data-timeline-part-id="${contextIDs[0]}"]`)).toBeVisible()
+    await expect(card.locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')).toHaveCount(2)
   })
 })
 
@@ -141,9 +60,9 @@ async function configurePage(page: Page) {
   })
 }
 
-async function sampleExpansion(page: Page) {
+async function sampleExpansion(page: Page, userMessageID: string) {
   return page.evaluate(
-    ({ contextIDs, followingTextID }) =>
+    ({ userMessageID, followingTextID }) =>
       new Promise<
         {
           frame: number
@@ -157,11 +76,13 @@ async function sampleExpansion(page: Page) {
           expanded: string | null
         }[]
       >((resolve) => {
-        const context = document.querySelector<HTMLElement>(`[data-timeline-part-ids="${contextIDs.join(",")}"]`)
+        const context = document.querySelector<HTMLElement>(
+          `[data-timeline-row="TurnSteps"][data-message-id="${userMessageID}"]`,
+        )
         const text = document.querySelector<HTMLElement>(`[data-timeline-part-id="${followingTextID}"]`)
         const scroller = context?.closest<HTMLElement>(".scroll-view__viewport")
-        const trigger = context?.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')
-        const contextRow = context?.closest<HTMLElement>('[data-timeline-row="AssistantPart"]')
+        const trigger = context?.querySelector<HTMLElement>('[data-component="turn-steps-summary"]')
+        const contextRow = context
         const textRow = text?.closest<HTMLElement>('[data-timeline-row="AssistantPart"]')
         if (!context || !text || !scroller || !trigger || !contextRow || !textRow)
           throw new Error("missing regression nodes")
@@ -212,7 +133,7 @@ async function sampleExpansion(page: Page) {
         }
         requestAnimationFrame(tick)
       }),
-    { contextIDs, followingTextID },
+    { userMessageID, followingTextID },
   )
 }
 

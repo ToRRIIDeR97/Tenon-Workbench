@@ -1,5 +1,5 @@
 import { base64Encode } from "@tenon/core/util/encode"
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 
@@ -49,10 +49,11 @@ test.beforeEach(async ({ page }) => {
   })
   await page.route("**/api/pty*", (route) => {
     expect(new URL(route.request().url()).searchParams.get("location[directory]")).toBe(directory)
+    const create = route.request().method() === "POST"
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ location: ptyLocation(), data: ptyInfo(ptyID, "Terminal 1") }),
+      body: JSON.stringify({ location: ptyLocation(), data: create ? ptyInfo(ptyID, "Terminal 1") : [] }),
     })
   })
   await page.route(`**/api/pty/${ptyID}*`, (route) =>
@@ -100,30 +101,39 @@ test("routes typing to the composer unless the open terminal is focused", async 
 test("keeps composer focus when a cached terminal finishes mounting", async ({ page }) => {
   const ghostty = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
+  const hold = { ghostty: false }
   const created = { count: 0 }
   await page.route("**/api/pty*", (route) => {
-    created.count += 1
+    const create = route.request().method() === "POST"
+    if (create) created.count += 1
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ location: ptyLocation(), data: ptyInfo(ptyID, "Terminal 1") }),
+      body: JSON.stringify({ location: ptyLocation(), data: create ? ptyInfo(ptyID, "Terminal 1") : [] }),
     })
   })
   await page.route(/ghostty-web/, async (route) => {
-    ghostty.resolve()
-    await release.promise
+    if (hold.ghostty) {
+      ghostty.resolve()
+      await release.promise
+    }
     await route.continue()
   })
-  await seedCachedTerminal(page)
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`, { waitUntil: "commit" })
+  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await expectSessionTitle(page, "Terminal composer focus")
-
   const composer = page.locator('[data-component="prompt-input"]')
   const terminal = page.locator('[data-component="terminal"]')
+  await page.keyboard.press("Control+Backquote")
+  await expect(terminal.locator("textarea")).toHaveCount(1)
+  expect(created.count).toBe(1)
+
+  hold.ghostty = true
+  await page.reload({ waitUntil: "commit" })
+  await expectSessionTitle(page, "Terminal composer focus")
   await expect(terminal).toBeVisible()
-  expect(created.count).toBe(0)
   await ghostty.promise
+  expect(created.count).toBe(1)
   await composer.click()
   await expect(composer).toBeFocused()
 
@@ -162,6 +172,12 @@ test("keeps newer composer focus while an explicit terminal open finishes", asyn
 test("focuses a terminal created from the new-terminal button", async ({ page }) => {
   const created = { count: 0 }
   await page.route("**/api/pty*", (route) => {
+    if (route.request().method() !== "POST")
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ location: ptyLocation(), data: [] }),
+      })
     created.count += 1
     const next = created.count === 1 ? ptyInfo(ptyID, "Terminal 1") : ptyInfo(newPtyID, "Terminal 2")
     return route.fulfill({
@@ -198,25 +214,11 @@ test("focuses a terminal created from the new-terminal button", async ({ page })
   await expect(composer).toBeFocused()
 
   await page.getByRole("button", { name: "New terminal" }).click()
+  await expect(page.getByRole("tab", { name: /^Terminal/ })).toHaveCount(2)
   await expect(page.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute("aria-selected", "true")
+  expect(created.count).toBe(2)
   await expect.poll(() => terminal.evaluate((element) => element.contains(document.activeElement))).toBe(true)
 })
-
-function seedCachedTerminal(page: Page) {
-  return page.addInitScript(
-    ({ terminalKey, ptyID }) => {
-      localStorage.setItem("tenon.global.dat:layout", JSON.stringify({ terminal: { height: 320, opened: true } }))
-      localStorage.setItem(
-        terminalKey,
-        JSON.stringify({
-          active: ptyID,
-          all: [{ id: ptyID, title: "Terminal 1", titleNumber: 1 }],
-        }),
-      )
-    },
-    { terminalKey: `${base64Encode(directory)}/terminal.v1`, ptyID },
-  )
-}
 
 function ptyLocation() {
   return { directory, project: { id: projectID, directory } }

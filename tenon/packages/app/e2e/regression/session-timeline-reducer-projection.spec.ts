@@ -23,18 +23,35 @@ test("groups singleton and separated context operations at correct boundaries", 
   ]
   await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
-  await expect(page.locator('[data-timeline-part-ids="prt_boundary_01_read"]')).toBeVisible()
-  const tools = page.locator(
-    '[data-timeline-part-ids="prt_boundary_03_glob,prt_boundary_04_grep,prt_boundary_05_shell,prt_boundary_06_list"]',
-  )
-  await expect(tools).toBeVisible()
-  await expect(tools.getByRole("button", { name: /^Ran 4 tool/ })).toBeVisible()
-  await expect(page.locator('[data-timeline-row="AssistantPart"]')).toHaveCount(3)
+  const cards = page.locator('[data-timeline-row="TurnSteps"]')
+  await expect(cards).toHaveCount(2)
+  const rowOrder = await page
+    .locator("[data-timeline-row]")
+    .evaluateAll((elements) => elements.map((element) => element.getAttribute("data-timeline-row")))
+  expect(rowOrder.filter((row) => row === "TurnSteps" || row === "AssistantPart")).toEqual([
+    "TurnSteps",
+    "AssistantPart",
+    "TurnSteps",
+  ])
+  await expect(page.locator('[data-timeline-row="AssistantPart"]')).toContainText("Boundary text")
 
-  await tools.getByRole("button", { name: /^Ran 4 tool/ }).click()
-  for (const id of ["prt_boundary_03_glob", "prt_boundary_04_grep", "prt_boundary_05_shell", "prt_boundary_06_list"]) {
-    await expect(tools.locator(`[data-timeline-part-id="${id}"]`), id).toBeVisible()
+  const first = cards.nth(0)
+  await expect(first.locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')).toHaveCount(1)
+  await expect(first.locator('[data-timeline-part-id="prt_boundary_01_read"]')).toBeVisible()
+
+  const second = cards.nth(1)
+  const groups = second.locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')
+  await expect(groups).toHaveCount(3)
+  const search = groups.nth(0)
+  await expect(search.locator(':scope > [data-slot="turn-steps-row"]')).toContainText("Searched 2 times")
+  await search.locator(':scope > [data-slot="turn-steps-row"]').click()
+  for (const id of ["prt_boundary_03_glob", "prt_boundary_04_grep"]) {
+    await expect(search.locator(`[data-timeline-part-id="${id}"]`), id).toBeVisible()
   }
+  await expect(groups.nth(1)).toHaveAttribute("data-timeline-part-id", "prt_boundary_05_shell")
+  await expect(groups.nth(2)).toHaveAttribute("data-timeline-part-id", "prt_boundary_06_list")
+  await expect(second.locator('[data-timeline-part-id="prt_boundary_01_read"]')).toHaveCount(0)
+  await expect(first.locator('[data-timeline-part-id="prt_boundary_06_list"]')).toHaveCount(0)
 })
 
 test("reducer-hardening: converges when idle arrives before final part and message completion", async ({ page }) => {

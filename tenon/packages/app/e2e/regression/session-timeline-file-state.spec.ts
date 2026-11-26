@@ -4,6 +4,7 @@ import {
   partUpdated,
   setupTimeline,
   toolPart,
+  turnStep,
   userMessage,
 } from "../performance/timeline-stability/fixture"
 
@@ -14,7 +15,8 @@ test("updates edit diagnostics without resetting manual collapse state", async (
     messages: [userMessage(), assistantMessage([base])],
     settings: { editToolPartsExpanded: true },
   })
-  const trigger = page.locator(`[data-timeline-part-id="${editID}"] [data-slot="collapsible-trigger"]`).first()
+  const trigger = turnStep(page, editID).row
+  await expect(trigger).toHaveAttribute("aria-expanded", "true")
   await trigger.click()
   await expect(trigger).toHaveAttribute("aria-expanded", "false")
   await timeline.send(
@@ -42,18 +44,25 @@ test("preserves nested patch file state through outer collapse and reopen", asyn
         ),
       ]),
     ],
-    settings: { editToolPartsExpanded: true },
+    settings: { editToolPartsExpanded: false },
   })
-  const wrapper = page.locator(`[data-timeline-part-id="${patchID}"]`)
-  const outer = wrapper.locator('[data-slot="collapsible-trigger"]').first()
-  const deleted = wrapper.locator('[data-scope="apply-patch"] [data-type="delete"]')
-  await deleted.getByRole("button").click()
-  await expect(deleted.getByRole("button")).toHaveAttribute("aria-expanded", "true")
+  const outer = page.locator('[data-timeline-row="TurnSteps"] [data-component="turn-steps-summary"]')
+  const patch = turnStep(page, patchID)
+  const diffs = patch.detail.locator('[data-slot="turn-steps-diff"]')
+  await expect(outer).toHaveAttribute("aria-expanded", "true")
+  await expect(patch.row).toHaveAttribute("aria-expanded", "false")
+  await patch.row.click()
+  await expect(patch.row).toHaveAttribute("aria-expanded", "true")
+  await expect(diffs).toHaveCount(files.length)
+  await expect(diffs.filter({ hasText: "src/old.ts" })).toBeVisible()
   await outer.click()
   await expect(outer).toHaveAttribute("aria-expanded", "false")
+  await expect(patch.row).not.toBeInViewport()
   await outer.click()
   await expect(outer).toHaveAttribute("aria-expanded", "true")
-  await expect(deleted.getByRole("button")).toHaveAttribute("aria-expanded", "true")
+  await expect(patch.row).toHaveAttribute("aria-expanded", "true")
+  await expect(diffs).toHaveCount(files.length)
+  await expect(diffs.filter({ hasText: "src/old.ts" })).toBeVisible()
 })
 
 function patchFile(filePath: string, type: "add" | "update" | "delete") {

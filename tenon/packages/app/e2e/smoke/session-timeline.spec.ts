@@ -5,6 +5,7 @@ import { trackPageErrors, expectNoSmokeErrors } from "../utils/errors"
 import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 import { expandSidebarThreadGroups, openSidebarThread } from "../utils/sidebar"
+import { turnStep } from "../performance/timeline-stability/fixture"
 
 const forbiddenText = ["Load details", "Show earlier steps"]
 
@@ -317,20 +318,29 @@ test.describe("smoke: session timeline", () => {
 
   test("expands an older turn's steps without jumping to the bottom", async ({ page }) => {
     await openTargetAtHistoryStart(page)
-    await page
-      .locator(`[data-timeline-row="TurnSteps"][data-message-id="${fixture.expected.expandedShellTurnID}"] button`)
-      .click()
-    const shell = page.locator(`[data-timeline-part-id="${fixture.expected.expandedShellPartID}"]`)
-    const shellTrigger = shell.locator('[data-slot="collapsible-trigger"]')
-    const shellSubtitle = shell.locator('[data-slot="basic-tool-tool-subtitle"]')
-    await expect(shellSubtitle).toHaveCount(0)
-    await expect(shell.locator('[data-slot="bash-pre"]')).toContainText("$ bun typecheck")
-    await shellTrigger.click()
-    await expect(shellTrigger).toHaveAttribute("aria-expanded", "false")
-    await expect(shellSubtitle).toHaveText("bun typecheck")
-    await shellTrigger.click()
-    await expect(shellTrigger).toHaveAttribute("aria-expanded", "true")
-    await expect(shellSubtitle).toHaveCount(0)
+    const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
+    const summary = page
+      .locator(`[data-timeline-row="TurnSteps"][data-message-id="${fixture.expected.expandedShellTurnID}"]`)
+      .locator('[data-component="turn-steps-summary"]')
+      .filter({ hasText: "Ran 1 command" })
+    await expect(summary).toHaveAttribute("aria-expanded", "false")
+    await summary.click()
+    await expect(summary).toHaveAttribute("aria-expanded", "true")
+    const shell = turnStep(page, fixture.expected.expandedShellPartID)
+    await expect(shell.row).toContainText("bun typecheck")
+    await expect(shell.row).toHaveAttribute("aria-expanded", "true")
+    await expect(shell.detail).toContainText("$ bun typecheck")
+    await expect(summary).toBeInViewport()
+    expect(
+      await scroller.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop),
+    ).toBeGreaterThan(100)
+    await shell.row.click()
+    await expect(shell.row).toHaveAttribute("aria-expanded", "false")
+    await expect(shell.row).toContainText("bun typecheck")
+    await shell.row.click()
+    await expect(shell.row).toHaveAttribute("aria-expanded", "true")
+    await expect(shell.detail).toContainText("$ bun typecheck")
+    await expect(summary).toBeInViewport()
   })
 })
 

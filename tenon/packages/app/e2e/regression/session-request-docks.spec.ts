@@ -96,7 +96,10 @@ test("shows a pending permission dock", async ({ page }) => {
   await expect(permission).toBeVisible()
   await expect(permission.getByText("git status")).toBeVisible()
   await expect(permission.getByText("git diff")).toBeVisible()
-  await expect(permission.locator('[data-slot="permission-footer-actions"] button')).toHaveCount(3)
+  const actions = permission.locator('[data-slot="permission-footer-actions"]')
+  await expect(actions.getByRole("button")).toHaveCount(4)
+  for (const name of ["Deny", "More ways to deny", "Allow once", "More ways to allow"])
+    await expect(actions.getByRole("button", { name, exact: true })).toBeVisible()
   await expect(page.locator('[data-component="session-composer"]')).toHaveCount(0)
 
   const reply = page.waitForRequest((request) => request.method() === "POST")
