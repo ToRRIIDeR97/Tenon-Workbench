@@ -328,7 +328,7 @@ ThreadSync.make(input: {
 `ThreadSync.SyncError` is an error with a string `code`. The promise functions reject with it (or throw
 it, for `keyFromPhrase`); the engine's effects fail with it in the error channel, not as a defect. Codes:
 `invalid_key`, `invalid_segment`, `unreadable`, `invalid_name`, `conflict`, `unauthorized`,
-`unavailable`, `not_found`, `not_owner`, `diverged`, `foreign_path`.
+`unavailable`, `not_found`, `not_owner`, `diverged`, `foreign_path`, `unsupported`.
 
 ### Acceptance criteria
 
@@ -359,7 +359,8 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   `DELETE /storage/v1/b/<bucket>/o/<name>` (404 is fine). Object names in the path are percent-encoded,
   slashes included. With `prefix`, objects are stored under it and names come back without it. 401 and
   403 are `unauthorized`; a network failure or a 5xx after the store's own retries is `unavailable`. The
-  retries of one call take at most two seconds in total.
+  retries of one call take at most two seconds in total, and no single request waits longer than
+  fifteen seconds.
 - **AC-P4-6 Push and pull.** `push` uploads the events the store does not have yet as a sealed segment
   and returns how many (`0` and no write when up to date) and the head sequence; the first push makes
   this machine the owner. `pull` applies the events this computer lacks through the event log's replay,
@@ -368,7 +369,11 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   instances and reopened databases. A thread with no local events (`push`) or no stored copy (`pull`) is
   `not_found`; a wrong key is `unreadable` and changes nothing locally. A thread whose folder is a path this
   operating system cannot hold (a Windows drive path on macOS) fails with `foreign_path` before anything
-  local changes; mapping it to a local folder is P5's job.
+  local changes; mapping it to a local folder is P5's job. A pull is all or nothing: if any stored event
+  cannot be applied here (a type this version does not know, data that fails its schema, or a replay
+  that fails for any other reason), `pull` and `takeOver` fail with `unsupported`, no event of that pull
+  stays in the local log and the local owner is unchanged. `diverged` means only that a local event
+  differs from the stored one at the same sequence.
 - **AC-P4-7 Ownership.** Only the owner pushes; anyone else gets `not_owner`. `takeOver` pulls to the
   head, then makes this machine the owner with a conditional write, and is a no-op for the owner. If
   this computer's log holds an event at a sequence where the stored thread has a different one, `pull`
@@ -387,6 +392,24 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   learns (session IDs, sizes, timing, count), where the key is expected to live and what losing it means.
   No source comments. Nothing outside the P4 edit scope changes.
 
+- **AC-P4-11 Robust against a flaky or rolled-back store** (added after review panel round 1; a reviewer's
+  probes found these, no earlier criterion covered them).
+  - A write whose reply is lost does no harm. If the manifest write reaches the store but the engine sees
+    a failure, the stored thread stays readable and complete: the engine removes the segment it just
+    wrote only when the store definitely refused the manifest write (a `conflict`) and a re-read shows
+    the segment is not listed. After any other failure (a timeout, a dropped connection, `unavailable`)
+    it cannot tell whether the write will still land, so it leaves the segment; an orphan costs nothing. The next `push` then succeeds or reports up to date truthfully, and a `pull` on
+    another computer applies every event.
+  - A stored copy that is behind this computer changes nothing here. When the stored head is lower than
+    the local log's, `pull` applies nothing and does not change the local owner.
+  - `gcsStore` treats a success reply it cannot parse as `unavailable` on every method (a listing never
+    comes back empty because its body was malformed), stops with `unavailable` when a listing repeats a
+    page token or runs past 1,000 pages, and counts the time `token()` takes inside the same limits.
+  - The threat model says plainly what someone who can write to the store without the key can still do:
+    delete objects, and put back an older genuine manifest, which can hand the lock back to a previous
+    owner and let two computers continue from the same point; the engine reports that later as
+    `diverged`, and each computer keeps its own copy.
+
 Known limit, recorded rather than solved here: files an event only points to (the tool-output store,
 image blobs) are not synced. P5 decides what to do about them.
 
@@ -404,6 +427,171 @@ Commands, from `tenon/packages/core`: `bun test test/thread-sync` and, in the ve
 copying `verification.test.ts` and `verification-gcs-fake.ts` into `test/thread-sync/`, the same command.
 Standard checks: `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test:engine`.
 Baseline: on the base commit the acceptance file fails at the import of `../../src/thread-sync`.
+
+## P5 and P6, split into a core half and an app half
+
+P5 (thread sync in the app) and P6 (remote access for the phone) each have a half that can be built
+and tested without the desktop window, and a half that needs it. The core halves run as a pair, then
+the app halves.
+
+| Part | Outcome | Edit scope |
+| --- | --- | --- |
+| P5a | A sync manager in the server: settings, the list of stored threads with their local state, push after a thread goes idle, and "continue here" with a local folder | `tenon/packages/core/src/thread-sync/` (new files, plus additive exports in `thread-sync.ts`), `tenon/packages/core/test/thread-sync/`, a new route group in `tenon/packages/protocol/src/groups/` and `tenon/packages/server/src/handlers/` with its lines in `protocol/src/api.ts` and `server/src/handlers.ts`, the generated client, docs |
+| P6a | Device pairing, per-device tokens and a companion scope enforced by the server | `tenon/packages/core/src/remote-access.ts` and `src/remote-access/`, `tenon/packages/core/test/remote-access/`, `tenon/packages/server/src/auth.ts` and `middleware/`, `tenon/packages/tenon/src/server/` (authorization middleware, network guard, a pairing route), their tests, docs |
+| P5b | Google sign-in for Cloud Storage, the key in the system credential store, Settings › Sync, and "Continue here" in the app | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
+| P6b | The second listener, pairing by QR code and device management in Settings › Servers | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
+
+P5a's base is the integration branch with P4 merged. Where both core halves must touch the same
+registration file (`protocol/src/api.ts`, `server/src/handlers.ts`, the generated client), each adds
+only its own lines; the generated client is regenerated at integration.
+
+### P5a: sync manager
+
+#### Contract
+
+`tenon/packages/core/src/thread-sync/manager.ts`, exported from the `ThreadSync` namespace:
+
+```ts
+ThreadSync.manager(input: {
+  db: Database.Interface["db"]; events: EventV2.Interface
+  settingsFile: string
+  credentials: { key(): Promise<Uint8Array | undefined>; store(bucket: string): Promise<ThreadSync.Store | undefined> }
+  projects: { resolve(directory: string): Promise<{ id: string; worktree: string }> }
+  hostname: string
+}): {
+  status(): Effect<Status>
+  configure(change: { enabled?: boolean; bucket?: string; machineName?: string }): Effect<Status, SyncError>
+  threads(): Effect<Array<StoredThread>, SyncError>
+  push(sessionID: string): Effect<{ uploaded: number; head: number }, SyncError>
+  pull(sessionID: string): Effect<{ applied: number; head: number }, SyncError>
+  continueHere(sessionID: string, input: { directory: string }): Effect<{ applied: number; head: number }, SyncError>
+  settled(sessionID: string): Effect<{ pushed: boolean; reason?: string }>
+  remove(sessionID: string): Effect<void, SyncError>
+}
+type Status = { ready: boolean; enabled: boolean; bucket: string; machine: { id: string; name: string }
+  missing: Array<"bucket" | "key" | "store">; lastError: string | null }
+type StoredThread = { sessionID: string; title: string; directory: string; head: number; updatedAt: number
+  owner: { id: string; name: string }; mine: boolean
+  local: "absent" | "behind" | "current" | "ahead" | "diverged"; folder: string | null }
+```
+
+New error code: `not_ready` (sync is off, or the bucket, key or store is missing).
+
+#### Acceptance criteria
+
+- **AC-P5a-1 Settings.** `settingsFile` is a JSON file the manager creates on first use, written through
+  a temporary file and a rename. It holds `enabled`, `bucket`, the machine (`id` made once from the
+  hostname plus six random hex characters, and a `name` that defaults to the hostname) and the folder
+  choices; it never holds the key or a token. A file that cannot be parsed is renamed aside and
+  defaults are used. `configure` validates the bucket name (3 to 63 characters of lower-case letters,
+  digits, `-`, `_` and `.`, starting and ending with a letter or digit) and a machine name of 1 to 64
+  characters after trimming (stored trimmed), else `invalid_name`. `status().missing` lists what is absent, and `ready` is
+  true only when sync is enabled and nothing is missing.
+- **AC-P5a-2 Not ready.** `threads`, `push`, `pull`, `continueHere` and `remove` fail with `not_ready`
+  when `ready` is false, and touch neither the store nor the database. `settled` never fails: it returns
+  `{ pushed: false, reason }`.
+- **AC-P5a-3 Stored threads with local state.** `threads` returns every stored thread, newest first,
+  with `mine` (this machine owns it) and `local`: `absent` (no local events), `behind` (the store has
+  more), `current` (equal), `ahead` (this computer has more and the same history up to the stored
+  head), `diverged` (a local event differs from the stored one at the same sequence). `folder` is the
+  local folder chosen for it, or null.
+- **AC-P5a-4 Push after a turn.** `settled(sessionID)` pushes when sync is ready and the thread is either
+  owned by this machine or not stored yet, and reports `pushed: false` with a reason otherwise (owned by
+  another computer, nothing new, not ready, or a store failure, which it records as `status().lastError`
+  instead of failing; a later successful push clears it).
+- **AC-P5a-5 Continue here.** `continueHere(sessionID, { directory })` takes the thread over (pulling
+  first) and records `directory` as this computer's folder for it. From then on, on this computer only,
+  the thread's session row has that directory and the project `projects.resolve` names for it (creating
+  the project row when it is new), so the thread is listed under that folder and its next turn runs
+  there. The choice survives later pulls and a new
+  manager on the same files (it is re-applied after every pull, including one that applies nothing), is
+  never written to the event log, and does not change the thread's folder on any other computer; the
+  stored manifest's `directory` keeps meaning the folder on the computer that last pushed. A failed
+  `continueHere` records nothing. A relative or empty
+  `directory` is `invalid_name`. Continuing a thread this computer already owns only records the folder.
+- **AC-P5a-6 Routes.** A new group serves the manager under `/api/thread-sync`: `GET` (status), `PUT`
+  (configure), `GET /threads`, `POST /threads/:sessionID/push`, `/pull`, `/continue` (body
+  `{ directory }`) and `DELETE /threads/:sessionID`. Handlers are thin. A `SyncError` answers with its
+  code in the body and a fitting status (409 for `conflict`, `not_owner` and `diverged`; 404 for
+  `not_found`; 400 for `invalid_name`; 412 for `not_ready`; 502 for `unavailable` and `unauthorized`;
+  422 for `unreadable`, `unsupported` and `foreign_path`). The server's credentials come from the
+  desktop over the existing loopback bridge (two bridge calls, never listed as agent tools); without a
+  bridge the status is `missing: ["key", "store"]` and nothing else works. The server calls `settled`
+  when a thread becomes idle. The generated client is current (`bun run check:generated`).
+- **AC-P5a-7 Documentation.** The architecture section gains the manager, the settings file, the routes
+  and the folder choice; the threat model says the key and token live only in memory in the server
+  process and what the settings file holds; `docs/deferred-work.md` records that a Windows thread
+  cannot be continued on macOS yet. No source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P5a-1 to 5 | `acceptance/p5a/manager.test.ts` | `verification/p5a/manager.test.ts` |
+| AC-P5a-6 | the implementor's route test | reading the handlers; `bun run check:generated` |
+| AC-P5a-7 | diff review | diff review |
+
+### P6a: remote access core
+
+#### Contract
+
+`tenon/packages/core/src/remote-access.ts` exports the namespace `RemoteAccess`:
+
+```ts
+RemoteAccess.registry(input: { file: string; now?: () => number }): {
+  pairingCode(): { code: string; expiresAt: number }
+  pair(input: { code: string; name: string }): Promise<{ id: string; name: string; token: string }>
+  authenticate(token: string): Promise<{ id: string; name: string } | undefined>
+  devices(): Promise<Array<{ id: string; name: string; createdAt: number; lastSeenAt: number | null }>>
+  revoke(id: string): Promise<boolean>
+}
+RemoteAccess.allows(request: { method: string; path: string }): boolean
+```
+
+`pair` rejects with an error whose `code` is `bad_code`, `expired`, `locked` or `invalid_name`.
+
+#### Acceptance criteria
+
+- **AC-P6a-1 Pairing codes.** A code is eight characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, made
+  with the system's secure random source, valid for five minutes and for one use. Asking for a new code
+  cancels the previous one. Matching ignores case, spaces and hyphens. After five wrong attempts the
+  current code is cancelled and `pair` answers `locked` until a new code is made; an attempt with no
+  current code is `bad_code`; a code past its time is `expired`. Codes are never written to disk.
+- **AC-P6a-2 Devices.** A successful `pair` creates a device with a random ID, the given name (1 to 64
+  characters after trimming, else `invalid_name`) and a 32-byte random token returned once. `file` stores
+  only the SHA-256 of each token, written through a temporary file and a rename and private to the
+  user. Devices survive a new registry on the same file; a file that cannot be parsed is renamed aside
+  and treated as empty. `authenticate` finds a device by its token without leaking timing and records
+  when it was last seen (at most one write a minute per device); a revoked or unknown token is
+  `undefined`. `revoke` removes the device and reports whether it existed.
+- **AC-P6a-3 Companion scope.** `allows` is a default-deny list over method and path (query strings
+  ignored, a trailing slash tolerated, both the `/api/...` routes and the older instance routes). Allowed
+  for a device: reading threads and their messages, creating a thread, prompting, steering, interrupting,
+  answering permission requests and questions, the event streams, health, model and harness lists (read),
+  the vault's pages, timelines and logs (read and write), calendar (read and write), the Command Centre,
+  project threads and usage (read). Denied: terminals and their sockets, the session shell and command
+  routes, file content writes and file search outside the vault routes, configuration, credentials,
+  provider and MCP sign-in, harness setup, sign-in, install, upgrade and registry changes, computer use,
+  workspace instructions writes, project scan, link and unlink, thread sync settings, device management
+  and pairing-code creation, dispose and upgrade. The full table lives in `docs/security/threat-model.md`,
+  and a test checks that every route the server registers is in exactly one of the two lists.
+- **AC-P6a-4 Enforcement.** The authorization middleware accepts `Authorization: Bearer <device token>`
+  beside the existing password. A device request outside the scope answers 403 with nothing done; an
+  unknown or revoked token answers 401. A device token in a query string is refused: tokens travel in
+  the header only, except for the event-stream and socket routes that cannot set a header, where a
+  short-lived ticket is used as terminals already do. The password keeps working exactly as before.
+  `POST /remote/pair` is the one unauthenticated route: body `{ code, name }`, answers the token once,
+  and is limited to ten attempts a minute per address. The owner manages devices through
+  `POST /api/remote/pairing-code`, `GET /api/remote/devices` and `DELETE /api/remote/devices/:id`, which a
+  device token can never call. Paths are matched exactly as registered: a different letter case, a
+  doubled slash, an encoded or literal `..` segment, or a backslash is denied.
+- **AC-P6a-5 Documentation.** The threat model gains remote access: the device registry, pairing, the
+  scope table, what a stolen phone can do until revoked, and that the link is plain HTTP on a network
+  the user trusts (local network or VPN) until a later phase adds a relay. No source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P6a-1, 2, 3 | `acceptance/p6a/remote-access.test.ts` | `verification/p6a/remote-access.test.ts` |
+| AC-P6a-4 | the implementor's HTTP tests, modelled on `tenon/test/server/httpapi-authorization.test.ts` | reading the middleware; the verifier's own requests |
+| AC-P6a-5 | diff review | diff review |
 
 ## Verification commands
 
@@ -430,4 +618,63 @@ Baseline on the base commit: recorded under Completion evidence.
 
 ## Completion evidence
 
-Filled in as phases pass. Implementor reports and verifier results are kept apart.
+Filled in as phases pass. Implementor reports and verifier results are kept apart. All subagents ran
+on Opus 5.5 at medium effort.
+
+### P1 and P2 (2026-11-26)
+
+| Item | P1 feature test matrix | P2 Device tab |
+| --- | --- | --- |
+| Pull request | #368, branch `claude/feature-test-matrix` | #369, branch `claude/device-tab-fixes` |
+| Verified commit | `3e4ac333` | `099c7618` |
+| Correction rounds before the panel | 1 (F-1407 was `covered`; rows with failing evidence did not say so) | 3 (key errors and a lint warning; the phone layout the user asked for; the toolbar detached in landscape) |
+| Verifier, independent of the implementor | acceptance 8, verification 12, 32 rows read against code, two specs re-run | acceptance 13 + 5, verification 14 + 3, `typecheck`, `lint`, `format:check`, `test:desktop` (262), `test:app` (1482 + 61), diff read against every criterion |
+| Orchestrator's own checks | diff read; the baseline's numbers cross-checked | `bun run check` exit 0 on the tip; device functions and the Device tab driven against a live Android emulator (API 35), screenshots in `evidence/` |
+
+Integration: both merge onto the base with no conflict (verifier's local merge `1b67879f`); every test and
+check above passes on the merged tree. Local branch `claude/mobile-sync-integration` (`57ec14e9`) is the
+plan plus both phases and is the base for P3.
+
+Review panel (plan conformance, correctness and regressions, integrity and scope): round 1 on `79b3de3c`
+scored 9.5, 10 and 9. Deductions: F-1307 cited a spec that does not drive Settings › Servers; nine
+`Source` paths did not exist. The second reviewer's notes became AC-P2-12. Round 2 on `1b67879f`
+scored 10, 10 and 10.
+
+Diagrams: the proposed view's "Device tools: fixed keys, boot state" node is now built as drawn; the
+phone layout and input validation were added during the phase and are described in AC-P2-10 to 12.
+
+Left unverified: anything on iOS (no Mac; the `idb` argument lists, including Return as HID key 40, are
+unit tested only); wide and short panel sizes were simulated by forcing the panel size; the boot line
+after a three-minute timeout rests on a code read. Open notes, not fixed: a literal `%s` cannot be
+typed on Android; very long text goes to `adb` as one argument; each frame is decoded twice.
+
+The verification set gained one check the panel showed was missing (every `Source` file path exists).
+
+### P4 thread sync engine (2026-11-26)
+
+- Verified commit: `56dcc9be` (base `688ce713`), six commits. Implementor report and verifier results
+  agree: acceptance 11, independent verification 16, the implementor's own 28; `typecheck`, `lint`,
+  `format:check` pass; the core suite shows only the three Windows failures already on the base.
+- Corrections before the panel: two defects in the plan author's own acceptance files (a cast and
+  formatting); the verifier's probe found a pull that failed partway left part of the thread behind and
+  reported `diverged` (now all or nothing, code `unsupported`).
+- Review panel: round 1 on `e266061c` scored 10, 10, 10 against the plan, but the correctness
+  reviewer's probes found a lost reply to a manifest write could leave the stored thread unreadable, a
+  rolled-back manifest could flip the local owner, and three `gcsStore` weaknesses; these became
+  AC-P4-11. Round 2 on `a29d856e` scored 10, 10, 9 (a stale Ownership sentence) and found the late-commit
+  variant of the first bug, which tightened AC-P4-11's first bullet. Round 3 on `56dcc9be` scored 10,
+  10, 10; the correctness reviewer could not make a stored thread unreadable or make `push` report
+  something untrue.
+- Plan changes made during the phase, each from evidence: codes `foreign_path` and `unsupported`, the
+  two-second retry bound and fifteen-second request limit, the all-or-nothing pull, AC-P4-11.
+- The verification set grew from 13 to 16 tests (lost reply, rolled-back store, late commit); the last
+  was run against the previous commit first and failed there as intended.
+- Diagram: the detail view's six steps are built as drawn, with one addition it does not show: the
+  manifest is re-read after a failed write before anything is removed.
+
+Left unverified: the real Google Cloud Storage API (only local stand-ins were used; the conflict
+reasoning relies on its documented behaviour). Known limits recorded in the architecture section: files
+an event only points to and child threads are not synced; a pull downloads the whole stored thread and
+holds the database connection while it applies; a macOS path is accepted on Windows; one unreadable
+manifest fails the whole `list`; orphan segments are never cleaned up except by `remove`; a store
+writer without the key can delete objects or roll a thread back.
