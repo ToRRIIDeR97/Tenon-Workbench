@@ -484,3 +484,32 @@ after a three-minute timeout rests on a code read. Open notes, not fixed: a lite
 typed on Android; very long text goes to `adb` as one argument; each frame is decoded twice.
 
 The verification set gained one check the panel showed was missing (every `Source` file path exists).
+
+### P4 thread sync engine (2026-11-26)
+
+- Verified commit: `56dcc9be` (base `688ce713`), six commits. Implementor report and verifier results
+  agree: acceptance 11, independent verification 16, the implementor's own 28; `typecheck`, `lint`,
+  `format:check` pass; the core suite shows only the three Windows failures already on the base.
+- Corrections before the panel: two defects in the plan author's own acceptance files (a cast and
+  formatting); the verifier's probe found a pull that failed partway left part of the thread behind and
+  reported `diverged` (now all or nothing, code `unsupported`).
+- Review panel: round 1 on `e266061c` scored 10, 10, 10 against the plan, but the correctness
+  reviewer's probes found a lost reply to a manifest write could leave the stored thread unreadable, a
+  rolled-back manifest could flip the local owner, and three `gcsStore` weaknesses; these became
+  AC-P4-11. Round 2 on `a29d856e` scored 10, 10, 9 (a stale Ownership sentence) and found the late-commit
+  variant of the first bug, which tightened AC-P4-11's first bullet. Round 3 on `56dcc9be` scored 10,
+  10, 10; the correctness reviewer could not make a stored thread unreadable or make `push` report
+  something untrue.
+- Plan changes made during the phase, each from evidence: codes `foreign_path` and `unsupported`, the
+  two-second retry bound and fifteen-second request limit, the all-or-nothing pull, AC-P4-11.
+- The verification set grew from 13 to 16 tests (lost reply, rolled-back store, late commit); the last
+  was run against the previous commit first and failed there as intended.
+- Diagram: the detail view's six steps are built as drawn, with one addition it does not show: the
+  manifest is re-read after a failed write before anything is removed.
+
+Left unverified: the real Google Cloud Storage API (only local stand-ins were used; the conflict
+reasoning relies on its documented behaviour). Known limits recorded in the architecture section: files
+an event only points to and child threads are not synced; a pull downloads the whole stored thread and
+holds the database connection while it applies; a macOS path is accepted on Windows; one unreadable
+manifest fails the whole `list`; orphan segments are never cleaned up except by `remove`; a store
+writer without the key can delete objects or roll a thread back.
