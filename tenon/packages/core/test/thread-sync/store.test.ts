@@ -22,6 +22,11 @@ const event = (seq: number, aggregateID = "ses_chain") =>
     data: { seq },
   }) as unknown as EventV2.SerializedEvent
 
+const scripted = (respond: () => Response) => {
+  const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: respond })
+  return { endpoint: `http://127.0.0.1:${server.port}`, stop: () => server.stop(true) }
+}
+
 const unsafe = ["", "/a", "a/", "a//b", "../a", "a/./b", "a\\b", "a b", "a/ü", "C:/a"]
 
 describe("thread sync keys and segments", () => {
@@ -145,6 +150,60 @@ describe("thread sync Cloud Storage store", () => {
       expect(gcs.requests.some((request) => request.path.includes("%2F"))).toBe(false)
       await store.get("threads/a/manifest")
       expect(gcs.requests.at(-1)?.path).toBe("/storage/v1/b/my-bucket/o/tenon%2Fthreads%2Fa%2Fmanifest")
+    } finally {
+      await gcs.stop()
+    }
+  })
+
+  test("a success reply that cannot be read is unavailable", async () => {
+    const server = scripted(() => new Response("not json", { status: 200 }))
+    try {
+      const store = ThreadSync.gcsStore({ bucket: "b", endpoint: server.endpoint, token: async () => "t" })
+      expect(await rejected(store.list("threads/"))).toBe("unavailable")
+      expect(await rejected(store.put("threads/a/manifest", new Uint8Array([1])))).toBe("unavailable")
+      expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
+    } finally {
+      await server.stop()
+    }
+  })
+
+  test("a listing that repeats a page token or never ends is unavailable", async () => {
+    const repeating = scripted(() => Response.json({ items: [], nextPageToken: "again" }))
+    const counter = { pages: 0 }
+    const endless = scripted(() => {
+      counter.pages += 1
+      return Response.json({ items: [], nextPageToken: `page-${counter.pages}` })
+    })
+    try {
+      const store = (endpoint: string) => ThreadSync.gcsStore({ bucket: "b", endpoint, token: async () => "t" })
+      expect(await rejected(store(repeating.endpoint).list("threads/"))).toBe("unavailable")
+      expect(await rejected(store(endless.endpoint).list("threads/"))).toBe("unavailable")
+      expect(counter.pages).toBe(1_000)
+    } finally {
+      await repeating.stop()
+      await endless.stop()
+    }
+  }, 30_000)
+
+  test("the time token() takes counts inside the request limit and the retry budget", async () => {
+    const gcs = fakeGcs()
+    try {
+      const hung = limitedGcsStore(
+        { bucket: "b", endpoint: gcs.endpoint, token: () => new Promise<string>(() => {}) },
+        { requestTimeoutMs: 150 },
+      )
+      const first = Date.now()
+      expect(await rejected(hung.get("threads/a/manifest"))).toBe("unavailable")
+      expect(Date.now() - first).toBeLessThan(1_000)
+      const slow = ThreadSync.gcsStore({
+        bucket: "b",
+        endpoint: gcs.endpoint,
+        token: () => new Promise<string>((resolve) => setTimeout(() => resolve(gcs.token), 300)),
+      })
+      gcs.failNext(100)
+      const second = Date.now()
+      expect(await rejected(slow.get("threads/a/manifest"))).toBe("unavailable")
+      expect(Date.now() - second).toBeLessThan(2_800)
     } finally {
       await gcs.stop()
     }

@@ -372,6 +372,136 @@ describe("thread sync engine", () => {
   )
 })
 
+describe("thread sync engine on a flaky or rolled-back store", () => {
+  const pushThenPull = (input: {
+    faults: Parameters<typeof flaky>[1]
+    first: "pushed" | "unavailable"
+    objectsAfterFailure: { manifest: boolean; segments: number }
+    second: { uploaded: number; head: number }
+  }) =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const real = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const faulty = flaky(real, input.faults)
+      const sessionID = yield* Effect.gen(function* () {
+        const id = yield* start("over a flaky network")
+        const sync = yield* engine({ store: faulty, key, machine: desk })
+        if (input.first === "pushed") expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
+        if (input.first === "unavailable") expect(yield* code(sync.push(id))).toBe("unavailable")
+        const stored = yield* Effect.promise(() => real.list(`threads/${id}/`))
+        expect(stored.some((item) => item.name.endsWith("/manifest"))).toBe(input.objectsAfterFailure.manifest)
+        expect(stored.filter((item) => item.name.includes("/segment-"))).toHaveLength(
+          input.objectsAfterFailure.segments,
+        )
+        expect(yield* sync.push(id)).toEqual(input.second)
+        return id
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store: real, key, machine: laptop })
+        expect(yield* sync.pull(sessionID)).toEqual({ applied: 3, head: 2 })
+        expect((yield* local(sessionID)).events).toHaveLength(3)
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+    })
+
+  it.live("a lost reply after the manifest landed keeps the thread complete", () =>
+    pushThenPull({
+      faults: { loseReply: 1 },
+      first: "pushed",
+      objectsAfterFailure: { manifest: true, segments: 1 },
+      second: { uploaded: 0, head: 2 },
+    }),
+  )
+
+  it.live("a lost reply whose re-read also fails leaves the segment in place", () =>
+    pushThenPull({
+      faults: { loseReply: 1, failReadAfter: 1 },
+      first: "unavailable",
+      objectsAfterFailure: { manifest: true, segments: 1 },
+      second: { uploaded: 0, head: 2 },
+    }),
+  )
+
+  it.live("a manifest write that truly failed removes its segment", () =>
+    pushThenPull({
+      faults: { failPut: 1 },
+      first: "unavailable",
+      objectsAfterFailure: { manifest: false, segments: 0 },
+      second: { uploaded: 3, head: 2 },
+    }),
+  )
+
+  it.live("a failed write whose re-read fails leaves a harmless orphan", () =>
+    pushThenPull({
+      faults: { failPut: 1, failReadAfter: 1 },
+      first: "unavailable",
+      objectsAfterFailure: { manifest: false, segments: 1 },
+      second: { uploaded: 3, head: 2 },
+    }),
+  )
+
+  it.live("an older manifest put back changes nothing on a computer that is ahead", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const sessionID = yield* Effect.gen(function* () {
+        const id = yield* start("before the rollback")
+        yield* (yield* engine({ store, key, machine: desk })).push(id)
+        return id
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      const name = `threads/${sessionID}/manifest`
+      const old = yield* Effect.promise(() => store.get(name))
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: laptop })
+        yield* sync.takeOver(sessionID)
+        yield* say(sessionID, "after the takeover")
+        expect(yield* sync.push(sessionID)).toEqual({ uploaded: 2, head: 4 })
+        yield* Effect.promise(() => store.put(name, old!.bytes))
+        const before = yield* local(sessionID)
+        expect(before.owner).toBe(laptop.id)
+        expect(yield* sync.pull(sessionID)).toEqual({ applied: 0, head: 2 })
+        expect(yield* local(sessionID)).toEqual(before)
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+    }),
+  )
+})
+
+const flaky = (
+  store: ThreadSync.Store,
+  faults: { loseReply?: number; failPut?: number; failReadAfter?: number },
+): ThreadSync.Store => {
+  const left = { loseReply: faults.loseReply ?? 0, failPut: faults.failPut ?? 0, failRead: 0 }
+  const lost = () => new ThreadSync.SyncError({ code: "unavailable", message: "The reply was lost" })
+  const isManifest = (name: string) => name.endsWith("/manifest")
+  return {
+    get: async (name) => {
+      if (isManifest(name) && left.failRead > 0) {
+        left.failRead -= 1
+        throw lost()
+      }
+      return store.get(name)
+    },
+    list: (prefix) => store.list(prefix),
+    remove: (name) => store.remove(name),
+    put: async (name, bytes, options) => {
+      if (!isManifest(name)) return store.put(name, bytes, options)
+      if (left.failPut > 0) {
+        left.failPut -= 1
+        left.failRead = faults.failReadAfter ?? 0
+        throw lost()
+      }
+      const written = await store.put(name, bytes, options)
+      if (left.loseReply > 0) {
+        left.loseReply -= 1
+        left.failRead = faults.failReadAfter ?? 0
+        throw lost()
+      }
+      return written
+    },
+  }
+}
+
 const projectCount = Effect.gen(function* () {
   const db = (yield* Database.Service).db
   return (yield* db.select({ id: ProjectTable.id }).from(ProjectTable).all().pipe(Effect.orDie)).length

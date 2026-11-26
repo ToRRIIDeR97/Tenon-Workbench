@@ -1410,9 +1410,14 @@ are trusted. No route, setting or UI calls the engine yet.
 - **Integrity.** Authenticated encryption plus additional data bind each
   segment to its session ID and to the hash of the segment before it, and the
   manifest to its session ID, and the manifest lists every segment's hash. A
-  changed, truncated, reordered or moved object fails as `unreadable`; a
-  bucket writer without the key can delete or roll back objects (a denial of
-  service) but cannot forge or splice history. Replayed events still go
+  changed, truncated, reordered or moved object fails as `unreadable`, so
+  someone who can write to the store without the key cannot forge or splice
+  history. They can still delete objects, and they can put back an older
+  genuine manifest. That rolls the stored thread back: it can hand the lock
+  back to a previous owner and let two computers continue from the same
+  point. The engine reports that later as `diverged` (a computer that is
+  ahead of the stored copy applies nothing and keeps its owner), and each
+  computer keeps its own copy of the thread. Replayed events still go
   through `EventV2.replay` and the projectors, which decode them with the
   event schemas.
 - **Ownership is cooperative, not a security control.** Every holder of the

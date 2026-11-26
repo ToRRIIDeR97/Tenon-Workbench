@@ -250,15 +250,26 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   four times with backoff within a two-second budget per call (retry requests
   are aborted at its end), then reports `unavailable`; no single request
   waits longer than 15 seconds (`AbortSignal.timeout`, set lower in tests
-  through `limitedGcsStore`). It follows `nextPageToken`,
-  and with `prefix` stores objects under it and returns names without it.
+  through `limitedGcsStore`); the time `token()` takes counts inside both
+  limits. A success reply it cannot parse is `unavailable` on every method,
+  so a listing never comes back empty because its body was malformed. It
+  follows `nextPageToken` and stops with `unavailable` when a token repeats
+  or the listing runs past 1,000 pages, and with `prefix` stores objects
+  under it and returns names without it.
 - **Push.** Only the manifest's owner pushes (`not_owner` otherwise); the
   first push makes this machine the owner. It seals the local events after
   the stored head into one segment, writes it with `ifGeneration: null`, then
-  writes the new manifest with the generation it read. If the manifest moved
-  meanwhile it removes its segment and fails with `conflict`, so two
-  computers never interleave segments. Up to date is `{ uploaded: 0 }` with
-  no write.
+  writes the new manifest with the generation it read, so two computers never
+  interleave segments. If the manifest write fails, push re-reads the
+  manifest: if it lists the new segment, the write landed and push succeeds;
+  if it does not (someone else moved it: `conflict`, or the write never
+  arrived), push removes its segment and fails; if the re-read fails too,
+  the segment stays, because an orphan is harmless and a listed segment
+  that is missing is not. A segment name that already holds the same bytes
+  is accepted. A takeover whose reply is lost is checked the same way. Up to
+  date is `{ uploaded: 0 }` with no write. A pull from a stored copy whose
+  head is behind this computer's log applies nothing and leaves the local
+  owner alone.
 - **Pull.** Reads and opens the manifest and every segment, checks hashes and
   ranges, then compares each local event with the stored one at the same
   sequence (ID, type, data). Any difference is `diverged` before anything
@@ -311,6 +322,10 @@ later, with the Google sign-in that supplies the Cloud Storage token.
     case-stable, so only other writers to the folder can collide.
   - A thread whose folder this system cannot hold is `foreign_path`; mapping
     it to a local folder is the next phase's job.
+  - Someone who can write to the store without the key can delete objects or
+    put back an older genuine manifest, handing the lock back to a previous
+    owner; two computers can then continue from the same point, which the
+    engine reports later as `diverged`, and each keeps its own copy.
 
   Tests: `core/test/thread-sync/`.
 

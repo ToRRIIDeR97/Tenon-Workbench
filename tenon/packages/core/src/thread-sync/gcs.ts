@@ -1,4 +1,5 @@
 import timers from "node:timers/promises"
+import { Option, Schema } from "effect"
 import { SyncError, syncError } from "./error"
 import { byName, requireBytes, requireName, requirePrefix } from "./store"
 import type { Store } from "./store"
@@ -10,10 +11,20 @@ const RETRY_BUDGET_MS = 2_000
 const MIN_ATTEMPT_MS = 100
 const REQUEST_TIMEOUT_MS = 15_000
 
-type Listing = {
-  items?: Array<{ name?: string; generation?: string | number; size?: string | number }>
-  nextPageToken?: string
-}
+const MAX_PAGES = 1_000
+
+const Integer = Schema.Union([Schema.String, Schema.Number])
+const ListedItem = Schema.Struct({ name: Schema.String, generation: Integer, size: Integer })
+type ListedItem = typeof ListedItem.Type
+const decodeListing = Schema.decodeUnknownOption(
+  Schema.fromJsonString(
+    Schema.Struct({
+      items: Schema.optional(Schema.Array(ListedItem)),
+      nextPageToken: Schema.optional(Schema.String),
+    }),
+  ),
+)
+const decodeWritten = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ generation: Integer })))
 
 type Input = {
   bucket: string
@@ -49,11 +60,15 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
     attempt: number,
     retryUntil?: number,
   ): Promise<Response> => {
-    const token = await Promise.resolve()
-      .then(() => input.token())
-      .catch((error: unknown) => {
-        throw error instanceof SyncError ? error : syncError("unauthorized", "No Cloud Storage token is available")
-      })
+    const limit = Math.min(Date.now() + limits.requestTimeoutMs, retryUntil ?? Number.POSITIVE_INFINITY)
+    const token = await within(
+      Promise.resolve()
+        .then(() => input.token())
+        .catch((error: unknown) => {
+          throw error instanceof SyncError ? error : syncError("unauthorized", "No Cloud Storage token is available")
+        }),
+      limit,
+    )
     const response = await fetch(url, {
       method: init.method,
       headers: {
@@ -61,11 +76,7 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
         ...(init.body ? { "content-type": "application/octet-stream" } : {}),
       },
       ...(init.body ? { body: Uint8Array.from(init.body) } : {}),
-      signal: AbortSignal.timeout(
-        retryUntil === undefined
-          ? limits.requestTimeoutMs
-          : Math.max(1, Math.min(limits.requestTimeoutMs, retryUntil - Date.now())),
-      ),
+      signal: AbortSignal.timeout(Math.max(1, limit - Date.now())),
     }).catch(() => undefined)
     if (response && response.status < 500 && response.status !== 429) return refuseAuth(response)
     await response?.arrayBuffer().catch(() => undefined)
@@ -77,17 +88,24 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
     return send(url, init, attempt + 1, deadline)
   }
 
-  const listPage = async (wanted: string, pageToken: string | undefined): Promise<NonNullable<Listing["items"]>> => {
+  const listPage = async (
+    wanted: string,
+    pageToken: string | undefined,
+    seen: ReadonlySet<string>,
+  ): Promise<ReadonlyArray<ListedItem>> => {
+    if (seen.size >= MAX_PAGES) throw syncError("unavailable", "Cloud Storage listed too many pages")
     const response = await send(
       `${endpoint}/storage/v1/b/${bucket}/o?prefix=${encodeURIComponent(wanted)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`,
       { method: "GET" },
       0,
     )
     if (!response.ok) return refuse(response, "Cloud Storage could not list objects")
-    const listing = (await response.json().catch(() => ({}))) as Listing
+    const listing = Option.getOrUndefined(decodeListing(await response.text().catch(() => "")))
+    if (!listing) throw syncError("unavailable", "Cloud Storage sent a listing that cannot be read")
     const items = listing.items ?? []
     if (!listing.nextPageToken) return items
-    return [...items, ...(await listPage(wanted, listing.nextPageToken))]
+    if (seen.has(listing.nextPageToken)) throw syncError("unavailable", "Cloud Storage repeated a listing page")
+    return [...items, ...(await listPage(wanted, listing.nextPageToken, new Set([...seen, listing.nextPageToken])))]
   }
 
   return {
@@ -101,7 +119,7 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
       if (!response.ok) return refuse(response, "Cloud Storage could not read the object")
       const generation = response.headers.get("x-goog-generation")
       const bytes = new Uint8Array(await response.arrayBuffer())
-      if (!generation) throw syncError("unavailable", "Cloud Storage sent no generation")
+      if (!generation || !/^\d+$/.test(generation)) throw syncError("unavailable", "Cloud Storage sent no generation")
       return { bytes, generation }
     },
     async put(name, bytes, options) {
@@ -120,20 +138,23 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
         throw syncError("conflict", "The object changed since it was read")
       }
       if (!response.ok) return refuse(response, "Cloud Storage could not write the object")
-      const written = (await response.json().catch(() => ({}))) as { generation?: string | number }
-      if (written.generation === undefined) throw syncError("unavailable", "Cloud Storage sent no generation")
+      const written = Option.getOrUndefined(decodeWritten(await response.text().catch(() => "")))
+      if (!written || !/^\d+$/.test(String(written.generation)))
+        throw syncError("unavailable", "Cloud Storage sent a reply that cannot be read")
       return { generation: String(written.generation) }
     },
     async list(wanted) {
       requirePrefix(wanted)
       const stored = prefix ? `${requireName(prefix)}/` : ""
-      const items = await listPage(`${stored}${wanted}`, undefined)
+      const items = await listPage(`${stored}${wanted}`, undefined, new Set())
+      if (!items.every((item) => /^\d+$/.test(String(item.generation)) && Number.isSafeInteger(Number(item.size))))
+        throw syncError("unavailable", "Cloud Storage sent a listing that cannot be read")
       return items
-        .filter((item) => typeof item.name === "string" && item.name.startsWith(`${stored}${wanted}`))
+        .filter((item) => item.name.startsWith(`${stored}${wanted}`))
         .map((item) => ({
-          name: (item.name ?? "").slice(stored.length),
-          generation: String(item.generation ?? ""),
-          size: Number(item.size ?? 0),
+          name: item.name.slice(stored.length),
+          generation: String(item.generation),
+          size: Number(item.size),
         }))
         .sort(byName)
     },
@@ -144,6 +165,25 @@ function unguardedGcsStore(input: Input, limits: { requestTimeoutMs: number }): 
       await response.arrayBuffer().catch(() => undefined)
     },
   }
+}
+
+function within<A>(promise: Promise<A>, deadline: number) {
+  return new Promise<A>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(syncError("unavailable", "Cloud Storage did not answer in time")),
+      Math.max(1, deadline - Date.now()),
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
 }
 
 function unavailable(error: unknown): never {

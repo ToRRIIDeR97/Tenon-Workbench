@@ -11,7 +11,7 @@ import { AbsolutePath } from "../schema"
 import type { SessionSchema } from "../session/schema"
 import { SessionTable } from "../session/sql"
 import { decrypt, encrypt, isKey, manifestContext, open, seal } from "./crypto"
-import { asSyncError, syncError } from "./error"
+import { SyncError, asSyncError, syncError } from "./error"
 import { canHold } from "./local-path"
 import { isPart } from "./store"
 import type { Store } from "./store"
@@ -73,6 +73,17 @@ export function make(input: {
         await encrypt(input.key, manifestContext(manifest.sessionID), JSON.stringify(manifest)),
         { ifGeneration },
       ),
+    )
+
+  const writeSegment = (name: string, bytes: Uint8Array) =>
+    input.store.put(name, bytes, { ifGeneration: null }).then(
+      () => undefined,
+      async (error: unknown) => {
+        if (!(error instanceof SyncError) || error.code !== "conflict") throw error
+        const existing = await input.store.get(name)
+        if (existing && Buffer.from(existing.bytes).equals(Buffer.from(bytes))) return undefined
+        throw error
+      },
     )
 
   const readRemote = (manifest: Manifest) =>
@@ -196,7 +207,8 @@ export function make(input: {
       if (!missing.every((event) => applicable(event, sessionID)))
         return yield* Effect.fail(syncError("unsupported", "The stored thread holds events this version cannot apply"))
       if (missing.length > 0) yield* apply(sessionID, current.manifest, missing)
-      if (missing.length === 0 && local.length > 0) yield* input.events.claim(sessionID, current.manifest.owner.id)
+      if (missing.length === 0 && local.length > 0 && current.manifest.head >= latest)
+        yield* input.events.claim(sessionID, current.manifest.owner.id)
       return { applied: missing.length, head: current.manifest.head, current }
     })
 
@@ -209,7 +221,10 @@ export function make(input: {
       return yield* Effect.fail(syncError("not_owner", "Another computer owns this thread"))
     const head = current?.manifest.head ?? -1
     const fresh = local.filter((event) => event.seq > head)
-    if (fresh.length === 0) return { uploaded: 0, head }
+    if (fresh.length === 0) {
+      if (current) yield* input.events.claim(sessionID, me.id)
+      return { uploaded: 0, head }
+    }
     const sealed = yield* call(() =>
       seal({
         key: input.key,
@@ -219,7 +234,7 @@ export function make(input: {
       }),
     )
     const name = segmentName(sessionID, sealed)
-    yield* call(() => input.store.put(name, sealed.bytes, { ifGeneration: null }))
+    yield* call(() => writeSegment(name, sealed.bytes))
     const about = yield* describe(sessionID)
     yield* writeManifest(
       {
@@ -237,7 +252,17 @@ export function make(input: {
         ],
       },
       current?.generation ?? null,
-    ).pipe(Effect.tapError(() => call(() => input.store.remove(name)).pipe(Effect.ignore)))
+    ).pipe(
+      Effect.catch((error) =>
+        readManifest(sessionID).pipe(
+          Effect.catch(() => Effect.fail(error)),
+          Effect.flatMap((after) => {
+            if (after?.manifest.segments.some((segment) => segment.name === name)) return Effect.void
+            return call(() => input.store.remove(name)).pipe(Effect.ignore, Effect.andThen(Effect.fail(error)))
+          }),
+        ),
+      ),
+    )
     yield* input.events.claim(sessionID, me.id)
     return { uploaded: fresh.length, head: sealed.last }
   })
@@ -250,7 +275,18 @@ export function make(input: {
   const takeOver = Effect.fn("ThreadSync.takeOver")(function* (sessionID: string) {
     const pulled = yield* fetchAndApply(sessionID)
     if (pulled.current.manifest.owner.id === me.id) return { applied: pulled.applied, head: pulled.head }
-    yield* writeManifest({ ...pulled.current.manifest, owner: me }, pulled.current.generation)
+    yield* writeManifest({ ...pulled.current.manifest, owner: me }, pulled.current.generation).pipe(
+      Effect.catch((error) =>
+        readManifest(sessionID).pipe(
+          Effect.catch(() => Effect.fail(error)),
+          Effect.flatMap((after) =>
+            after?.manifest.owner.id === me.id && after.manifest.head === pulled.head
+              ? Effect.void
+              : Effect.fail(error),
+          ),
+        ),
+      ),
+    )
     yield* input.events.claim(sessionID, me.id)
     return { applied: pulled.applied, head: pulled.head }
   })
