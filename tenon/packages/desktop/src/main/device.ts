@@ -153,7 +153,8 @@ export type DeviceInput =
 
 export type DeviceCommand = { tool: "adb" | "idb"; args: string[] }
 
-const coordinate = (value: number) => String(Math.max(0, Math.round(value)))
+const coordinate = (value: number) =>
+  typeof value === "number" && Number.isFinite(value) ? String(Math.max(0, Math.round(value))) : "0"
 const ANDROID_KEYS = { home: "KEYCODE_HOME", back: "KEYCODE_BACK", enter: "KEYCODE_ENTER" } as const
 const IOS_RETURN_KEY = "40"
 
@@ -198,7 +199,21 @@ function iosCommands(id: string, input: DeviceInput): DeviceCommand[] {
   return [idb("button", "--udid", id, "HOME")]
 }
 
+const INPUT_KINDS: ReadonlySet<unknown> = new Set(["tap", "swipe", "text", "key"])
+const INPUT_KEYS: ReadonlySet<unknown> = new Set(Object.keys(ANDROID_KEYS))
+
+function checkInput(input: DeviceInput) {
+  const value: unknown = input
+  if (typeof value !== "object" || value === null || !("kind" in value) || !INPUT_KINDS.has(value.kind))
+    throw new Error("Device input must be a tap, swipe, text or key.")
+  if (value.kind === "key" && (!("key" in value) || !INPUT_KEYS.has(value.key)))
+    throw new Error("Device keys are home, back and enter.")
+  if (value.kind === "text" && (!("text" in value) || typeof value.text !== "string"))
+    throw new Error("Device text must be a string.")
+}
+
 export function inputCommands(platform: DevicePlatform, id: string, input: DeviceInput): DeviceCommand[] {
+  checkInput(input)
   return platform === "android" ? androidCommands(id, input) : iosCommands(id, input)
 }
 

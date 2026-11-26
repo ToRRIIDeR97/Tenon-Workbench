@@ -32,6 +32,13 @@ const BOOT_MESSAGES = {
   timeout: "secondBrain.device.boot.timeout",
 } as const satisfies Record<BootStage, string>
 
+const frameSize = async (src: string) => {
+  const image = new Image()
+  image.src = src
+  await image.decode()
+  return { width: image.naturalWidth, height: image.naturalHeight }
+}
+
 type DeviceTabState = {
   os: DeviceInfo["platform"]
   selected: string
@@ -107,7 +114,8 @@ export function SessionDeviceTab() {
   })
   createEffect(() => {
     const id = current()?.id
-    if (state.shown && state.shown !== id) setState({ frame: "", error: "", shown: "" })
+    if (state.shown && state.shown !== id)
+      setState({ frame: "", error: "", shown: "", natural: { width: 0, height: 0 } })
   })
   const screen = createMemo(() => {
     const natural = state.natural.width > 0 ? state.natural : PLACEHOLDER_FRAME
@@ -137,14 +145,14 @@ export function SessionDeviceTab() {
       busy = true
       void device
         .screenshot(target.platform, target.id)
-        .then(
-          (frame) => {
-            if (frame && current()?.id === target.id) setState({ frame, error: "", shown: target.id })
-          },
-          (cause: unknown) => {
-            if (current()?.id === target.id) setState({ error: deviceError(cause), shown: target.id })
-          },
-        )
+        .then(async (frame) => {
+          if (!frame) return
+          const natural = await frameSize(frame)
+          if (current()?.id === target.id) setState({ frame, natural, error: "", shown: target.id })
+        })
+        .catch((cause: unknown) => {
+          if (current()?.id === target.id) setState({ error: deviceError(cause), shown: target.id })
+        })
         .finally(() => (busy = false))
     }, FRAME_MS)
     const off = device.onAgent((event) =>
@@ -155,9 +163,9 @@ export function SessionDeviceTab() {
     )
     createVisibleInterval(() => void refetch(), 5_000)
     createVisibleInterval(() => {
-      if (state.boot.requestedAt === undefined) return
+      if (!booting()) return
       setState("now", Date.now())
-      if (booting()) void refetch()
+      void refetch()
     }, BOOT_POLL_MS)
     onCleanup(() => {
       clearInterval(timer)
@@ -224,7 +232,9 @@ export function SessionDeviceTab() {
                 class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
                 aria-pressed={state.os === os}
                 data-action={`device-os-${os}`}
-                onClick={() => setState({ os, selected: "", frame: "", error: "" })}
+                onClick={() =>
+                  setState({ os, selected: "", frame: "", error: "", shown: "", natural: { width: 0, height: 0 } })
+                }
               >
                 {language.t(os === "android" ? "secondBrain.device.android" : "secondBrain.device.ios")}
               </button>
@@ -236,7 +246,9 @@ export function SessionDeviceTab() {
             class="h-8 rounded-full bg-v2-background-bg-layer-01 px-3 text-12-regular"
             aria-label={language.t("secondBrain.device.select")}
             value={current()?.id}
-            onChange={(event) => setState({ selected: event.currentTarget.value, frame: "" })}
+            onChange={(event) =>
+              setState({ selected: event.currentTarget.value, frame: "", shown: "", natural: { width: 0, height: 0 } })
+            }
           >
             <For each={running()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
           </select>
@@ -333,12 +345,6 @@ export function SessionDeviceTab() {
                       alt={language.t("secondBrain.device.screen", { name: current()!.name })}
                       class="block rounded-[var(--v2-radius-lg)]"
                       style={{ width: `${screen().width}px`, height: `${screen().height}px` }}
-                      onLoad={(event) =>
-                        setState("natural", {
-                          width: event.currentTarget.naturalWidth,
-                          height: event.currentTarget.naturalHeight,
-                        })
-                      }
                       onClick={tap}
                     />
                   </Show>

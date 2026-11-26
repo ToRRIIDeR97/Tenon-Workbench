@@ -72,6 +72,34 @@ describe("inputCommands", () => {
   })
 })
 
+describe("inputCommands validation", () => {
+  test("non-finite coordinates become 0", () => {
+    expect(inputCommands("android", "e1", { kind: "tap", x: Number.NaN, y: Number.POSITIVE_INFINITY })).toEqual([
+      { tool: "adb", args: ["-s", "e1", "shell", "input", "tap", "0", "0"] },
+    ])
+    expect(
+      inputCommands("ios", "S", { kind: "swipe", x: Number.NEGATIVE_INFINITY, y: 3, toX: Number.NaN, toY: 4.6 }),
+    ).toEqual([{ tool: "idb", args: ["ui", "swipe", "--udid", "S", "0", "3", "0", "5"] }])
+  })
+
+  test("refuses unknown kinds, keys and non-string text on both platforms", () => {
+    const bad: unknown[] = [
+      { kind: "scroll", x: 1, y: 2 },
+      { kind: "key", key: "menu" },
+      { kind: "key" },
+      { kind: "text", text: 5 },
+      { kind: "text" },
+      null,
+      "tap",
+    ]
+    for (const platform of ["android", "ios"] as const)
+      for (const input of bad)
+        expect(() => inputCommands(platform, "d", input as Parameters<typeof inputCommands>[2])).toThrow(
+          /Device (input|keys|text)/,
+        )
+  })
+})
+
 describe("sdkRootCandidates", () => {
   test("reads both variables in order and skips empty ones", () => {
     expect(
