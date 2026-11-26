@@ -107,7 +107,7 @@ const event = (seq: number, text: string) =>
     seq,
     type: "test.message.1",
     data: { text },
-  }) as EventV2.SerializedEvent
+  }) as unknown as EventV2.SerializedEvent
 
 const bytesOf = async (directory: string): Promise<Buffer[]> =>
   (
@@ -192,7 +192,10 @@ describe("P4 folder store", () => {
     expect(read!.generation).toBe(second.generation)
     await store.put("threads/a/segment-0", text("s"))
     await store.put("threads/b/manifest", text("other"))
-    expect((await store.list("threads/a/")).map((item) => item.name)).toEqual(["threads/a/manifest", "threads/a/segment-0"])
+    expect((await store.list("threads/a/")).map((item) => item.name)).toEqual([
+      "threads/a/manifest",
+      "threads/a/segment-0",
+    ])
     expect((await store.list("threads/a/"))[0].size).toBe(3)
     await store.remove("threads/a/segment-0")
     await store.remove("threads/a/segment-0")
@@ -214,11 +217,15 @@ describe("P4 Cloud Storage store", () => {
       const store = ThreadSync.gcsStore({ bucket: "my-bucket", endpoint: gcs.endpoint, token: async () => gcs.token })
       expect(await store.get("threads/a/manifest")).toBeUndefined()
       const first = await store.put("threads/a/manifest", new Uint8Array([1, 2, 3]), { ifGeneration: null })
-      expect(await rejected(store.put("threads/a/manifest", new Uint8Array([9]), { ifGeneration: null }))).toBe("conflict")
+      expect(await rejected(store.put("threads/a/manifest", new Uint8Array([9]), { ifGeneration: null }))).toBe(
+        "conflict",
+      )
       const read = await store.get("threads/a/manifest")
       expect([...read!.bytes]).toEqual([1, 2, 3])
       expect(read!.generation).toBe(first.generation)
-      expect(await store.list("threads/")).toEqual([{ name: "threads/a/manifest", generation: first.generation, size: 3 }])
+      expect(await store.list("threads/")).toEqual([
+        { name: "threads/a/manifest", generation: first.generation, size: 3 },
+      ])
       await store.remove("threads/a/manifest")
       expect(await store.get("threads/a/manifest")).toBeUndefined()
       expect(gcs.requests.length).toBeGreaterThan(4)

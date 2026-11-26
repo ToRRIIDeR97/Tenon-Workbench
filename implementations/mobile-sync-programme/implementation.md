@@ -328,7 +328,7 @@ ThreadSync.make(input: {
 `ThreadSync.SyncError` is an error with a string `code`. The promise functions reject with it (or throw
 it, for `keyFromPhrase`); the engine's effects fail with it in the error channel, not as a defect. Codes:
 `invalid_key`, `invalid_segment`, `unreadable`, `invalid_name`, `conflict`, `unauthorized`,
-`unavailable`, `not_found`, `not_owner`, `diverged`.
+`unavailable`, `not_found`, `not_owner`, `diverged`, `foreign_path`.
 
 ### Acceptance criteria
 
@@ -358,14 +358,17 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   `GET /storage/v1/b/<bucket>/o?prefix=<prefix>` following `nextPageToken`, and
   `DELETE /storage/v1/b/<bucket>/o/<name>` (404 is fine). Object names in the path are percent-encoded,
   slashes included. With `prefix`, objects are stored under it and names come back without it. 401 and
-  403 are `unauthorized`; a network failure or a 5xx after the store's own retries is `unavailable`.
+  403 are `unauthorized`; a network failure or a 5xx after the store's own retries is `unavailable`. The
+  retries of one call take at most two seconds in total.
 - **AC-P4-6 Push and pull.** `push` uploads the events the store does not have yet as a sealed segment
   and returns how many (`0` and no write when up to date) and the head sequence; the first push makes
   this machine the owner. `pull` applies the events this computer lacks through the event log's replay,
   into a database that has never seen the thread or its project, and returns how many; afterwards the
   thread reads through `SessionStore` like a local one and can be prompted. Both work across new engine
   instances and reopened databases. A thread with no local events (`push`) or no stored copy (`pull`) is
-  `not_found`; a wrong key is `unreadable` and changes nothing locally.
+  `not_found`; a wrong key is `unreadable` and changes nothing locally. A thread whose folder is a path this
+  operating system cannot hold (a Windows drive path on macOS) fails with `foreign_path` before anything
+  local changes; mapping it to a local folder is P5's job.
 - **AC-P4-7 Ownership.** Only the owner pushes; anyone else gets `not_owner`. `takeOver` pulls to the
   head, then makes this machine the owner with a conditional write, and is a no-op for the owner. If
   this computer's log holds an event at a sequence where the stored thread has a different one, `pull`

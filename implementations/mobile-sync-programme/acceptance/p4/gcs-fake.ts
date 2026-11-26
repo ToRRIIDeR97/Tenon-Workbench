@@ -23,10 +23,12 @@ export function fakeGcs(options: { pageSize?: number; token?: string } = {}) {
       const upload = url.pathname.match(/^\/upload\/storage\/v1\/b\/([^/]+)\/o$/)
       if (upload && request.method === "POST") {
         const name = url.searchParams.get("name")
-        if (!name || url.searchParams.get("uploadType") !== "media") return refuse(400, "media upload with a name expected")
+        if (!name || url.searchParams.get("uploadType") !== "media")
+          return refuse(400, "media upload with a name expected")
         const key = `${upload[1]}/${name}`
         const wanted = url.searchParams.get("ifGenerationMatch")
-        if (wanted !== null && Number(wanted) !== (objects.get(key)?.generation ?? 0)) return refuse(412, "conditionNotMet")
+        if (wanted !== null && Number(wanted) !== (objects.get(key)?.generation ?? 0))
+          return refuse(412, "conditionNotMet")
         const bytes = new Uint8Array(await request.arrayBuffer())
         state.generation += 1
         objects.set(key, { bytes, generation: state.generation })
