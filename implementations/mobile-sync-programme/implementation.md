@@ -58,7 +58,7 @@ starts; this section fixes their outcome, scope and order now.
 | P1 | A feature test matrix and a recorded baseline of every existing suite | `docs/records/feature-test-matrix.md`, `docs/records/test-baseline-2026-11-26.md`, `docs/README.md` link | independent | P2 |
 | P2 | Device input, SDK discovery and boot feedback are correct on both platforms | `tenon/packages/desktop/src/main/device.ts`, `device.test.ts`, `tenon/packages/desktop/src/main/browser.ts` (device tool branch only), `tenon/packages/core/src/harness/browser-tools.ts` (`device_*` descriptions only), `tenon/packages/app/src/pages/session/device-tab.tsx`, new `device-boot.ts` and its test beside it, `tenon/packages/app/src/i18n/*`, the Device tab paragraph of `docs/architecture/README.md` | independent | P1 |
 | P3 | Every `gap` row of the matrix has an automated test or a recorded manual run; bugs found are fixed or filed | new specs under `tenon/packages/app/e2e/`, unit tests beside code, small fixes | P1 | P4 |
-| P4 | Thread sync engine: export, encrypt, upload, download, replay and ownership transfer behind a storage interface with a local-folder store and a Cloud Storage store | new `tenon/packages/core/src/thread-sync/`, server routes, docs | independent | P3 |
+| P4 | Thread sync engine: export, encrypt, upload, download, replay and ownership transfer behind a storage interface with a local-folder store and a Cloud Storage store | new `tenon/packages/core/src/thread-sync.ts` and `src/thread-sync/`, `tenon/packages/core/test/thread-sync/`, `docs/architecture/README.md` (new section), `docs/architecture/uml.md`, `docs/security/threat-model.md` (new section), `docs/diagrams/` (new file) | independent | P3 |
 | P5 | Thread sync in the app: Settings page, per-thread state, "Continue here" | `tenon/packages/app`, `tenon/packages/desktop/src/main` | P4 | P6 |
 | P6 | Remote access: pairing by QR code, per-device tokens that can be revoked, a scope that leaves out terminals and computer use | server auth, `tenon/packages/desktop/src/main`, Settings › Servers | independent | P5 |
 | P7 | Phone layout of the renderer below 600 px | `tenon/packages/app`, `tenon/packages/ui` | P6 | alone |
@@ -194,6 +194,132 @@ Invariants: `ipc.ts` handlers stay thin; no shell string is built (arguments sta
 | AC-P2-6, 7 | `acceptance/p2-device-boot.test.ts` | `verification/p2-device-boot.test.ts` (boundaries) |
 | AC-P2-8, 9 | diff review | diff review, `bun run typecheck`, `bun run lint` |
 | Manual | | the orchestrator drives an Android emulator through the Device tab after the SDK install; iOS stays unverified |
+
+## P4: thread sync engine
+
+A library in `tenon/packages/core` that moves one thread's event log between computers through an
+object store. It has no server route, no setting and no UI; P5 adds those, with the Google sign-in that
+supplies the Cloud Storage token.
+
+Facts it builds on (verified on the base commit): both thread formats write durable events to the
+`event` table with one sequence per thread (`aggregate_id` is the session ID); `EventV2.replayAll`
+rebuilds the session, messages and inputs in another database and stops when history differs;
+replaying into a database without the thread's project row fails, so the engine must create what the
+replay needs.
+
+### Contract
+
+`tenon/packages/core/src/thread-sync.ts` exports the namespace `ThreadSync` (the repository's
+self-export pattern, importable as `@tenon/core/thread-sync`); supporting files go in
+`tenon/packages/core/src/thread-sync/`.
+
+```ts
+ThreadSync.generateKey(): { key: Uint8Array; phrase: string }
+ThreadSync.keyFromPhrase(phrase: string): Uint8Array
+
+ThreadSync.seal(input: { key: Uint8Array; sessionID: string; previous: string | null; events: ReadonlyArray<EventV2.SerializedEvent> }):
+  Promise<{ bytes: Uint8Array; hash: string; first: number; last: number }>
+ThreadSync.open(input: { key: Uint8Array; sessionID: string; previous: string | null; bytes: Uint8Array }):
+  Promise<{ events: EventV2.SerializedEvent[]; hash: string; first: number; last: number }>
+
+type ThreadSync.Store = {
+  get(name: string): Promise<{ bytes: Uint8Array; generation: string } | undefined>
+  put(name: string, bytes: Uint8Array, options?: { ifGeneration?: string | null }): Promise<{ generation: string }>
+  list(prefix: string): Promise<Array<{ name: string; generation: string; size: number }>>
+  remove(name: string): Promise<void>
+}
+ThreadSync.folderStore(directory: string): ThreadSync.Store
+ThreadSync.gcsStore(input: { bucket: string; token: () => Promise<string>; endpoint?: string; prefix?: string }): ThreadSync.Store
+
+ThreadSync.make(input: {
+  db: Database.Interface["db"]; events: EventV2.Interface; store: ThreadSync.Store
+  key: Uint8Array; machine: { id: string; name: string }
+}): {
+  push(sessionID: string): Effect.Effect<{ uploaded: number; head: number }, ThreadSync.SyncError>
+  pull(sessionID: string): Effect.Effect<{ applied: number; head: number }, ThreadSync.SyncError>
+  takeOver(sessionID: string): Effect.Effect<{ applied: number; head: number }, ThreadSync.SyncError>
+  list(): Effect.Effect<Array<{ sessionID: string; head: number; owner: { id: string; name: string }
+    updatedAt: number; directory: string; title: string }>, ThreadSync.SyncError>
+  remove(sessionID: string): Effect.Effect<void, ThreadSync.SyncError>
+}
+```
+
+`ThreadSync.SyncError` is an error with a string `code`. The promise functions reject with it (or throw
+it, for `keyFromPhrase`); the engine's effects fail with it in the error channel, not as a defect. Codes:
+`invalid_key`, `invalid_segment`, `unreadable`, `invalid_name`, `conflict`, `unauthorized`,
+`unavailable`, `not_found`, `not_owner`, `diverged`.
+
+### Acceptance criteria
+
+- **AC-P4-1 Keys.** A generated key is 32 random bytes; its phrase gives the same key back, also with
+  surrounding white space; anything else is `invalid_key`. A key that is not 32 bytes is `invalid_key`
+  wherever it is used.
+- **AC-P4-2 Segments.** `seal` encrypts a run of one thread's events with authenticated encryption and a
+  fresh nonce, so two seals of the same input differ and no event text is readable in the bytes. `hash`
+  is the lower-case hex SHA-256 of `bytes`; `first` and `last` are the first and last sequence numbers.
+  `open` returns the same events. A segment is bound to its thread and to `previous` (the hash of the
+  segment before it, `null` for the first), so segments open only in order. Events must be non-empty,
+  of the given thread and of consecutive sequence numbers, else `invalid_segment`.
+- **AC-P4-3 Unreadable.** `open` fails with `unreadable` for another key, a changed, truncated or empty
+  input, another `sessionID` or another `previous`.
+- **AC-P4-4 Stores.** `get` of a missing name is `undefined`. `put` with `ifGeneration: null` writes only
+  when the name is free, with a generation only when that is the current generation, and without the
+  option always; a failed condition is `conflict`. Every write gives a new generation. `list` returns the
+  names under a prefix sorted by name with their generation and byte size. `remove` of a missing name
+  succeeds. A name is one or more `/`-separated parts of `A-Z a-z 0-9 . _ -`, none of them `.` or `..`;
+  anything else is `invalid_name` on every method (for `list`, the prefix may end in `/`) and touches
+  nothing. Two `folderStore`s on one directory see each other's writes.
+- **AC-P4-5 Cloud Storage.** `gcsStore` uses the Cloud Storage JSON API at `endpoint` (default
+  `https://storage.googleapis.com`) with `Authorization: Bearer <token>` from `token()` on every request:
+  `GET /storage/v1/b/<bucket>/o/<name>?alt=media` (generation from the `x-goog-generation` header, 404 is
+  `undefined`), `POST /upload/storage/v1/b/<bucket>/o?uploadType=media&name=<name>` with
+  `ifGenerationMatch=<generation>` (`0` for "must not exist"; 412 is `conflict`),
+  `GET /storage/v1/b/<bucket>/o?prefix=<prefix>` following `nextPageToken`, and
+  `DELETE /storage/v1/b/<bucket>/o/<name>` (404 is fine). Object names in the path are percent-encoded,
+  slashes included. With `prefix`, objects are stored under it and names come back without it. 401 and
+  403 are `unauthorized`; a network failure or a 5xx after the store's own retries is `unavailable`.
+- **AC-P4-6 Push and pull.** `push` uploads the events the store does not have yet as a sealed segment
+  and returns how many (`0` and no write when up to date) and the head sequence; the first push makes
+  this machine the owner. `pull` applies the events this computer lacks through the event log's replay,
+  into a database that has never seen the thread or its project, and returns how many; afterwards the
+  thread reads through `SessionStore` like a local one and can be prompted. Both work across new engine
+  instances and reopened databases. A thread with no local events (`push`) or no stored copy (`pull`) is
+  `not_found`; a wrong key is `unreadable` and changes nothing locally.
+- **AC-P4-7 Ownership.** Only the owner pushes; anyone else gets `not_owner`. `takeOver` pulls to the
+  head, then makes this machine the owner with a conditional write, and is a no-op for the owner. If
+  this computer's log holds an event at a sequence where the stored thread has a different one, `pull`
+  and `takeOver` fail with `diverged` and the local log and ownership stay as they were.
+- **AC-P4-8 At rest.** Everything the engine stores is under `threads/<sessionID>/`. Names hold only the
+  session ID and sequence numbers or hashes. All contents are sealed with the key, the manifest included
+  (owner, title, directory), so no prompt text, path, machine ID or machine name is readable in the
+  store. Every `put` the engine makes carries `ifGeneration` (`null` for a new object).
+- **AC-P4-9 List and remove.** `list` returns every stored thread, newest `updatedAt` first, where
+  `updatedAt` is the time in epoch milliseconds of the last push that uploaded events, `directory` is the
+  thread's folder on the computer that pushed it and `title` its title. `remove` deletes the stored copy
+  (never the local thread) and is `not_owner` for anyone but the owner.
+- **AC-P4-10 Documentation.** `docs/architecture/README.md` gains a "Thread sync" section with an SVG in
+  `docs/diagrams/`; `docs/architecture/uml.md` gains the subsystem in its coverage index;
+  `docs/security/threat-model.md` gains a section saying what is encrypted, what a bucket reader still
+  learns (session IDs, sizes, timing, count), where the key is expected to live and what losing it means.
+  No source comments. Nothing outside the P4 edit scope changes.
+
+Known limit, recorded rather than solved here: files an event only points to (the tool-output store,
+image blobs) are not synced. P5 decides what to do about them.
+
+The acceptance tests import `effect`, which resolves only inside the package. They are kept in
+`implementations/mobile-sync-programme/acceptance/p4/` and the implementor copies both files unchanged
+to `tenon/packages/core/test/thread-sync/` as its first step and commits them there.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P4-1 to 8 | `acceptance/p4/acceptance.test.ts` (main flows) | `verification/p4/verification.test.ts` (chains, bad segments, unsafe names, paging, error codes, restart, divergence, conditional writes, leaks through Cloud Storage) |
+| AC-P4-9 | stated here | `verification/p4/verification.test.ts` |
+| AC-P4-10 | diff review | diff review |
+
+Commands, from `tenon/packages/core`: `bun test test/thread-sync` and, in the verifier's checkout after
+copying `verification.test.ts` and `verification-gcs-fake.ts` into `test/thread-sync/`, the same command.
+Standard checks: `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test:engine`.
+Baseline: on the base commit the acceptance file fails at the import of `../../src/thread-sync`.
 
 ## Verification commands
 
