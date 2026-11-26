@@ -15,6 +15,8 @@ Start with the root [README](../README.md) for setup and commands, and
 | [release-operations.md](release-operations.md) | Electron candidate packaging and verification limits |
 | [opencode-upstream.md](opencode-upstream.md) | Pinned OpenCode fork revision and change policy |
 | [records/](records/) | Dated cleanup and audit records for the Electron app |
+| [records/feature-test-matrix.md](records/feature-test-matrix.md) | Every feature and how it is tested: covered, gap, manual or blocked |
+| [records/test-baseline-2026-11-26.md](records/test-baseline-2026-11-26.md) | Baseline run of every test suite on 2026-11-26 |
 | [archive/tauri/](archive/tauri/README.md) | Retired Tauri app: plans, checkpoints, handovers, contracts, and evidence |
 
 ADR-004 and ADR-006 are superseded by ADR-010. ADR-005 and ADR-009 are
