@@ -359,12 +359,14 @@ The setup dialog ([ADR-013](../adr/ADR-013-built-in-harness-setup.md),
     `harness-credentials.json` (atomic write) in the data folder, like
     provider keys in `auth.json`. The file is private on both platforms: mode
     `0600` on macOS and Linux; on Windows, before any key is written, the
-    temporary file's access list is cut to the signed-in account alone
-    (`%SystemRoot%\System32\icacls.exe <file> /inheritance:r /grant:r
-    <DOMAIN>\<user>:F`, arguments passed as an array, no shell). If `icacls`
-    fails, the temporary file is removed and the save fails with
-    `write-failed`, so a key is never left in a file other accounts can read
-    (`writeAtomic` in `core/src/harness/setup.ts`).
+    temporary file's access list is cut to the signed-in account alone. The
+    account's SID comes from `%SystemRoot%\System32\whoami.exe /user /fo csv
+    /nh` (not from environment variables, which a process can change), then
+    `%SystemRoot%\System32\icacls.exe <file> /inheritance:r /grant:r *<SID>:F`
+    runs with its arguments as an array, no shell. If either fails, the
+    temporary file is removed and the save fails with `write-failed`, so a key
+    is never left in a file other accounts can read (`writeAtomic` in
+    `core/src/harness/setup.ts`).
   - Claude Code also gets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` with a stored
     key, so the commands it runs don't inherit the key. OpenCode has no such
     switch; its commands can still read a stored key.

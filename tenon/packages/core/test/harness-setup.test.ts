@@ -10,22 +10,24 @@ import { HarnessSetup } from "@tenon/core/harness/setup"
 
 const temp = () => fs.mkdtemp(path.join(os.tmpdir(), "harness-setup-"))
 
-const currentAccount = () => HarnessSetup.windowsAccountName(process.env, os.userInfo().username)
-
 const accessList = async (file: string) => {
-  const { stdout } = await promisify(execFile)(HarnessSetup.icaclsPath(process.env), [file], { windowsHide: true })
+  const { stdout } = await promisify(execFile)(HarnessSetup.windowsTool(process.env, "icacls.exe"), [file], {
+    windowsHide: true,
+  })
   return stdout
     .replace(file, "")
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => line.trim().toLowerCase())
     .filter((line) => line.includes(":("))
 }
 
 const protection = async (file: string) =>
   process.platform === "win32" ? { access: await accessList(file) } : { mode: (await fs.stat(file)).mode & 0o777 }
 
-const privateProtection = () =>
-  process.platform === "win32" ? { access: [`${currentAccount()}:(F)`] } : { mode: 0o600 }
+const privateProtection = async () =>
+  process.platform === "win32"
+    ? { access: [`${(await HarnessSetup.currentWindowsAccount()).name.toLowerCase()}:(f)`] }
+    : { mode: 0o600 }
 
 describe("harness setup", () => {
   test("covers exactly the built-in external harnesses", () => {
@@ -47,7 +49,7 @@ describe("harness setup", () => {
       "claude-code": { option: "anthropic", key: "sk-1" },
       "opencode-acp": { option: "openai", key: "sk-2" },
     })
-    expect(await protection(path.join(dir, HarnessSetup.fileName))).toEqual(privateProtection())
+    expect(await protection(path.join(dir, HarnessSetup.fileName))).toEqual(await privateProtection())
     await Effect.runPromise(HarnessSetup.writeKey(dir, "claude-code", undefined))
     expect(await Effect.runPromise(HarnessSetup.readKeys(dir))).toEqual({
       "opencode-acp": { option: "openai", key: "sk-2" },
@@ -57,16 +59,14 @@ describe("harness setup", () => {
 
   test("restricts the key file on Windows to the signed-in account with icacls arguments, not a shell line", () => {
     const file = path.win32.join("C:\\Users\\ada\\AppData\\Roaming\\Tenon", HarnessSetup.fileName)
-    expect(HarnessSetup.icaclsPath({ SystemRoot: "D:\\Windows" })).toBe("D:\\Windows\\System32\\icacls.exe")
-    expect(HarnessSetup.icaclsPath({})).toBe("C:\\Windows\\System32\\icacls.exe")
-    expect(HarnessSetup.windowsAccountName({ USERDOMAIN: "LAPTOP" }, "ada")).toBe("LAPTOP\\ada")
-    expect(HarnessSetup.windowsAccountName({}, "ada")).toBe("ada")
-    expect(HarnessSetup.privateAccessArgs(file, "LAPTOP\\ada")).toEqual([
-      file,
-      "/inheritance:r",
-      "/grant:r",
-      "LAPTOP\\ada:F",
-    ])
+    const sid = "S-1-5-21-1004336348-1177238915-682003330-1001"
+    expect(HarnessSetup.windowsTool({ SystemRoot: "D:\\Windows" }, "icacls.exe")).toBe(
+      "D:\\Windows\\System32\\icacls.exe",
+    )
+    expect(HarnessSetup.windowsTool({}, "whoami.exe")).toBe("C:\\Windows\\System32\\whoami.exe")
+    expect(HarnessSetup.parseWhoami(`"laptop\\ada","${sid}"\r\n`)).toEqual({ name: "laptop\\ada", sid })
+    expect(HarnessSetup.parseWhoami("USER INFORMATION\r\n")).toBeUndefined()
+    expect(HarnessSetup.privateAccessArgs(file, sid)).toEqual([file, "/inheritance:r", "/grant:r", `*${sid}:F`])
   })
 
   test("turns a stored key into the harness's environment variable", () => {

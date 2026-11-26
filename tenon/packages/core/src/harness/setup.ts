@@ -202,18 +202,32 @@ async function writeAtomic(file: string, content: string) {
   }
 }
 
-export const windowsAccountName = (env: Readonly<Record<string, string | undefined>>, username: string) =>
-  env.USERDOMAIN ? `${env.USERDOMAIN}\\${username}` : username
+export const windowsTool = (env: Readonly<Record<string, string | undefined>>, name: "icacls.exe" | "whoami.exe") =>
+  path.win32.join(env.SystemRoot ?? env.windir ?? "C:\\Windows", "System32", name)
 
-export const icaclsPath = (env: Readonly<Record<string, string | undefined>>) =>
-  path.win32.join(env.SystemRoot ?? env.windir ?? "C:\\Windows", "System32", "icacls.exe")
+export const parseWhoami = (stdout: string) => {
+  const match = /^"(.+)","(S-1-[\d-]+)"$/.exec(stdout.trim())
+  if (!match) return undefined
+  return { name: match[1]!, sid: match[2]! }
+}
 
-export const privateAccessArgs = (file: string, account: string) => [file, "/inheritance:r", "/grant:r", `${account}:F`]
+export const privateAccessArgs = (file: string, sid: string) => [file, "/inheritance:r", "/grant:r", `*${sid}:F`]
+
+export const currentWindowsAccount = async () => {
+  const { stdout } = await promisify(execFile)(windowsTool(process.env, "whoami.exe"), ["/user", "/fo", "csv", "/nh"], {
+    windowsHide: true,
+  })
+  const account = parseWhoami(stdout)
+  if (!account) throw new Error("Could not read the signed-in Windows account")
+  return account
+}
 
 async function restrictToCurrentUser(file: string) {
   if (process.platform !== "win32") return
-  const account = windowsAccountName(process.env, os.userInfo().username)
-  await promisify(execFile)(icaclsPath(process.env), privateAccessArgs(file, account), { windowsHide: true })
+  const account = await currentWindowsAccount()
+  await promisify(execFile)(windowsTool(process.env, "icacls.exe"), privateAccessArgs(file, account.sid), {
+    windowsHide: true,
+  })
 }
 
 async function readJson(file: string) {
