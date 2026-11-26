@@ -6,11 +6,15 @@ import {
   foldDuration,
   hasVisibleSteps,
   reasoningTopic,
+  sameDiffs,
+  sameFileDiff,
+  stepKeys,
   subagentLanes,
   tickerStep,
   toolDetail,
   turnDuration,
 } from "./turn-steps-summary"
+import { editDiffs } from "./step-diff"
 
 const tool = (
   id: string,
@@ -166,5 +170,53 @@ describe("blockedNote", () => {
 
   test("leaves a call the user declined alone", () => {
     expect(blockedNote(failed())).toBeUndefined()
+  })
+})
+
+describe("stepKeys", () => {
+  test("keys each step by its part, so an earlier step that appears keeps the later ones on their rows", () => {
+    expect(stepKeys([tool("shell", "running")])).toEqual(["shell"])
+    expect(stepKeys([tool("question", "error"), tool("shell", "error")])).toEqual(["question", "shell"])
+    expect(stepKeys([undefined, tool("shell", "completed")])).toEqual(["shell"])
+  })
+})
+
+describe("sameDiffs", () => {
+  const edit = (additions: number, after = "export const value = 2\n") =>
+    editDiffs({
+      id: "prt_edit",
+      type: "tool",
+      tool: "edit",
+      state: {
+        status: "completed",
+        input: { filePath: "src/a.ts" },
+        output: "",
+        title: "src/a.ts",
+        metadata: {
+          filediff: { file: "src/a.ts", additions, deletions: 1, before: "export const value = 1\n", after },
+        },
+        time: { start: 0, end: 1 },
+      },
+    } as unknown as ToolPart)
+
+  test("treats a rebuilt but unchanged diff as the same, so its view is kept", () => {
+    const first = edit(1)
+    const again = edit(1)
+    expect(again[0]).not.toBe(first[0])
+    expect(sameDiffs(first, again)).toBe(true)
+  })
+
+  test("sees a changed count, while the file view underneath stays the same", () => {
+    const first = edit(1)
+    const counted = edit(2)
+    expect(sameDiffs(first, counted)).toBe(false)
+    expect(sameFileDiff(first[0].fileDiff, counted[0].fileDiff)).toBe(true)
+  })
+
+  test("sees changed content", () => {
+    const first = edit(1)
+    const changed = edit(1, "export const value = 3\n")
+    expect(sameDiffs(first, changed)).toBe(false)
+    expect(sameFileDiff(first[0].fileDiff, changed[0].fileDiff)).toBe(false)
   })
 })

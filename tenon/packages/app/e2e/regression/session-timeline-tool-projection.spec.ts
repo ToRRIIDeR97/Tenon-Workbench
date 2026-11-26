@@ -72,6 +72,9 @@ test("transitions shell and question through running error outcomes", async ({ p
   const shell = turnStep(page, shellID)
   await expect(shell.row).toHaveAttribute("data-running", "")
   await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toHaveCount(0)
+  await shell.item.evaluate((element) => {
+    ;(element as HTMLElement).dataset.regressionMarker = "kept"
+  })
   await timeline.send(
     partUpdated(toolPart(shellID, "bash", "error", { command: "exit 1" }, { error: "Command exited 1" })),
     180,
@@ -86,6 +89,11 @@ test("transitions shell and question through running error outcomes", async ({ p
   const summary = page.locator('[data-timeline-row="TurnSteps"] [data-component="turn-steps-summary"]')
   await expect(summary.locator('[data-slot="turn-steps-failed"]')).toHaveText("1 step failed")
   await expect(shell.row).not.toHaveAttribute("data-running", "")
+  await expect(shell.item).toHaveAttribute("data-regression-marker", "kept")
+  const order = await page
+    .locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')
+    .evaluateAll((items) => items.map((item) => item.getAttribute("data-timeline-part-id")))
+  expect(order).toEqual([questionID, shellID])
   await shell.row.click()
   await expect(shell.detail).toHaveText("Command exited 1")
   const question = turnStep(page, questionID)

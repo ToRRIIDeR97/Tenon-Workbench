@@ -19,6 +19,7 @@ import {
   type TurnSteps,
 } from "@tenon/session-ui/step-kind"
 import { readPartText } from "@tenon/session-ui/message-part-text"
+import type { ViewDiff } from "@tenon/session-ui/session-diff"
 import { useData } from "@tenon/session-ui/context"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
@@ -186,6 +187,33 @@ export function toolDetail(part: ToolPart) {
   return output || undefined
 }
 
+export function stepKeys(parts: readonly (Part | undefined)[]) {
+  return parts.flatMap((part) => (part ? [part.id] : []))
+}
+
+export function sameDiffs(a: readonly ViewDiff[], b: readonly ViewDiff[]) {
+  return a.length === b.length && a.every((diff, index) => sameDiff(diff, b[index]!))
+}
+
+function sameDiff(a: ViewDiff, b: ViewDiff) {
+  if (a.file !== b.file || a.additions !== b.additions || a.deletions !== b.deletions || a.status !== b.status)
+    return false
+  return sameFileDiff(a.fileDiff, b.fileDiff)
+}
+
+export function sameFileDiff(a: ViewDiff["fileDiff"], b: ViewDiff["fileDiff"]) {
+  if (a === b) return true
+  return (
+    a.name === b.name &&
+    a.hunks.length === b.hunks.length &&
+    a.additionLines.join("") === b.additionLines.join("") &&
+    a.deletionLines.join("") === b.deletionLines.join("")
+  )
+}
+
+const toolOf = (part: Part | undefined) => (part?.type === "tool" ? part : undefined)
+const reasoningOf = (part: Part | undefined) => (part?.type === "reasoning" ? part : undefined)
+
 export { subagentLanes, type LaneStep } from "./subagent-lane"
 
 export function formatTurnDuration(language: ReturnType<typeof useLanguage>, ms: number | undefined) {
@@ -329,12 +357,12 @@ export function TurnStepsSummary(props: {
     return ms >= 1000 ? formatTurnDuration(language, ms) : undefined
   }
 
-  const stepRow = (part: Part, index: number) => (
+  const stepRow = (part: () => Part | undefined, index: () => number) => (
     <>
-      <Show when={part.type === "tool" ? part : undefined}>
+      <Show when={toolOf(part())}>
         {(tool) => {
           const detail = createMemo(() => toolDetail(tool()))
-          const diffs = createMemo(() => editDiffs(tool()))
+          const diffs = createMemo(() => editDiffs(tool()), [], { equals: sameDiffs })
           const expandable = () => diffs().length > 0 || !!detail()
           const open = () => body.expanded[tool().id] ?? (expandable() && startsOpen(tool()))
           const mounted = () => body.seen[tool().id] || open()
@@ -344,7 +372,7 @@ export function TurnStepsSummary(props: {
               data-slot="turn-steps-item"
               data-timeline-part-id={tool().id}
               data-new={fresh()}
-              style={{ "--i": index }}
+              style={{ "--i": index() }}
               class="flex min-w-0 flex-col"
             >
               <button
@@ -420,21 +448,24 @@ export function TurnStepsSummary(props: {
                       data-slot="turn-steps-detail"
                       class="mt-1 max-h-96 rounded-[10px] bg-v2-background-bg-base"
                     >
-                      <For each={diffs()}>
-                        {(diff) => (
-                          <div data-slot="turn-steps-diff" class="flex min-w-0 flex-col">
-                            <Show when={diffs().length > 1}>
-                              <div class="flex min-w-0 items-center gap-2 px-3 pt-2 text-[12px] text-v2-text-text-muted">
-                                <span class="min-w-0 truncate font-mono" title={fullTitle(diff.file)}>
-                                  {shortTarget(diff.file)}
-                                </span>
-                                <DiffChanges changes={diff} class="shrink-0" />
-                              </div>
-                            </Show>
-                            <Dynamic component={fileComponent} mode="diff" fileDiff={diff.fileDiff} />
-                          </div>
-                        )}
-                      </For>
+                      <Index each={diffs()}>
+                        {(diff) => {
+                          const fileDiff = createMemo(() => diff().fileDiff, undefined, { equals: sameFileDiff })
+                          return (
+                            <div data-slot="turn-steps-diff" class="flex min-w-0 flex-col">
+                              <Show when={diffs().length > 1}>
+                                <div class="flex min-w-0 items-center gap-2 px-3 pt-2 text-[12px] text-v2-text-text-muted">
+                                  <span class="min-w-0 truncate font-mono" title={fullTitle(diff().file)}>
+                                    {shortTarget(diff().file)}
+                                  </span>
+                                  <DiffChanges changes={diff()} class="shrink-0" />
+                                </div>
+                              </Show>
+                              <Dynamic component={fileComponent} mode="diff" fileDiff={fileDiff()} />
+                            </div>
+                          )
+                        }}
+                      </Index>
                     </ScrollView>
                   </div>
                 </div>
@@ -459,7 +490,7 @@ export function TurnStepsSummary(props: {
           )
         }}
       </Show>
-      <Show when={part.type === "reasoning" ? part : undefined}>
+      <Show when={reasoningOf(part())}>
         {(note) => {
           const text = () => readPartText(data.store.part_text_accum_delta, note())
           const open = () => !!body.expanded[note().id]
@@ -469,7 +500,7 @@ export function TurnStepsSummary(props: {
                 data-slot="turn-steps-note"
                 data-new={fresh()}
                 data-running={isThinking(note()) ? "" : undefined}
-                style={{ "--i": index }}
+                style={{ "--i": index() }}
                 role="button"
                 tabIndex={shown() ? 0 : -1}
                 aria-expanded={open()}
@@ -495,14 +526,14 @@ export function TurnStepsSummary(props: {
       </Show>
     </>
   )
-  const groupRow = (run: () => ToolPart[], index: number) => {
+  const groupRow = (run: () => ToolPart[], index: () => number) => {
     const id = () => `group:${run()[0]?.id}`
     const open = () => !!body.expanded[id()]
     const kind = () => stepOf(run()[0]).kind
     const diffs = createMemo(() => run().flatMap(editDiffs))
     const targets = createMemo(() => run().flatMap((part) => stepOf(part).target ?? []))
     return (
-      <div data-slot="turn-steps-item" data-new={fresh()} style={{ "--i": index }} class="flex min-w-0 flex-col">
+      <div data-slot="turn-steps-item" data-new={fresh()} style={{ "--i": index() }} class="flex min-w-0 flex-col">
         <button
           type="button"
           data-slot="turn-steps-row"
@@ -542,7 +573,9 @@ export function TurnStepsSummary(props: {
           <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
             <div>
               <div class="mt-1 flex flex-col gap-1 ps-4">
-                <Index each={run()}>{(part, at) => stepRow(part(), at)}</Index>
+                <For each={stepKeys(run())}>
+                  {(key, at) => stepRow(() => run().find((part) => part.id === key), at)}
+                </For>
               </div>
             </div>
           </div>
@@ -559,6 +592,7 @@ export function TurnStepsSummary(props: {
       return list
     }, []),
   )
+  const runByKey = createMemo(() => new Map(runs().map((run) => [run[0]?.id, run] as const)))
 
   return (
     <div
@@ -752,13 +786,16 @@ export function TurnStepsSummary(props: {
         <div>
           <Show when={body.mounted}>
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
-              <Index each={runs()}>
-                {(run, index) => (
-                  <Show when={run().length > 1} fallback={untrack(() => stepRow(run()[0], index))}>
-                    {untrack(() => groupRow(() => run() as ToolPart[], index))}
-                  </Show>
-                )}
-              </Index>
+              <For each={stepKeys(runs().map((run) => run[0]))}>
+                {(key, index) => {
+                  const run = () => runByKey().get(key) ?? []
+                  return (
+                    <Show when={run().length > 1} fallback={untrack(() => stepRow(() => run()[0], index))}>
+                      {untrack(() => groupRow(() => run() as ToolPart[], index))}
+                    </Show>
+                  )
+                }}
+              </For>
             </div>
           </Show>
         </div>
