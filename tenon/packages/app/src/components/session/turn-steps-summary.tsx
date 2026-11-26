@@ -187,6 +187,21 @@ export function toolDetail(part: ToolPart) {
   return output || undefined
 }
 
+export type RunKeys = { keys: string[]; byPart: ReadonlyMap<string, string> }
+
+export function assignRunKeys(runs: readonly (readonly Part[])[], previous: ReadonlyMap<string, string>): RunKeys {
+  const used = new Set<string>()
+  const keys = runs.map((run) => {
+    const inherited = run.map((part) => previous.get(part.id)).find((key) => key !== undefined && !used.has(key))
+    const own = run.map((part) => part.id).find((id) => !used.has(id))
+    const key = inherited ?? own ?? `${run[0]?.id ?? "run"}:${used.size}`
+    used.add(key)
+    return key
+  })
+  const byPart = new Map(runs.flatMap((run, index) => run.map((part) => [part.id, keys[index]!] as const)))
+  return { keys, byPart }
+}
+
 export function stepKeys(parts: readonly (Part | undefined)[]) {
   return parts.flatMap((part) => (part ? [part.id] : []))
 }
@@ -526,8 +541,8 @@ export function TurnStepsSummary(props: {
       </Show>
     </>
   )
-  const groupRow = (run: () => ToolPart[], index: () => number) => {
-    const id = () => `group:${run()[0]?.id}`
+  const groupRow = (key: string, run: () => ToolPart[], index: () => number) => {
+    const id = () => `group:${key}`
     const open = () => !!body.expanded[id()]
     const kind = () => stepOf(run()[0]).kind
     const diffs = createMemo(() => run().flatMap(editDiffs))
@@ -592,7 +607,11 @@ export function TurnStepsSummary(props: {
       return list
     }, []),
   )
-  const runByKey = createMemo(() => new Map(runs().map((run) => [run[0]?.id, run] as const)))
+  const runKeys = createMemo<RunKeys>((previous) => assignRunKeys(runs(), previous.byPart), {
+    keys: [],
+    byPart: new Map(),
+  })
+  const runByKey = createMemo(() => new Map(runKeys().keys.map((key, index) => [key, runs()[index] ?? []] as const)))
 
   return (
     <div
@@ -786,12 +805,12 @@ export function TurnStepsSummary(props: {
         <div>
           <Show when={body.mounted}>
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
-              <For each={stepKeys(runs().map((run) => run[0]))}>
+              <For each={runKeys().keys}>
                 {(key, index) => {
                   const run = () => runByKey().get(key) ?? []
                   return (
                     <Show when={run().length > 1} fallback={untrack(() => stepRow(() => run()[0], index))}>
-                      {untrack(() => groupRow(() => run() as ToolPart[], index))}
+                      {untrack(() => groupRow(key, () => run() as ToolPart[], index))}
                     </Show>
                   )
                 }}

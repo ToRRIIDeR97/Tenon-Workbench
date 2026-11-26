@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
 import { dict as en } from "@/i18n/en"
 import {
+  assignRunKeys,
   blockedNote,
   foldDuration,
   hasVisibleSteps,
@@ -178,6 +179,38 @@ describe("stepKeys", () => {
     expect(stepKeys([tool("shell", "running")])).toEqual(["shell"])
     expect(stepKeys([tool("question", "error"), tool("shell", "error")])).toEqual(["question", "shell"])
     expect(stepKeys([undefined, tool("shell", "completed")])).toEqual(["shell"])
+  })
+})
+
+describe("assignRunKeys", () => {
+  const read = (id: string) => tool(id, "completed", "read")
+
+  test("a step arriving at the front of an open group keeps the group's key, so it stays open", () => {
+    const first = assignRunKeys([[read("b"), read("c")]], new Map())
+    expect(first.keys).toEqual(["b"])
+    const grown = assignRunKeys([[read("a"), read("b"), read("c")]], first.byPart)
+    expect(grown.keys).toEqual(first.keys)
+  })
+
+  test("a step that becomes a group keeps its row", () => {
+    const single = assignRunKeys([[read("b")]], new Map())
+    expect(assignRunKeys([[read("b"), read("c")]], single.byPart).keys).toEqual(single.keys)
+  })
+
+  test("a new run before others gets its own key and the others keep theirs", () => {
+    const before = assignRunKeys([[tool("shell", "running", "bash")]], new Map())
+    const after = assignRunKeys(
+      [[tool("question", "error", "question")], [tool("shell", "error", "bash")]],
+      before.byPart,
+    )
+    expect(after.keys).toEqual(["question", "shell"])
+  })
+
+  test("a group split in two gives each half a distinct key", () => {
+    const whole = assignRunKeys([[read("a"), read("b"), read("c")]], new Map())
+    const split = assignRunKeys([[read("a")], [tool("x", "completed", "bash")], [read("b"), read("c")]], whole.byPart)
+    expect(split.keys[0]).toBe("a")
+    expect(new Set(split.keys).size).toBe(3)
   })
 })
 
