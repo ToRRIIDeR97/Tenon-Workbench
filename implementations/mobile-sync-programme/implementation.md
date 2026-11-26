@@ -185,6 +185,25 @@ deviceHint(device: { platform: "android" | "ios"; state: string }): "unauthorize
   Device tab paragraph in `docs/architecture/README.md` describes the new behaviour. No comments in
   source code; user-visible text goes through i18n.
 
+Added on 2026-11-26 at the user's request, after seeing the Device tab with a live emulator ("please fix
+the layout of the phone inside the emulators"). Before: the bezel was as tall as the panel, so black
+bands sat above and below the screen; the phone hugged the left edge; Home, Back and "Screenshot to
+thread" were bare text beside it and wrapped.
+
+- **AC-P2-10 Phone layout.** The bezel wraps the screen image with the same inset on all four sides (no
+  band above or below it) at the image's own aspect ratio, portrait or landscape. The phone is centred
+  in the panel and always fits inside it, at any panel width from 320 px and any height, without being
+  clipped or covered. The placeholder shown before the first frame has the same shape. The controls
+  (Home, Back on Android, Screenshot to thread) are one tidy toolbar of the app's own v2 buttons with
+  tooltips and accessible names, placed so they never wrap or push the phone off-centre. The image
+  element's box equals the displayed bitmap, so a tap still lands where it is clicked.
+- **AC-P2-11 Gone device.** When the device being shown disappears, its last frame and any screenshot
+  error are cleared and the tab returns to "Start a device"; errors shown in the tab carry no
+  `Error invoking remote method '…':` prefix.
+
+Checked by the orchestrator against the live emulator: bezel and image rectangles, centring and fit at
+three panel sizes, a tap on a known target, and screenshots.
+
 Invariants: `ipc.ts` handlers stay thin; no shell string is built (arguments stay an array to
 `execFile`); the renderer still passes only platform, device ID and input.
 
