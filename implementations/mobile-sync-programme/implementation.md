@@ -396,8 +396,9 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   probes found these, no earlier criterion covered them).
   - A write whose reply is lost does no harm. If the manifest write reaches the store but the engine sees
     a failure, the stored thread stays readable and complete: the engine removes the segment it just
-    wrote only after re-reading the manifest and finding the segment is not listed, and leaves it when
-    it cannot tell. The next `push` then succeeds or reports up to date truthfully, and a `pull` on
+    wrote only when the store definitely refused the manifest write (a `conflict`) and a re-read shows
+    the segment is not listed. After any other failure (a timeout, a dropped connection, `unavailable`)
+    it cannot tell whether the write will still land, so it leaves the segment; an orphan costs nothing. The next `push` then succeeds or reports up to date truthfully, and a `pull` on
     another computer applies every event.
   - A stored copy that is behind this computer changes nothing here. When the stored head is lower than
     the local log's, `pull` applies nothing and does not change the local owner.
