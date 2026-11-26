@@ -201,6 +201,15 @@ thread" were bare text beside it and wrapped.
   error are cleared and the tab returns to "Start a device"; errors shown in the tab carry no
   `Error invoking remote method '…':` prefix.
 
+Added after review panel round 1 (bugs the reviewers found that no criterion covered):
+
+- **AC-P2-12 Input robustness.** A coordinate that is not a finite number is sent as `0`. An input whose
+  `kind` or `key` is not one of the listed values, or whose text is not a string, is refused with an
+  error before any command is built, on both platforms. The Device tab never shows a frame at a shape
+  that is not its own (a landscape device's first frame is not stretched, and a new device's
+  placeholder does not take the previous device's shape), and its boot timer runs only while a boot is
+  starting or slow.
+
 Checked by the orchestrator against the live emulator: bezel and image rectangles, centring and fit at
 three panel sizes, a tap on a known target, and screenshots.
 
