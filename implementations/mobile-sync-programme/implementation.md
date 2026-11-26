@@ -328,7 +328,7 @@ ThreadSync.make(input: {
 `ThreadSync.SyncError` is an error with a string `code`. The promise functions reject with it (or throw
 it, for `keyFromPhrase`); the engine's effects fail with it in the error channel, not as a defect. Codes:
 `invalid_key`, `invalid_segment`, `unreadable`, `invalid_name`, `conflict`, `unauthorized`,
-`unavailable`, `not_found`, `not_owner`, `diverged`, `foreign_path`.
+`unavailable`, `not_found`, `not_owner`, `diverged`, `foreign_path`, `unsupported`.
 
 ### Acceptance criteria
 
@@ -359,7 +359,8 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   `DELETE /storage/v1/b/<bucket>/o/<name>` (404 is fine). Object names in the path are percent-encoded,
   slashes included. With `prefix`, objects are stored under it and names come back without it. 401 and
   403 are `unauthorized`; a network failure or a 5xx after the store's own retries is `unavailable`. The
-  retries of one call take at most two seconds in total.
+  retries of one call take at most two seconds in total, and no single request waits longer than
+  fifteen seconds.
 - **AC-P4-6 Push and pull.** `push` uploads the events the store does not have yet as a sealed segment
   and returns how many (`0` and no write when up to date) and the head sequence; the first push makes
   this machine the owner. `pull` applies the events this computer lacks through the event log's replay,
@@ -368,7 +369,11 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   instances and reopened databases. A thread with no local events (`push`) or no stored copy (`pull`) is
   `not_found`; a wrong key is `unreadable` and changes nothing locally. A thread whose folder is a path this
   operating system cannot hold (a Windows drive path on macOS) fails with `foreign_path` before anything
-  local changes; mapping it to a local folder is P5's job.
+  local changes; mapping it to a local folder is P5's job. A pull is all or nothing: if any stored event
+  cannot be applied here (a type this version does not know, data that fails its schema, or a replay
+  that fails for any other reason), `pull` and `takeOver` fail with `unsupported`, no event of that pull
+  stays in the local log and the local owner is unchanged. `diverged` means only that a local event
+  differs from the stored one at the same sequence.
 - **AC-P4-7 Ownership.** Only the owner pushes; anyone else gets `not_owner`. `takeOver` pulls to the
   head, then makes this machine the owner with a conditional write, and is a no-op for the owner. If
   this computer's log holds an event at a sequence where the stored thread has a different one, `pull`
