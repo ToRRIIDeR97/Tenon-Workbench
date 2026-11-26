@@ -11,6 +11,7 @@ export const Code = Schema.Literals([
   "not_found",
   "not_owner",
   "diverged",
+  "foreign_path",
 ])
 export type Code = typeof Code.Type
 

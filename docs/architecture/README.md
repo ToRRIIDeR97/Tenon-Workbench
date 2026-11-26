@@ -246,8 +246,9 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   from the validated parts with `path.join`. `gcsStore` calls the Cloud
   Storage JSON API with `Authorization: Bearer` from `token()` on every
   request, percent-encodes names (slashes too), maps 412 to `conflict`, 401
-  and 403 to `unauthorized`, retries network failures, 429 and 5xx four
-  times with backoff, then reports `unavailable`, follows `nextPageToken`,
+  and 403 to `unauthorized`, retries network failures, 429 and 5xx up to
+  four times with backoff within a two-second budget per call (retry requests
+  are aborted at its end), then reports `unavailable`, follows `nextPageToken`,
   and with `prefix` stores objects under it and returns names without it.
 - **Push.** Only the manifest's owner pushes (`not_owner` otherwise); the
   first push makes this machine the owner. It seals the local events after
@@ -262,7 +263,13 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   local changes. Otherwise it inserts the project row if it is missing and
   replays the missing events through `EventV2.replayAll`, so the session,
   messages and inputs are projected as in the sending database. A replay
-  that still fails is reported as `diverged`.
+  that still fails is reported as `diverged`. Before reading segments, the
+  manifest's directory and project worktree are checked with `canHold`
+  (`thread-sync/local-path.ts`: `path.win32.isAbsolute` on Windows,
+  `path.posix.isAbsolute` elsewhere); a folder this system cannot hold, such
+  as a Windows drive path on macOS, fails `pull` and `takeOver` with
+  `foreign_path` and changes nothing. A macOS path is accepted on Windows,
+  where the database stores it as is.
 - **Ownership.** The manifest is the authority. `event_sequence.owner_id` on
   each computer mirrors the owner it last saw: push and takeover set it to
   this machine, pull to the manifest's owner. Replay skips events for a row
@@ -277,16 +284,24 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   the stored copy only, manifest first, and is `not_owner` for others.
 - **Errors.** `ThreadSync.SyncError` has a `code`: `invalid_key`,
   `invalid_segment`, `unreadable`, `invalid_name`, `conflict`,
-  `unauthorized`, `unavailable`, `not_found`, `not_owner`, `diverged`. Store
+  `unauthorized`, `unavailable`, `not_found`, `not_owner`, `diverged`,
+  `foreign_path`. Store
   and segment functions reject with it, `keyFromPhrase` throws it, and engine
   effects fail with it in the error channel.
-- **Limits.** Files an event only points to (the tool-output store, image
-  blobs) are not synced. A pull reads the whole stored thread each time.
-  Directories are replayed as written on the sending computer: a macOS path
-  is stored as is on Windows, but a Windows drive path is not absolute on
-  macOS, so such a thread fails there (`diverged`) until directories are
-  mapped. Child threads (subagents) are separate threads and
-  are not pushed with their parent. Tests: `core/test/thread-sync/`.
+- **Known limits.**
+  - Files an event only points to (the tool-output store, image blobs) are
+    not synced.
+  - Child threads (subagents) are separate threads and are not pushed with
+    their parent.
+  - A pull downloads and opens the whole stored thread each time, so it can
+    compare every local event; its cost grows with the thread.
+  - `folderStore` on Windows (and on case-insensitive macOS volumes) maps
+    names that differ only in case to one file. The engine's names are
+    case-stable, so only other writers to the folder can collide.
+  - A thread whose folder this system cannot hold is `foreign_path`; mapping
+    it to a local folder is the next phase's job.
+
+  Tests: `core/test/thread-sync/`.
 
 ## Product entry points and persistence
 

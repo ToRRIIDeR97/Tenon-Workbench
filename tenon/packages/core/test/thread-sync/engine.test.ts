@@ -17,6 +17,7 @@ import { Prompt } from "../../src/session/prompt"
 import { SessionProjector } from "../../src/session/projector"
 import { SessionStore } from "../../src/session/store"
 import { ThreadSync } from "../../src/thread-sync"
+import { decrypt, encrypt, manifestContext } from "../../src/thread-sync/crypto"
 import { tmpdir } from "../fixture/tmpdir"
 import { testEffect } from "../lib/effect"
 import { fakeGcs } from "./gcs-fake"
@@ -241,6 +242,39 @@ describe("thread sync engine", () => {
       expect([...gcs.objects.keys()].every((name) => /^b\/threads\/ses_[A-Za-z0-9]+\/[a-z0-9-]+$/.test(name))).toBe(
         true,
       )
+    }),
+  )
+
+  it.live("a folder this computer cannot hold is foreign_path before anything local changes", () =>
+    Effect.gen(function* () {
+      const tmp = yield* temporary
+      const key = ThreadSync.generateKey().key
+      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const sessionID = yield* Effect.gen(function* () {
+        const id = yield* start("from another system")
+        yield* (yield* engine({ store, key, machine: desk })).push(id)
+        return id
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      const foreign = process.platform === "win32" ? "relative\\project" : "C:\\Users\\desk\\project"
+      const name = `threads/${sessionID}/manifest`
+      yield* Effect.promise(async () => {
+        const stored = await store.get(name)
+        const manifest = JSON.parse(await decrypt(key, manifestContext(sessionID), stored!.bytes)) as Record<
+          string,
+          unknown
+        >
+        const changed = JSON.stringify({ ...manifest, directory: foreign })
+        await store.put(name, await encrypt(key, manifestContext(sessionID), changed), {
+          ifGeneration: stored!.generation,
+        })
+      })
+      yield* Effect.gen(function* () {
+        const sync = yield* engine({ store, key, machine: laptop })
+        expect(yield* code(sync.pull(sessionID))).toBe("foreign_path")
+        expect(yield* code(sync.takeOver(sessionID))).toBe("foreign_path")
+        expect(yield* local(sessionID)).toEqual({ events: [], owner: null })
+        expect((yield* sync.list())[0].owner).toEqual(desk)
+      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
     }),
   )
 })

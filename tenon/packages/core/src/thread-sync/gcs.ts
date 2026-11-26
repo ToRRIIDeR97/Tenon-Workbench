@@ -6,6 +6,8 @@ import type { Store } from "./store"
 const DEFAULT_ENDPOINT = "https://storage.googleapis.com"
 const ATTEMPTS = 5
 const BACKOFF_MS = 100
+const RETRY_BUDGET_MS = 2_000
+const MIN_ATTEMPT_MS = 100
 
 type Listing = {
   items?: Array<{ name?: string; generation?: string | number; size?: string | number }>
@@ -24,7 +26,12 @@ export function gcsStore(input: {
   const full = (name: string) => (prefix ? `${requireName(prefix)}/${name}` : name)
   const objectURL = (name: string) => `${endpoint}/storage/v1/b/${bucket}/o/${encodeURIComponent(full(name))}`
 
-  const send = async (url: string, init: { method: string; body?: Uint8Array }, attempt: number): Promise<Response> => {
+  const send = async (
+    url: string,
+    init: { method: string; body?: Uint8Array },
+    attempt: number,
+    retryUntil?: number,
+  ): Promise<Response> => {
     const token = await Promise.resolve()
       .then(() => input.token())
       .catch((error: unknown) => {
@@ -37,12 +44,16 @@ export function gcsStore(input: {
         ...(init.body ? { "content-type": "application/octet-stream" } : {}),
       },
       ...(init.body ? { body: Uint8Array.from(init.body) } : {}),
+      ...(retryUntil === undefined ? {} : { signal: AbortSignal.timeout(Math.max(1, retryUntil - Date.now())) }),
     }).catch(() => undefined)
     if (response && response.status < 500 && response.status !== 429) return refuseAuth(response)
     await response?.arrayBuffer().catch(() => undefined)
-    if (attempt + 1 >= ATTEMPTS) throw syncError("unavailable", "Cloud Storage is unavailable")
-    await timers.setTimeout(BACKOFF_MS * 2 ** attempt)
-    return send(url, init, attempt + 1)
+    const deadline = retryUntil ?? Date.now() + RETRY_BUDGET_MS
+    const delay = BACKOFF_MS * 2 ** attempt
+    if (attempt + 1 >= ATTEMPTS || Date.now() + delay + MIN_ATTEMPT_MS > deadline)
+      throw syncError("unavailable", "Cloud Storage is unavailable")
+    await timers.setTimeout(delay)
+    return send(url, init, attempt + 1, deadline)
   }
 
   const listPage = async (wanted: string, pageToken: string | undefined): Promise<NonNullable<Listing["items"]>> => {

@@ -11,6 +11,7 @@ import type { SessionSchema } from "../session/schema"
 import { SessionTable } from "../session/sql"
 import { decrypt, encrypt, isKey, manifestContext, open, seal } from "./crypto"
 import { asSyncError, syncError } from "./error"
+import { canHold } from "./local-path"
 import { isPart } from "./store"
 import type { Store } from "./store"
 
@@ -177,6 +178,8 @@ export function make(input: {
       yield* requireThread(sessionID)
       const current = yield* readManifest(sessionID)
       if (!current) return yield* Effect.fail(syncError("not_found", "This thread is not in the sync store"))
+      if (!canHold(current.manifest.directory) || !canHold(current.manifest.project?.worktree ?? ""))
+        return yield* Effect.fail(syncError("foreign_path", "This thread's folder is a path this computer cannot hold"))
       const remote = yield* readRemote(current.manifest)
       const local = yield* localEvents(sessionID)
       if (local.some((event) => differs(event, remote[event.seq])))

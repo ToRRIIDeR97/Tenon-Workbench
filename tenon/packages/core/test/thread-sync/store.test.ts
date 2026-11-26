@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import type { EventV2 } from "../../src/event"
 import { ThreadSync } from "../../src/thread-sync"
+import { canHold } from "../../src/thread-sync/local-path"
 import { tmpdir } from "../fixture/tmpdir"
 import { fakeGcs } from "./gcs-fake"
 
@@ -66,6 +67,21 @@ describe("thread sync keys and segments", () => {
     expect(await seal([event(0), event(2)])).toBe("invalid_segment")
     expect(await seal([event(0), event(1, "ses_other")])).toBe("invalid_segment")
     expect(await seal([event(0, "ses_other")])).toBe("invalid_segment")
+  })
+})
+
+describe("thread sync local paths", () => {
+  test("a Windows drive path is foreign on macOS, a macOS path is not on Windows", () => {
+    expect(canHold("C:\\Users\\desk\\project", "darwin")).toBe(false)
+    expect(canHold("C:/Users/desk/project", "linux")).toBe(false)
+    expect(canHold("\\\\server\\share\\project", "darwin")).toBe(false)
+    expect(canHold("/Users/desk/project", "darwin")).toBe(true)
+    expect(canHold("C:\\Users\\desk\\project", "win32")).toBe(true)
+    expect(canHold("\\\\server\\share\\project", "win32")).toBe(true)
+    expect(canHold("/Users/desk/project", "win32")).toBe(true)
+    expect(canHold("relative/project", "win32")).toBe(false)
+    expect(canHold("C:relative", "win32")).toBe(false)
+    expect(canHold("", "darwin")).toBe(true)
   })
 })
 
@@ -142,7 +158,9 @@ describe("thread sync Cloud Storage store", () => {
       gcs.failNext(2)
       expect((await store.put("threads/a/manifest", new Uint8Array([1]))).generation).toBeString()
       gcs.failNext(100)
+      const started = Date.now()
       expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
+      expect(Date.now() - started).toBeLessThan(2_500)
       gcs.failNext(0)
       expect(await rejected(store.put("threads/../x", new Uint8Array([1])))).toBe("invalid_name")
       const offline = ThreadSync.gcsStore({ bucket: "b", endpoint: "http://127.0.0.1:9", token: async () => "t" })
