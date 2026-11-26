@@ -37,10 +37,10 @@ Every Playwright run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`.
 | `e2e/regression/session-request-docks.spec.ts` | shows a pending permission dock | spec drifted | `b1548fdf` (fix(app): UI/UX polish from a headless walk-through): "joined split buttons with chevrons, deny reason behind Deny's menu", so Deny and Allow once each have a menu button | `e2e/regression/session-request-docks.spec.ts` (four named buttons: Deny, More ways to deny, Allow once, More ways to allow) |
 | `e2e/regression/session-timeline-accessibility.spec.ts` | space activates a focused timeline button instead of scrolling | spec drifted | `426d9a31`; the shell is a `turn-steps-row` button in the card | `e2e/regression/session-timeline-accessibility.spec.ts`, `e2e/performance/timeline-stability/fixture.ts` |
 | `e2e/regression/session-timeline-collapse-state.spec.ts` | keeps a manually collapsed tool collapsed when later assistant content streams | spec drifted | `426d9a31`; the edit is a step row in the `TurnSteps` row, not an `AssistantPart` row | `e2e/regression/session-timeline-collapse-state.spec.ts`, `e2e/performance/timeline-stability/fixture.ts` |
-| `e2e/regression/session-timeline-collapse-state.spec.ts` | does not remount an edit diff when sibling parts or diff counts update | app regressed | With the row key corrected to `turn-steps:msg_user_regression:0` the probe still finds the step, row and frame kept but the diff's file component rebuilt (its marker gone, one new shadow root) when a text part arrives. `TurnStepsSummary` renders `<For each={diffs()}>`, and `editDiffs` returns new objects on every recompute, so each update remounts the diff | `e2e/regression/session-timeline-collapse-state.spec.ts` (card locators and row key). Product fix not made: it belongs in `tenon/packages/app/src/components/session/turn-steps-summary.tsx`, outside P3a's scope; the test still fails |
-| `e2e/regression/session-timeline-collapse-state.spec.ts` | keeps a sticky edit header aligned with a multi-hunk diff | feature removed | The sticky header is session-ui's `StickyAccordionHeader` in the edit tool part (`message-part.tsx`), drawn only for `AssistantPart` rows, which a normal turn always folds (`folded: () => true`, `426d9a31`). The card shows an edit's diff in a `ScrollView` capped at `max-h-96` under its row, with no sticky header (`turn-steps-summary.tsx`, `turn-steps-summary.css`) | `e2e/regression/session-timeline-collapse-state.spec.ts` (test deleted) |
+| `e2e/regression/session-timeline-collapse-state.spec.ts` | does not remount an edit diff when sibling parts or diff counts update | app regressed | With the row key corrected to `turn-steps:msg_user_regression:0` the probe still found the step, row and frame kept but the diff's file component rebuilt (its marker gone, one new shadow root) when a text part arrived, and again when only the diff counts changed. `TurnStepsSummary` (since `426d9a31`) rendered `<For each={diffs()}>` and `editDiffs` returns new objects on every recompute, so every update remounted the diff | `tenon/packages/app/src/components/session/turn-steps-summary.tsx` (diffs memo compared by content with `sameDiffs`, `Index` over the diffs, and the file view's `fileDiff` held by `sameFileDiff`, so a count change updates the counts without rebuilding the view), `tenon/packages/app/src/components/session/turn-steps-summary.test.ts`, `e2e/regression/session-timeline-collapse-state.spec.ts` (card locators and row key) |
+| `e2e/regression/session-timeline-collapse-state.spec.ts` | keeps a sticky edit header aligned with a multi-hunk diff | feature removed | Removed by `426d9a31` (feat(app): draw the Worked card's steps inside it …), which added `folded: () => true` to `message-timeline.tsx`: the sticky header is session-ui's `StickyAccordionHeader` in the edit tool part (`message-part.tsx`), drawn only for unfolded `AssistantPart` rows. Nothing equivalent remains to test because the card shows an edit's diff inside its own `ScrollView` capped at `max-h-96`, so the timeline never scrolls past a long diff and no header needs to stick (`turn-steps-summary.tsx`, `turn-steps-summary.css` have no sticky element) | `e2e/regression/session-timeline-collapse-state.spec.ts` (test deleted) |
 | `e2e/regression/session-timeline-context-resize.spec.ts` | remeasures a recent explored context group before the next paint | spec drifted | `426d9a31`; the read-only run is now the turn's Worked card ("Read 1 file", "Searched 3 times"), folded once text follows it | `e2e/regression/session-timeline-context-resize.spec.ts` (opens the folded card at the bottom and samples overlap with the following text each frame) |
-| `e2e/regression/session-timeline-context-resize.spec.ts` | paints a stable exploring to explored transition | feature removed | The "Exploring"/"Explored" status title (`tool-status-title`) belongs to session-ui's context group, never drawn in a normal turn since `426d9a31`; the card names steps by kind with count phrases (`secondBrain.turnSteps.*`). Running-to-done step transitions in the card are covered by `e2e/performance/timeline-stability` | `e2e/regression/session-timeline-context-resize.spec.ts` (test deleted) |
+| `e2e/regression/session-timeline-context-resize.spec.ts` | paints a stable exploring to explored transition | feature removed | Removed by `426d9a31`, which folds every step row of a normal turn (`folded: () => true`): the "Exploring"/"Explored" status title (`tool-status-title`) belongs to session-ui's context group. Nothing equivalent remains to test because the card has no status title that changes as reads finish: its group row is named by a fixed count phrase (`secondBrain.turnSteps.search`), and only a running dot comes and goes, which `session-timeline-context-state.spec.ts` already asserts | `e2e/regression/session-timeline-context-resize.spec.ts` (test deleted) |
 | `e2e/regression/session-timeline-context-state.spec.ts` | preserves a collapsed context group through count and status updates | spec drifted | `426d9a31` and `docs/architecture/README.md`: consecutive searches merge into one group row named by the count phrase | `e2e/regression/session-timeline-context-state.spec.ts` (a "Searched 2 times" group stays closed while its steps finish and a third arrives) |
 | `e2e/regression/session-timeline-file-projection.spec.ts` | renders completed write content | spec drifted | `426d9a31`; a write opens to its diff (`editDiffs` builds it from the content) | `e2e/regression/session-timeline-file-projection.spec.ts` |
 | `e2e/regression/session-timeline-file-projection.spec.ts` | renders a completed single-file patch | spec drifted | `426d9a31`; a patch opens to one diff per file from `metadata.files` | `e2e/regression/session-timeline-file-projection.spec.ts` |
@@ -49,8 +49,8 @@ Every Playwright run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`.
 | `e2e/regression/session-timeline-lifecycle-state.spec.ts` | preserves shell user intent from a collapsed default | spec drifted | `426d9a31`, `9c94f3b3` (the card honours Expand shell tool parts) | `e2e/regression/session-timeline-lifecycle-state.spec.ts` |
 | `e2e/regression/session-timeline-lifecycle-state.spec.ts` | preserves shell user intent from a expanded default | spec drifted | as above | `e2e/regression/session-timeline-lifecycle-state.spec.ts` |
 | `e2e/regression/session-timeline-lifecycle-state.spec.ts` | shows and expands a running shell command without shimmering it | spec drifted | `426d9a31` and `docs/architecture/README.md` ("the header title … shimmer"): the working card's title shimmers, the step row shows the command plainly | `e2e/regression/session-timeline-lifecycle-state.spec.ts` |
-| `e2e/regression/session-timeline-locale-projection.spec.ts` | projects translated context status in de | feature removed | The translated "Erkundung abgeschlossen" is `ui.sessionTurn.status.gatheredContext`, drawn only by the context group that a normal turn no longer shows (`426d9a31`). Its replacement, the card's copy, is Tenon copy (`secondBrain.turnSteps.*`), which exists in `en.ts` only: `de.ts` has none of the 1664 `secondBrain.*` keys | `e2e/regression/session-timeline-locale-projection.spec.ts` (file deleted) |
-| `e2e/regression/session-timeline-locale-projection.spec.ts` | projects translated context status in ar | feature removed | as above (`ar.ts`) | `e2e/regression/session-timeline-locale-projection.spec.ts` (file deleted) |
+| `e2e/regression/session-timeline-locale-projection.spec.ts` | projects translated context status in de | feature removed | Removed by `426d9a31`, which folds every step row of a normal turn (`folded: () => true`): the asserted "Erkundung abgeschlossen" is `ui.sessionTurn.status.gatheredContext`, drawn only by session-ui's context group. Nothing equivalent remains to test because the card's text for these steps comes from keys that exist in `en.ts` only (title `secondBrain.turnSteps.worked`, count phrases `secondBrain.turnSteps.read` and `secondBrain.turnSteps.search`, row verbs `secondBrain.step.read` and `secondBrain.step.searched`; `de.ts` has none of them), and that is the stated policy: `docs/design.md` (Text) says "new `secondBrain.*` keys may be English-only" and `src/i18n/parity.test.ts` exempts the `secondBrain.` prefix (`englishFallbackPrefixes`). The only translated piece, the duration (`ui.message.duration.seconds`), is the same "1s" in German | `e2e/regression/session-timeline-locale-projection.spec.ts` (file deleted) |
+| `e2e/regression/session-timeline-locale-projection.spec.ts` | projects translated context status in ar | feature removed | Removed by `426d9a31` as in the de row: the asserted "تم الاستكشاف" (`ui.sessionTurn.status.gatheredContext`) belongs to the folded context group. Nothing equivalent remains to test because the card's step and status keys (`secondBrain.turnSteps.*`, `secondBrain.step.*`) are absent from `ar.ts` by the policy in `docs/design.md` and `parity.test.ts`; only the duration (`ui.message.duration.seconds`, "{{count}}ث") is translated, and asserting it alone would not test a context status | `e2e/regression/session-timeline-locale-projection.spec.ts` (file deleted) |
 | `e2e/regression/session-timeline-projection.spec.ts` | renders every admitted tool family and hides timeline-only exclusions | spec drifted | `426d9a31`; the card groups "Searched 3 times", "Edited 2 files", "Fetched 2 pages", lists the rest alone and hides `todowrite` (`HIDDEN_TOOLS`) | `e2e/regression/session-timeline-projection.spec.ts`, `e2e/performance/timeline-stability/fixture.ts` |
 | `e2e/regression/session-timeline-projection.spec.ts` | projects gaps, dividers, assistant parts, and errors together | spec drifted | `ba612654` (feat(app): UI/UX audit refinements …, "the UI says thread throughout"): `ui.messagePart.compaction` is "Thread compacted" | `e2e/regression/session-timeline-projection.spec.ts` |
 | `e2e/regression/session-timeline-reasoning-projection.spec.ts` | projects busy reasoning profile summaries on visible reasoning | spec drifted | `426d9a31`; visible reasoning is a `turn-steps-note` in the card | `e2e/regression/session-timeline-reasoning-projection.spec.ts` |
@@ -59,8 +59,8 @@ Every Playwright run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`.
 | `e2e/regression/session-timeline-shell-outline.spec.ts` | keeps the shell outline inside a fractionally short virtual row at 1.5x | spec drifted | as above | `e2e/regression/session-timeline-shell-outline.spec.ts` |
 | `e2e/regression/session-timeline-shell-outline.spec.ts` | keeps the patch card inside a fractionally short virtual row | spec drifted | as above (the `apply-patch` accordion is not drawn) | `e2e/regression/session-timeline-shell-outline.spec.ts` |
 | `e2e/regression/session-timeline-tool-projection.spec.ts` | renders every tool error outcome without leaking hidden tools | app regressed | The spec counts a dismissed question apart from tool errors. The card counted "The user dismissed this question" as a failed step (red, "N steps failed", keeps the card open), although `a057c7ef` made "declined tool calls and user stops neutral, not failed" and core reports a dismissed question as declined (`core/test/harness-ask-user.test.ts`, "reports a dismissed question as declined") | `tenon/packages/session-ui/src/components/step-kind.ts` (`isDeclined` matches the dismissal), `tenon/packages/session-ui/src/components/step-kind.test.ts`, `e2e/regression/session-timeline-tool-projection.spec.ts` (card locators: "10 steps failed", "1 declined", each error's text) |
-| `e2e/regression/session-timeline-tool-projection.spec.ts` | transitions shell and question through running error outcomes | app regressed | Once the question turns visible (it is hidden while pending or running) it sorts before the shell (`prt_transition_error_question` < `prt_transition_error_shell`), and the card then shows the shell twice and no question. `TurnStepsSummary` renders `<Index each={runs()}>` with `untrack(() => stepRow(run()[0], index))`, so slot 0 keeps the part it was created with. Renaming the question so it sorts last makes the test pass, which confirms the cause | `e2e/regression/session-timeline-tool-projection.spec.ts` (card locators). Product fix not made: it belongs in `tenon/packages/app/src/components/session/turn-steps-summary.tsx`, outside P3a's scope; the test still fails |
-| `e2e/regression/session-timeline-tool-projection.spec.ts` | labels all web search provider variants | feature removed | The provider labels ("Parallel Web Search", "Exa Web Search") come from session-ui's websearch tool part, not drawn in a normal turn since `426d9a31`; the card labels every web search by kind ("Fetched", `stepVerbKey`) and its query (`stepOf` in `step-kind.ts`) | `e2e/regression/session-timeline-tool-projection.spec.ts` (test deleted) |
+| `e2e/regression/session-timeline-tool-projection.spec.ts` | transitions shell and question through running error outcomes | app regressed | Once the question turns visible (it is hidden while pending or running) it sorts before the shell (`prt_transition_error_question` < `prt_transition_error_shell`), and the card then shows the shell twice and no question. `TurnStepsSummary` (since `426d9a31`) rendered `<Index each={runs()}>` with `untrack(() => stepRow(run()[0], index))`, so slot 0 kept the part it was created with. Temporarily renaming the question so it sorts last made the test pass, which confirmed the cause; the committed spec keeps the original IDs. In real use this hits parallel tool calls where a question is answered after a later tool | `tenon/packages/app/src/components/session/turn-steps-summary.tsx` (runs and a group's steps are keyed by part ID with `For` over `stepKeys`, and each row reads its current part through an accessor), `tenon/packages/app/src/components/session/turn-steps-summary.test.ts`, `e2e/regression/session-timeline-tool-projection.spec.ts` (card locators; also checks the shell row's DOM node is kept and the rows read question then shell) |
+| `e2e/regression/session-timeline-tool-projection.spec.ts` | labels all web search provider variants | feature removed | Removed by `426d9a31`, which folds every step row of a normal turn (`folded: () => true`): the provider labels ("Parallel Web Search", "Exa Web Search") come from session-ui's websearch tool part. Nothing equivalent remains to test because the card never reads `metadata.provider`: every web search is labelled by its kind ("Fetched", `stepVerbKey`) and its query (`stepOf` in `step-kind.ts`), the same for every provider | `e2e/regression/session-timeline-tool-projection.spec.ts` (test deleted) |
 | `e2e/regression/session-timeline-tool-state.spec.ts` | updates expanded web search links without resetting expansion | spec drifted | `426d9a31`; a step opens to its text output (`toolDetail`), so the links are output lines, not anchors | `e2e/regression/session-timeline-tool-state.spec.ts` |
 | `e2e/regression/session-timeline-tool-state.spec.ts` | preserves an expanded tool error card across duplicate delivery | spec drifted | `426d9a31`; a failed step opens to its error | `e2e/regression/session-timeline-tool-state.spec.ts` |
 | `e2e/regression/session-timeline-tool-state.spec.ts` | renders multiple question answers and preserves open state on answer updates | spec drifted | `426d9a31`; the question step opens to the tool's output, which carries the answers (format from `tenon/packages/tenon/src/tool/question.ts`) | `e2e/regression/session-timeline-tool-state.spec.ts` |
@@ -75,26 +75,54 @@ Every Playwright run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`.
 
 Counts: 28 `spec drifted`, 6 `app regressed`, 5 `feature removed`.
 
-## Not repaired
-
-Two `app regressed` rows still fail; both need a change to
-`tenon/packages/app/src/components/session/turn-steps-summary.tsx`, which is outside P3a's edit scope:
-
-- Edit diffs remount on any recompute: key the diff list by file (for example `Index` over `diffs()`, so
-  the file component gets the new `fileDiff` instead of being rebuilt).
-- Steps inserted before existing ones render the wrong part: let `stepRow` and `groupRow` follow their
-  slot's current part (or key the runs by their first part's ID) instead of the part captured with
-  `untrack`.
-
 No timeout was raised and no `.skip`, `.fixme` or `.only` was added.
+
+## The Worked card fix
+
+`turn-steps-summary.tsx` had two keying faults, both from `426d9a31`:
+
+- Steps were rendered with `Index` and each slot captured its part once (`untrack(() => stepRow(run()[0],
+  index))`), so a slot showed the part it was created with even after the list changed under it. Runs
+  and a group's steps are now rendered with `For` over their part IDs (`stepKeys`), each row reads its
+  current part through an accessor, and a new step that sorts earlier gets a new row while the existing
+  rows keep their DOM nodes.
+- An edit step's diffs were rendered with `For` over objects that `editDiffs` rebuilds on every recompute,
+  so any update rebuilt the diff view. The diffs memo now compares by content (`sameDiffs`), the list is an
+  `Index`, and the view's `fileDiff` is held while its content is unchanged (`sameFileDiff`), so a count
+  change updates the counts and keeps the view.
+
+Evidence that the fix adds no re-rendering: `session-timeline-collapse-state.spec.ts` marks the step, the
+diff's file element, the virtual row and the frame, then checks all keep their markers and no new shadow
+root is attached across a sibling text part and a diff-count update; `session-timeline-tool-projection.spec.ts`
+marks the shell row and checks the same node is still there after the question appears before it. Unit
+tests for `stepKeys`, `sameDiffs` and `sameFileDiff` are in `turn-steps-summary.test.ts`.
 
 ## Benchmark
 
 `tenon/packages/app/AGENTS.md` asks for a production benchmark before and after a session or timeline
-change. The baseline run (`bunx playwright test --config e2e/performance/playwright.config.ts
-timeline/session-timeline-benchmark.spec.ts`, port 3101, product changes set aside) built the production
-bundle, but its first scenario ("streams assistant text without remounting or oscillating") timed out
-after 420 s in `page.waitForFunction` waiting for the final streamed delta, so it reported no metrics. The
-run was stopped there: the benchmark does not work on the base commit and gives nothing to compare. The
-product changes are small and off the streaming path: one more pattern in `isDeclined`, an array check on
-the terminal list answer, and a measured-height guard in the todo dock.
+change.
+
+- With default settings the scenario does not run on the base commit: `bunx playwright test --config
+  e2e/performance/playwright.config.ts timeline/session-timeline-benchmark.spec.ts` (port 3101) built the
+  production bundle, then the first scenario, "streams assistant text without remounting or oscillating",
+  timed out after 420 s in `page.waitForFunction` waiting for the last of 160 deltas at the default 30x CPU
+  throttle, with no metrics.
+- With that one scenario at a lighter profile it runs in about 45 s:
+  `TIMELINE_CPU_THROTTLE=4 TIMELINE_DELTA_COUNT=40 TIMELINE_COMPLETION_TIMEOUT_MS=600000 bunx playwright test
+  --config e2e/performance/playwright.config.ts timeline/session-timeline-benchmark.spec.ts -g "streams
+  assistant text without remounting"` with `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_WORKERS=1`. "Before" is
+  `turn-steps-summary.tsx` at `3c5cf27c`; "after" is the fix. Three runs each:
+
+| Metric | Before | After |
+| --- | --- | --- |
+| initial content observed (ms) | 236, 500, 1021 | 895, 994, 1006 |
+| completion observed (ms) | 8088, 8149, 7976 | 7809, 8800, 8147 |
+| rAF gap p95 (ms) | 16.8, 16.8, 16.8 | 16.8, 16.8, 16.8 |
+| rAF gap p99 (ms) | 49.9, 16.8, 16.8 | 33.3, 50.0, 16.8 |
+| long task time (ms) | 218, 131, 173 | 127, 231, 112 |
+| row or markdown replaced | no, no, no | no, no, no |
+
+The ranges overlap on every metric (initial content spreads from 236 to 1021 ms before the change alone),
+so this scenario shows no difference. It streams assistant text into a long history and opens no step,
+so it does not exercise opened steps; the spec-level node checks above are the evidence for those.
+
