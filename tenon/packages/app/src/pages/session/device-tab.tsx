@@ -1,5 +1,5 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { For, Show, createMemo, createResource, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, createResource, onCleanup, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePlatform, type DeviceInfo } from "@/context/platform"
@@ -8,8 +8,15 @@ import type { ImageAttachmentPart } from "@/context/prompt-state"
 import { createBlobReference } from "@/utils/draft-store"
 import { uuid } from "@/utils/uuid"
 import { createVisibleInterval } from "@/utils/visible-interval"
+import { BOOT_POLL_MS, bootStage, deviceHint, type BootStage } from "./device-boot"
 
 const FRAME_MS = 700
+const BOOT_MESSAGES = {
+  idle: "secondBrain.device.boot.starting",
+  starting: "secondBrain.device.boot.starting",
+  slow: "secondBrain.device.boot.slow",
+  timeout: "secondBrain.device.boot.timeout",
+} as const satisfies Record<BootStage, string>
 
 export function SessionDeviceTab() {
   const language = useLanguage()
@@ -23,6 +30,8 @@ export function SessionDeviceTab() {
     frame: "",
     error: "",
     activity: [] as string[],
+    boot: { os: "android" as DeviceInfo["platform"], name: "", requestedAt: undefined as number | undefined },
+    now: Date.now(),
   })
   const devices = createMemo(() =>
     state.os === "android" ? (status()?.android.devices ?? []) : (status()?.ios.devices ?? []),
@@ -31,6 +40,39 @@ export function SessionDeviceTab() {
     devices().filter((item) => (item.platform === "android" ? item.state === "device" : item.state === "Booted")),
   )
   const current = createMemo(() => running().find((item) => item.id === state.selected) ?? running()[0])
+  const attached = createMemo(() =>
+    devices().flatMap((item) => {
+      const hint = deviceHint(item)
+      return hint ? [{ ...item, hint }] : []
+    }),
+  )
+  const stage = createMemo(() => {
+    const boot = state.boot
+    const list = boot.os === "android" ? (status()?.android.devices ?? []) : (status()?.ios.devices ?? [])
+    return bootStage({
+      requestedAt: boot.requestedAt,
+      now: state.now,
+      running: list.some((item) => (item.platform === "android" ? item.state === "device" : item.state === "Booted")),
+    })
+  })
+  const booting = () => stage() === "starting" || stage() === "slow"
+  const boot = (id: string, name: string) => {
+    if (!device) return
+    const os = state.os
+    const now = Date.now()
+    setState({ boot: { os, name, requestedAt: now }, now, error: "" })
+    void device.boot(os, id).then(
+      () => refetch(),
+      (cause: unknown) =>
+        setState({
+          boot: { os, name, requestedAt: undefined },
+          error: cause instanceof Error ? cause.message : String(cause),
+        }),
+    )
+  }
+  createEffect(() => {
+    if (state.boot.requestedAt !== undefined && stage() === "idle") setState("boot", "requestedAt", undefined)
+  })
   const unavailable = createMemo(() => {
     const value = status()
     if (!device) return language.t("secondBrain.device.desktopOnly")
@@ -61,6 +103,11 @@ export function SessionDeviceTab() {
       ),
     )
     createVisibleInterval(() => void refetch(), 5_000)
+    createVisibleInterval(() => {
+      if (state.boot.requestedAt === undefined) return
+      setState("now", Date.now())
+      if (booting()) void refetch()
+    }, BOOT_POLL_MS)
     onCleanup(() => {
       clearInterval(timer)
       off()
@@ -157,16 +204,35 @@ export function SessionDeviceTab() {
             <div class="m-auto flex max-w-80 flex-col items-center gap-3 px-6 text-center text-[13px] text-v2-text-text-muted">
               <span>{language.t("secondBrain.device.start")}</span>
               <For each={state.os === "android" ? (status()?.android.avds ?? []) : devices().map((item) => item.id)}>
-                {(id) => (
-                  <ButtonV2
-                    size="small"
-                    variant="tonal"
-                    onClick={() => void device?.boot(state.os, id).then(() => refetch())}
-                  >
-                    {state.os === "android" ? id : (devices().find((item) => item.id === id)?.name ?? id)}
-                  </ButtonV2>
-                )}
+                {(id) => {
+                  const name = () =>
+                    state.os === "android" ? id : (devices().find((item) => item.id === id)?.name ?? id)
+                  return (
+                    <ButtonV2 size="small" variant="tonal" disabled={booting()} onClick={() => boot(id, name())}>
+                      {name()}
+                    </ButtonV2>
+                  )
+                }}
               </For>
+              <Show when={state.boot.os === state.os && stage() !== "idle"}>
+                <span class="text-12-regular" role="status" aria-live="polite" data-slot="device-boot">
+                  {language.t(BOOT_MESSAGES[stage()], { name: state.boot.name })}
+                </span>
+              </Show>
+              <Show when={attached().length > 0}>
+                <ul class="flex w-full flex-col gap-1" data-slot="device-attached">
+                  <For each={attached()}>
+                    {(item) => (
+                      <li class="flex flex-col rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 text-left">
+                        <span class="text-12-medium text-v2-text-text-base">{item.name}</span>
+                        <span class="text-12-regular text-v2-state-fg-warning">
+                          {language.t(`secondBrain.device.hint.${item.hint}`)}
+                        </span>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
             </div>
           }
         >

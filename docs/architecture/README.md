@@ -3295,6 +3295,23 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   `emulator` on macOS and Windows; the iOS Simulator through `simctl` on macOS
   (`idb` for taps). The screen is polled as PNG frames; a click is a tap
   (`desktop/src/main/device.ts`, `app/src/pages/session/device-tab.tsx`).
+  The SDK is looked for in `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, then the
+  platform default (`%LOCALAPPDATA%\Android\Sdk` on Windows,
+  `~/Library/Android/sdk` on macOS, `~/Android/Sdk` elsewhere); unset or empty
+  variables are skipped, so a relative path is never tried
+  (`sdkRootCandidates`). Every input becomes a list of `adb` or `idb` argument
+  arrays (`inputCommands`) that run in order through `execFile` and stop at the
+  first failure. On iOS, Home presses the Home button and Enter sends the HID
+  Return key; Back has no iOS equivalent, so it fails with an error that the
+  agent sees and nothing runs. Android types only printable ASCII: other
+  characters are refused before anything runs, and each line break (`\n` or
+  `\r\n`) presses Enter between the typed pieces. After a click to start a
+  device, the tab says it is starting, says it is slow from 60 seconds, says
+  it has timed out from 180 seconds, and refreshes the device list every 2
+  seconds until the device runs or the boot times out (`bootStage` in
+  `app/src/pages/session/device-boot.ts`). An attached Android device that is
+  `unauthorized` or `offline` is listed with a hint on what to do
+  (`deviceHint`).
 
 Computer use (#333) is per Project and off by default. A Project page's
 Computer use card switches it for the Project folder (`GET`/`POST
