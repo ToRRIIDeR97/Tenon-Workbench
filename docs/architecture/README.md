@@ -3293,8 +3293,45 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   and Retry (`browserStage` in `app/src/pages/session/browser-stage.ts`).
 - **Device tab.** Android emulators and devices through the SDK's `adb` and
   `emulator` on macOS and Windows; the iOS Simulator through `simctl` on macOS
-  (`idb` for taps). The screen is polled as PNG frames; a click is a tap
-  (`desktop/src/main/device.ts`, `app/src/pages/session/device-tab.tsx`).
+  (`idb` sends its taps, swipes, text and keys). The screen is polled as PNG
+  frames; a click is a tap (`desktop/src/main/device.ts`,
+  `app/src/pages/session/device-tab.tsx`).
+  The phone and its toolbar are centred together in the panel as one group:
+  the screen image is sized to the largest size that fits at its own aspect
+  ratio, never above its pixel size, after leaving room for the toolbar
+  (`fitFrame`), and the bezel wraps it with the same 8 px on every side, so
+  the image box is the bitmap and a click maps straight to device pixels. The
+  placeholder before the first frame has the same shape. Each frame's size is
+  decoded before it is shown, so a frame never appears at another device's or
+  another orientation's shape. Home, Back (Android only) and Screenshot to
+  thread are icon buttons with tooltips in one toolbar 12 px under the bezel,
+  in portrait and landscape. When the shown device goes away, its last frame,
+  its remembered screen size and its error are cleared and the tab offers to
+  start a device again; errors
+  are shown without Electron's `Error invoking remote method` prefix
+  (`deviceError`). The device list is read with the resource's latest value,
+  so its 5-second refresh does not blank the tab.
+  The SDK is looked for in `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, then the
+  platform default (`%LOCALAPPDATA%\Android\Sdk` on Windows,
+  `~/Library/Android/sdk` on macOS, `~/Android/Sdk` elsewhere); unset or empty
+  variables are skipped, so a relative path is never tried
+  (`sdkRootCandidates`). An input whose kind is not tap, swipe, text or key,
+  whose key is not home, back or enter, or whose text is not a string is
+  refused before any command is built; a coordinate that is not a finite
+  number becomes 0. Every input becomes a list of `adb` or `idb` argument
+  arrays (`inputCommands`) that run in order through `execFile` and stop at the
+  first failure. On iOS, Home presses the Home button and Enter sends the HID
+  Return key; Back has no iOS equivalent, so it fails with an error that the
+  agent sees and nothing runs. Android types only printable ASCII: other
+  characters are refused before anything runs, and each line break (`\n` or
+  `\r\n`) presses Enter between the typed pieces. After a click to start a
+  device, the tab says it is starting, says it is slow from 60 seconds, says
+  it has timed out from 180 seconds, and refreshes the device list every 2
+  seconds until the device runs or the boot times out; the timeout line stays
+  until a device starts or the user starts one again (`bootStage` in
+  `app/src/pages/session/device-boot.ts`). An attached Android device that is
+  `unauthorized` or `offline` is listed with a hint on what to do
+  (`deviceHint`).
 
 Computer use (#333) is per Project and off by default. A Project page's
 Computer use card switches it for the Project folder (`GET`/`POST
