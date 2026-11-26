@@ -561,7 +561,7 @@ RemoteAccess.allows(request: { method: string; path: string }): boolean
 - **AC-P6a-3 Companion scope.** `allows` is a default-deny list over method and path (query strings
   ignored, a trailing slash tolerated, both the `/api/...` routes and the older instance routes). Allowed
   for a device: reading threads and their messages, creating a thread, prompting, steering, interrupting,
-  answering permission requests and questions, the event streams, model and harness lists (read),
+  answering permission requests and questions, the event streams, health, model and harness lists (read),
   the vault's pages, timelines and logs (read and write), calendar (read and write), the Command Centre,
   project threads and usage (read). Denied: terminals and their sockets, the session shell and command
   routes, file content writes and file search outside the vault routes, configuration, credentials,
@@ -575,7 +575,10 @@ RemoteAccess.allows(request: { method: string; path: string }): boolean
   the header only, except for the event-stream and socket routes that cannot set a header, where a
   short-lived ticket is used as terminals already do. The password keeps working exactly as before.
   `POST /remote/pair` is the one unauthenticated route: body `{ code, name }`, answers the token once,
-  and is limited to ten attempts a minute per address.
+  and is limited to ten attempts a minute per address. The owner manages devices through
+  `POST /api/remote/pairing-code`, `GET /api/remote/devices` and `DELETE /api/remote/devices/:id`, which a
+  device token can never call. Paths are matched exactly as registered: a different letter case, a
+  doubled slash, an encoded or literal `..` segment, or a backslash is denied.
 - **AC-P6a-5 Documentation.** The threat model gains remote access: the device registry, pairing, the
   scope table, what a stolen phone can do until revoked, and that the link is plain HTTP on a network
   the user trusts (local network or VPN) until a later phase adds a relay. No source comments.
