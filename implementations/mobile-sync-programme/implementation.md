@@ -428,6 +428,164 @@ copying `verification.test.ts` and `verification-gcs-fake.ts` into `test/thread-
 Standard checks: `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test:engine`.
 Baseline: on the base commit the acceptance file fails at the import of `../../src/thread-sync`.
 
+## P5 and P6, split into a core half and an app half
+
+P5 (thread sync in the app) and P6 (remote access for the phone) each have a half that can be built
+and tested without the desktop window, and a half that needs it. The core halves run as a pair, then
+the app halves.
+
+| Part | Outcome | Edit scope |
+| --- | --- | --- |
+| P5a | A sync manager in the server: settings, the list of stored threads with their local state, push after a thread goes idle, and "continue here" with a local folder | `tenon/packages/core/src/thread-sync/` (new files, plus additive exports in `thread-sync.ts`), `tenon/packages/core/test/thread-sync/`, a new route group in `tenon/packages/protocol/src/groups/` and `tenon/packages/server/src/handlers/` with its lines in `protocol/src/api.ts` and `server/src/handlers.ts`, the generated client, docs |
+| P6a | Device pairing, per-device tokens and a companion scope enforced by the server | `tenon/packages/core/src/remote-access.ts` and `src/remote-access/`, `tenon/packages/core/test/remote-access/`, `tenon/packages/server/src/auth.ts` and `middleware/`, `tenon/packages/tenon/src/server/` (authorization middleware, network guard, a pairing route), their tests, docs |
+| P5b | Google sign-in for Cloud Storage, the key in the system credential store, Settings › Sync, and "Continue here" in the app | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
+| P6b | The second listener, pairing by QR code and device management in Settings › Servers | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
+
+P5a's base is the integration branch with P4 merged. Where both core halves must touch the same
+registration file (`protocol/src/api.ts`, `server/src/handlers.ts`, the generated client), each adds
+only its own lines; the generated client is regenerated at integration.
+
+### P5a: sync manager
+
+#### Contract
+
+`tenon/packages/core/src/thread-sync/manager.ts`, exported from the `ThreadSync` namespace:
+
+```ts
+ThreadSync.manager(input: {
+  db: Database.Interface["db"]; events: EventV2.Interface
+  settingsFile: string
+  credentials: { key(): Promise<Uint8Array | undefined>; store(bucket: string): Promise<ThreadSync.Store | undefined> }
+  hostname: string
+}): {
+  status(): Effect<Status>
+  configure(change: { enabled?: boolean; bucket?: string; machineName?: string }): Effect<Status, SyncError>
+  threads(): Effect<Array<StoredThread>, SyncError>
+  push(sessionID: string): Effect<{ uploaded: number; head: number }, SyncError>
+  pull(sessionID: string): Effect<{ applied: number; head: number }, SyncError>
+  continueHere(sessionID: string, input: { directory: string }): Effect<{ applied: number; head: number }, SyncError>
+  settled(sessionID: string): Effect<{ pushed: boolean; reason?: string }>
+  remove(sessionID: string): Effect<void, SyncError>
+}
+type Status = { ready: boolean; enabled: boolean; bucket: string; machine: { id: string; name: string }
+  missing: Array<"bucket" | "key" | "store">; lastError: string | null }
+type StoredThread = { sessionID: string; title: string; directory: string; head: number; updatedAt: number
+  owner: { id: string; name: string }; mine: boolean
+  local: "absent" | "behind" | "current" | "ahead" | "diverged"; folder: string | null }
+```
+
+New error code: `not_ready` (sync is off, or the bucket, key or store is missing).
+
+#### Acceptance criteria
+
+- **AC-P5a-1 Settings.** `settingsFile` is a JSON file the manager creates on first use, written through
+  a temporary file and a rename. It holds `enabled`, `bucket`, the machine (`id` made once from the
+  hostname plus six random hex characters, and a `name` that defaults to the hostname) and the folder
+  choices; it never holds the key or a token. A file that cannot be parsed is renamed aside and
+  defaults are used. `configure` validates the bucket name (3 to 63 characters of lower-case letters,
+  digits, `-`, `_` and `.`, starting and ending with a letter or digit) and a machine name of 1 to 64
+  characters after trimming, else `invalid_name`. `status().missing` lists what is absent, and `ready` is
+  true only when sync is enabled and nothing is missing.
+- **AC-P5a-2 Not ready.** `threads`, `push`, `pull`, `continueHere` and `remove` fail with `not_ready`
+  when `ready` is false, and touch neither the store nor the database. `settled` never fails: it returns
+  `{ pushed: false, reason }`.
+- **AC-P5a-3 Stored threads with local state.** `threads` returns every stored thread, newest first,
+  with `mine` (this machine owns it) and `local`: `absent` (no local events), `behind` (the store has
+  more), `current` (equal), `ahead` (this computer has more and the same history up to the stored
+  head), `diverged` (a local event differs from the stored one at the same sequence). `folder` is the
+  local folder chosen for it, or null.
+- **AC-P5a-4 Push after a turn.** `settled(sessionID)` pushes when sync is ready and the thread is either
+  owned by this machine or not stored yet, and reports `pushed: false` with a reason otherwise (owned by
+  another computer, nothing new, not ready, or a store failure, which it records as `status().lastError`
+  instead of failing; a later successful push clears it).
+- **AC-P5a-5 Continue here.** `continueHere(sessionID, { directory })` takes the thread over (pulling
+  first) and records `directory` as this computer's folder for it. From then on, on this computer only,
+  the thread's session row has that directory and the project that folder belongs to, so the thread is
+  listed under that folder and its next turn runs there. The choice survives later pulls and a new
+  manager on the same files (it is re-applied after every pull), is never written to the event log or
+  the store, and does not change the thread's folder on any other computer. A relative or empty
+  `directory` is `invalid_name`. Continuing a thread this computer already owns only records the folder.
+- **AC-P5a-6 Routes.** A new group serves the manager under `/api/thread-sync`: `GET` (status), `PUT`
+  (configure), `GET /threads`, `POST /threads/:sessionID/push`, `/pull`, `/continue` (body
+  `{ directory }`) and `DELETE /threads/:sessionID`. Handlers are thin. A `SyncError` answers with its
+  code in the body and a fitting status (409 for `conflict`, `not_owner` and `diverged`; 404 for
+  `not_found`; 400 for `invalid_name`; 412 for `not_ready`; 502 for `unavailable` and `unauthorized`;
+  422 for `unreadable`, `unsupported` and `foreign_path`). The server's credentials come from the
+  desktop over the existing loopback bridge (two bridge calls, never listed as agent tools); without a
+  bridge the status is `missing: ["key", "store"]` and nothing else works. The server calls `settled`
+  when a thread becomes idle. The generated client is current (`bun run check:generated`).
+- **AC-P5a-7 Documentation.** The architecture section gains the manager, the settings file, the routes
+  and the folder choice; the threat model says the key and token live only in memory in the server
+  process and what the settings file holds; `docs/deferred-work.md` records that a Windows thread
+  cannot be continued on macOS yet. No source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P5a-1 to 5 | `acceptance/p5a/manager.test.ts` | `verification/p5a/manager.test.ts` |
+| AC-P5a-6 | the implementor's route test | reading the handlers; `bun run check:generated` |
+| AC-P5a-7 | diff review | diff review |
+
+### P6a: remote access core
+
+#### Contract
+
+`tenon/packages/core/src/remote-access.ts` exports the namespace `RemoteAccess`:
+
+```ts
+RemoteAccess.registry(input: { file: string; now?: () => number }): {
+  pairingCode(): { code: string; expiresAt: number }
+  pair(input: { code: string; name: string }): Promise<{ id: string; name: string; token: string }>
+  authenticate(token: string): Promise<{ id: string; name: string } | undefined>
+  devices(): Promise<Array<{ id: string; name: string; createdAt: number; lastSeenAt: number | null }>>
+  revoke(id: string): Promise<boolean>
+}
+RemoteAccess.allows(request: { method: string; path: string }): boolean
+```
+
+`pair` rejects with an error whose `code` is `bad_code`, `expired`, `locked` or `invalid_name`.
+
+#### Acceptance criteria
+
+- **AC-P6a-1 Pairing codes.** A code is eight characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, made
+  with the system's secure random source, valid for five minutes and for one use. Asking for a new code
+  cancels the previous one. Matching ignores case, spaces and hyphens. After five wrong attempts the
+  current code is cancelled and `pair` answers `locked` until a new code is made; an attempt with no
+  current code is `bad_code`; a code past its time is `expired`. Codes are never written to disk.
+- **AC-P6a-2 Devices.** A successful `pair` creates a device with a random ID, the given name (1 to 64
+  characters after trimming, else `invalid_name`) and a 32-byte random token returned once. `file` stores
+  only the SHA-256 of each token, written through a temporary file and a rename and private to the
+  user. Devices survive a new registry on the same file; a file that cannot be parsed is renamed aside
+  and treated as empty. `authenticate` finds a device by its token without leaking timing and records
+  when it was last seen (at most one write a minute per device); a revoked or unknown token is
+  `undefined`. `revoke` removes the device and reports whether it existed.
+- **AC-P6a-3 Companion scope.** `allows` is a default-deny list over method and path (query strings
+  ignored, a trailing slash tolerated, both the `/api/...` routes and the older instance routes). Allowed
+  for a device: reading threads and their messages, creating a thread, prompting, steering, interrupting,
+  answering permission requests and questions, the event streams, model and harness lists (read),
+  the vault's pages, timelines and logs (read and write), calendar (read and write), the Command Centre,
+  project threads and usage (read). Denied: terminals and their sockets, the session shell and command
+  routes, file content writes and file search outside the vault routes, configuration, credentials,
+  provider and MCP sign-in, harness setup, sign-in, install, upgrade and registry changes, computer use,
+  workspace instructions writes, project scan, link and unlink, thread sync settings, device management
+  and pairing-code creation, dispose and upgrade. The full table lives in `docs/security/threat-model.md`,
+  and a test checks that every route the server registers is in exactly one of the two lists.
+- **AC-P6a-4 Enforcement.** The authorization middleware accepts `Authorization: Bearer <device token>`
+  beside the existing password. A device request outside the scope answers 403 with nothing done; an
+  unknown or revoked token answers 401. A device token in a query string is refused: tokens travel in
+  the header only, except for the event-stream and socket routes that cannot set a header, where a
+  short-lived ticket is used as terminals already do. The password keeps working exactly as before.
+  `POST /remote/pair` is the one unauthenticated route: body `{ code, name }`, answers the token once,
+  and is limited to ten attempts a minute per address.
+- **AC-P6a-5 Documentation.** The threat model gains remote access: the device registry, pairing, the
+  scope table, what a stolen phone can do until revoked, and that the link is plain HTTP on a network
+  the user trusts (local network or VPN) until a later phase adds a relay. No source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P6a-1, 2, 3 | `acceptance/p6a/remote-access.test.ts` | `verification/p6a/remote-access.test.ts` |
+| AC-P6a-4 | the implementor's HTTP tests, modelled on `tenon/test/server/httpapi-authorization.test.ts` | reading the middleware; the verifier's own requests |
+| AC-P6a-5 | diff review | diff review |
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
