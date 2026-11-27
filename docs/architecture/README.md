@@ -3476,7 +3476,15 @@ Files), so a section needs no entry in the stored tab list and only file tabs
 can be closed. The Canvas ID alone is still appended to the list, as the mark
 that the rail should offer Canvas for that thread. An agent using the browser
 or a device sets `setSectionAttention` for that section (a dot on the rail,
-cleared when the section is shown) instead of switching the panel.
+cleared when the section is shown). The same `browser-agent` and
+`device-agent` events also open the panel on that section when the thread in
+view has a reply running (`activeTurn` and `agentPanelOpener` in
+`app/src/pages/session/agent-panel.ts`): once per user turn and section, so
+closing the panel or switching tabs holds until the next turn. The events
+name no thread and external harnesses record the call under a generic tool
+name, so a thread that is idle never opens, and two threads working at once
+in one window can open the panel in the one being viewed. `device_list`
+sends no event. A design being written opens Canvas (`design-canvas.tsx`).
 
 Subagents (built-in `task` and ACP `acp_subagent` parts) open in the Background tasks
 section (tab id `agents`) of the same side panel, which lists subagents and shell commands together
@@ -3615,7 +3623,10 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   the thread; it starts open, the toggle, its close button or Esc close it, and the choice is kept in
   `thread.environment.v2` (global storage). It shows harness and model,
   folder, branch, approval mode, context use, MCP servers (Tenon's own for external
-  harnesses), file changes with Review, and running subagents and terminals. Context
+  harnesses), file changes with Review, running background tasks (subagents with their
+  context use and commands with their elapsed time, from `runningOverview` in
+  `background-tasks.ts`; each row opens that task in the Background tasks
+  section), and terminals. Context
   use is split by `context-breakdown-model.ts` for every harness: the reported total
   divided by a chars/4 estimate of the system prompt, messages and tool calls, with
   the remainder shown as the agent's own instructions and tools (Codex, Claude Code,
@@ -3784,8 +3795,11 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   screenshot (draw, capture a region, add notes) and send it to the composer.
   The view hides while annotating or while a dialog is open, and until a page
   has committed: a fresh tab, a first load, and a failed one show the tab's own
-  state instead of a blank view. Main reports a failed main-frame load
-  (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
+  state instead of a blank view. A dialog counts as open when it is not
+  `inert`, so the closed Command Centre card, which stays mounted, does not
+  hide the page (`browserCovered` in
+  `app/src/pages/session/browser-cover.ts`). Main reports a failed main-frame
+  load (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
   rejected certificate as `error` in `browser-state`
   (`desktop/src/main/browser-failure.ts`); the tab shows it with the address
   and Retry (`browserStage` in `app/src/pages/session/browser-stage.ts`).
