@@ -21,6 +21,7 @@ test("exposes every standard HTTP API group", () => {
     "skills",
     "github",
     "computerUse",
+    "threadSync",
     "events",
     "ptys",
     "questions",
