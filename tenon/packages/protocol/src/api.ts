@@ -25,6 +25,7 @@ import { IntegrationGroup } from "./groups/integration"
 import { CredentialGroup } from "./groups/credential"
 import { ProjectCopyGroup } from "./groups/project-copy"
 import { HarnessGroup } from "./groups/harness"
+import { RemoteGroup } from "./groups/remote"
 
 const makeApiFromGroup = <
   const Group extends HttpApiGroup.Constraint,
@@ -60,6 +61,7 @@ const makeApiFromGroup = <
     .add(makeQuestionGroup(locationMiddleware, sessionLocationMiddleware))
     .add(ReferenceGroup.middleware(locationMiddleware))
     .add(ProjectCopyGroup.middleware(locationMiddleware))
+    .add(RemoteGroup)
     .annotateMerge(
       OpenApi.annotations({
         title: "Tenon HttpApi",

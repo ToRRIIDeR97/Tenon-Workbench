@@ -184,6 +184,11 @@ import type {
   ProjectCopiesRemoveOutput,
   ProjectCopiesRefreshInput,
   ProjectCopiesRefreshOutput,
+  RemotePairingCodeOutput,
+  RemoteDevicesOutput,
+  RemoteRevokeInput,
+  RemoteRevokeOutput,
+  RemoteStreamTicketOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -1516,6 +1521,52 @@ export function make(options: ClientOptions) {
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,
+          },
+          requestOptions,
+        ),
+    },
+    remote: {
+      pairingCode: (requestOptions?: RequestOptions) =>
+        request<RemotePairingCodeOutput>(
+          {
+            method: "POST",
+            path: `/api/remote/pairing-code`,
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      devices: (requestOptions?: RequestOptions) =>
+        request<RemoteDevicesOutput>(
+          {
+            method: "GET",
+            path: `/api/remote/devices`,
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      revoke: (input: RemoteRevokeInput, requestOptions?: RequestOptions) =>
+        request<RemoteRevokeOutput>(
+          {
+            method: "DELETE",
+            path: `/api/remote/devices/${encodeURIComponent(input.id)}`,
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      streamTicket: (requestOptions?: RequestOptions) =>
+        request<RemoteStreamTicketOutput>(
+          {
+            method: "POST",
+            path: `/api/remote/stream-ticket`,
+            successStatus: 200,
+            declaredStatuses: [403, 401, 400],
+            empty: false,
           },
           requestOptions,
         ),

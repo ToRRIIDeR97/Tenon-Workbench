@@ -61,6 +61,7 @@ import { PermissionSaved } from "@tenon/core/permission/saved"
 import { ProjectV2 } from "@tenon/core/project"
 import { ProjectCopy } from "@tenon/core/project/copy"
 import { PtyTicket } from "@tenon/core/pty/ticket"
+import { RemoteAccessService } from "@tenon/core/remote-access/service"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { SessionProjector } from "@tenon/core/session/projector"
 import { SessionV2 } from "@tenon/core/session"
@@ -85,6 +86,8 @@ import {
 } from "./middleware/authorization"
 import { EventApi } from "./groups/event"
 import { PtyConnectApi } from "./groups/pty"
+import { RemotePairApi } from "./groups/remote"
+import { remotePairHandlers } from "./handlers/remote"
 import { eventHandlers } from "./handlers/event"
 import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
@@ -143,6 +146,10 @@ const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
   Layer.provide([controlHandlers, controlPlaneHandlers, globalHandlers]),
   Layer.provide(schemaErrorLayer),
   Layer.provide(httpApiAuthLayer),
+)
+const remotePairApiRoutes = HttpApiBuilder.layer(RemotePairApi).pipe(
+  Layer.provide(remotePairHandlers),
+  Layer.provide(schemaErrorLayer),
 )
 const eventApiRoutes = HttpApiBuilder.layer(EventApi).pipe(
   Layer.provide(eventHandlers),
@@ -262,6 +269,7 @@ const app = LayerNode.group([
   ProjectV2.node,
   ProjectCopy.node,
   PtyTicket.node,
+  RemoteAccessService.node,
   ThreadSync.node,
 ])
 
@@ -274,6 +282,7 @@ export function createRoutes(
   return Layer.mergeAll(
     options.background ? RoutinesScheduler.layer : Layer.empty,
     rootApiRoutes,
+    remotePairApiRoutes,
     eventApiRoutes,
     ptyConnectApiRoutes,
     instanceRoutes,

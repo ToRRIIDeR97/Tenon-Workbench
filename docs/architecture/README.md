@@ -209,6 +209,63 @@ standalone app can keep running on other computers.
   (`harness-sync-model.ts`). The web build has no `harnessSync` platform, so
   both stay hidden there.
 
+## Remote access
+
+`@tenon/core/remote-access` (`core/src/remote-access.ts` and
+`remote-access/`) lets a phone pair with this computer and call its server
+with its own revocable token, held to a companion scope. This is the server
+half: the server still listens on loopback only and nothing in the desktop or
+app calls these routes yet; the second listener, the QR code and Settings ›
+Servers come later. Security detail and the full scope table are in the
+[threat model](../security/threat-model.md#remote-access).
+
+![Pairing sequence: the owner makes a code, the phone trades it for a token, then uses the token in a header and a ticket for event streams](../diagrams/remote-pairing.svg)
+
+- **Registry.** `RemoteAccess.registry({ file, now })` returns `pairingCode`,
+  `pair`, `authenticate`, `devices` and `revoke` (`remote-access/registry.ts`).
+  Pairing codes live in memory; devices live in `remote-devices.json` in the
+  data folder (`remote-access/file.ts`: SHA-256 of each token, temp file and
+  rename, `0600` or an `icacls` access list for the current user, a broken
+  file renamed aside). File operations run one at a time per registry and read
+  the file each time. `pair` rejects with a `PairError` whose `code` is
+  `bad_code`, `expired`, `locked` or `invalid_name`.
+- **Scope.** `RemoteAccess.allows({ method, path })` and the two tables it
+  reads, `allowed` and `denied` (`remote-access/scope.ts`), cover both route
+  sets. The most specific matching row decides and anything unmatched is
+  denied. `allowsRoute` checks a registered route pattern exactly, and
+  `opensStream` names the four event-stream routes that take a stream ticket.
+- **Service.** `RemoteAccessService` (`remote-access/service.ts`) holds one
+  registry on `Global.Path.data/remote-devices.json`, the stream tickets
+  (`remote-access/limits.ts`, one minute, single use) and the pairing limiter
+  (ten a minute per address). It is a global node in both the instance app
+  (`httpapi/server.ts`) and the standalone `/api` routes (`server/src/routes.ts`).
+- **Enforcement.** `server/src/middleware/remote-device.ts` reads
+  `Authorization: Bearer`, authenticates through the service and checks the
+  raw request path with `allows` and the matched endpoint with `allowsRoute`.
+  The `/api` middleware (`server/src/middleware/authorization.ts`), the
+  instance and terminal-connect middlewares and the router middleware for
+  `/doc` and the UI
+  (`tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`) all
+  call it first: 401 for an unknown token, 403 outside the scope, otherwise the
+  handler. Without a Bearer header the password path is unchanged, plus a
+  `?ticket=` stream ticket on the event-stream routes. A streamed response to
+  a device is wrapped by `endWhenRevoked`, which checks the registry every
+  five seconds and ends the stream once the device is gone.
+- **Routes.** `POST /remote/pair` (`httpapi/groups/remote.ts`, its own
+  `RemotePairApi` with no authorization middleware, mounted beside the root
+  routes and kept out of `TenonHttpApi` so it does not appear in the legacy
+  SDK). `POST /api/remote/pairing-code`, `GET /api/remote/devices`,
+  `DELETE /api/remote/devices/:id` and `POST /api/remote/stream-ticket`
+  (`protocol/src/groups/remote.ts`, `server/src/handlers/remote.ts`, in the
+  generated client). The first three are owner-only through the denied list.
+- **Tests.** `core/test/remote-access/` (codes, devices, file, tickets,
+  limiter, path tricks, the threat model table),
+  `tenon/test/server/remote-access-scope.test.ts` (every registered route is
+  in exactly one list), `remote-access-authorization.test.ts` (middleware
+  behaviour, raw-socket path tricks) and `remote-access-app.test.ts` (the real
+  server: pairing, revoking, an open stream ending after revocation, stream
+  tickets, 403 on every denied route, the 429 limit).
+
 ## Thread sync
 
 `@tenon/core/thread-sync` (`core/src/thread-sync.ts` and `thread-sync/`) moves

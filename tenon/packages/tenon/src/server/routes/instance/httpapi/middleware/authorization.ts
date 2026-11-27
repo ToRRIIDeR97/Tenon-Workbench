@@ -7,6 +7,7 @@ import { hasPtyConnectTicketURL, PTY_CONNECT_TICKET_QUERY } from "@/server/share
 import { PtyTicket } from "@tenon/core/pty/ticket"
 import { CorsConfig, isAllowedRequestOrigin } from "@tenon/server/cors"
 import { isPublicUIPath } from "@/server/shared/public-ui"
+import { RemoteDevice } from "@tenon/server/middleware/remote-device"
 export {
   Authorization as ServerAuthorization,
   authorizationLayer as serverAuthorizationLayer,
@@ -98,16 +99,49 @@ function validateRawCredential<A, E, R>(
   return effect
 }
 
+function deviceGate<E, R>(
+  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+  request: HttpServerRequest.HttpServerRequest,
+  token: string,
+  route?: { readonly method: string; readonly path: string },
+) {
+  return RemoteDevice.check(request, token, route).pipe(
+    Effect.flatMap((checked) => {
+      const deviceID = checked.deviceID
+      if (checked.verdict === "allowed" && deviceID) return endWhenRevoked(effect, deviceID)
+      if (checked.verdict === "outside") return Effect.succeed(RemoteDevice.forbidden())
+      return Effect.succeed(RemoteDevice.unauthorized())
+    }),
+  )
+}
+
+function streamGate<E, R>(
+  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+  request: HttpServerRequest.HttpServerRequest,
+) {
+  return RemoteDevice.redeemStreamTicket(request).pipe(
+    Effect.flatMap((deviceID) =>
+      deviceID ? endWhenRevoked(effect, deviceID) : Effect.succeed(RemoteDevice.unauthorized()),
+    ),
+  )
+}
+
+function endWhenRevoked<E, R>(effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>, deviceID: string) {
+  return effect.pipe(Effect.flatMap((response) => RemoteDevice.endWhenRevoked(response, deviceID)))
+}
+
 export const authorizationRouterMiddleware = HttpRouter.middleware()(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
-    if (!ServerAuth.required(config)) return (effect) => effect
 
     return (effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
+        const device = RemoteDevice.bearerToken(request)
+        if (device !== undefined) return yield* deviceGate(effect, request, device)
+        if (!ServerAuth.required(config)) return yield* effect
         return yield* credentialFromURL(url, request).pipe(
           Effect.flatMap((credential) => validateRawCredential(effect, credential, config)),
         )
@@ -119,10 +153,13 @@ export const authorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
-    if (!ServerAuth.required(config)) return Authorization.of((effect) => effect)
-    return Authorization.of((effect) =>
+    return Authorization.of((effect, options) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        const device = RemoteDevice.bearerToken(request)
+        if (device !== undefined) return yield* deviceGate(effect, request, device, options.endpoint)
+        if (!ServerAuth.required(config)) return yield* effect
+        if (RemoteDevice.hasStreamTicket(request, options.endpoint)) return yield* streamGate(effect, request)
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )
@@ -135,11 +172,13 @@ export const ptyConnectAuthorizationLayer = Layer.effect(
   PtyConnectAuthorization,
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
-    if (!ServerAuth.required(config)) return PtyConnectAuthorization.of((effect) => effect)
-    const tickets = yield* PtyTicket.Service
-    return PtyConnectAuthorization.of((effect) =>
+    const tickets = ServerAuth.required(config) ? yield* PtyTicket.Service : undefined
+    return PtyConnectAuthorization.of((effect, options) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        const device = RemoteDevice.bearerToken(request)
+        if (device !== undefined) return yield* deviceGate(effect, request, device, options.endpoint)
+        if (!tickets) return yield* effect
         const url = new URL(request.url, "http://localhost")
         if (hasPtyConnectTicketURL(url)) {
           const ptyID = url.pathname.split("/")[2] ?? ""

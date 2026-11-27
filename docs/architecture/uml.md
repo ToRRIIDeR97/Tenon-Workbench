@@ -298,6 +298,15 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 `PlannerCalendarStore.save`). Undo tokens live in the server process only. See
 [App tools and agent writes](README.md#app-tools-and-agent-writes).
 
+### Sequence: pairing a phone
+
+![Pairing sequence: the owner makes a code, the phone trades it for a token, then uses the token in a header and a ticket for event streams](../diagrams/remote-pairing.svg)
+
+The owner's code lives only in the server's memory; the device file holds the
+token's SHA-256. Both authorization middlewares check a Bearer token through
+the registry and the companion scope before any handler. See
+[Remote access](README.md#remote-access).
+
 ## Coverage index
 
 | Subject | Kind | Views | Source |
@@ -319,6 +328,9 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Push after a turn (`session.idle` → `settled` → push when owned or not stored, `lastError` on store failure) | Critical workflow | Component: thread sync | `core/src/thread-sync/service.ts`, `manager.ts` (`settled`), `tenon/src/session/status.ts` (publishes `session.idle`) |
 | Continue here (takeover, folder recorded on this computer, session row re-pointed after every pull) | Critical workflow | Component: thread sync | `core/src/thread-sync/manager.ts` (`continueHere`, `placeFolder`), `settings.ts` (`withFolder`) |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
+| Remote access (pairing codes, device tokens, companion scope, stream tickets, owner device routes) | Subsystem | Sequence: pairing a phone; text in [README](README.md#remote-access) and the [threat model](../security/threat-model.md#remote-access) | `core/src/remote-access.ts`, `core/src/remote-access/{registry,scope,file,limits,error,service}.ts`, `server/src/middleware/remote-device.ts`, `server/src/middleware/authorization.ts`, `server/src/handlers/remote.ts`, `protocol/src/groups/remote.ts`, `tenon/src/server/routes/instance/httpapi/{middleware/authorization,groups/remote,handlers/remote}.ts` |
+| `remote-devices.json` (device IDs, names, token SHA-256, paired and last-seen times) | Shared store | Sequence: pairing a phone | `core/src/remote-access/file.ts`, `core/src/remote-access/service.ts` (path in the data folder) |
+| Pairing a phone and calling with a device token | Critical workflow | Sequence: pairing a phone | `tenon/src/server/routes/instance/httpapi/handlers/remote.ts` (`POST /remote/pair`), `server/src/handlers/remote.ts`, `server/src/middleware/remote-device.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |
 | Location services | Subsystem | Component, Activity: write | `core/src/location-mutation.ts`, `core/src/file-mutation.ts` |
