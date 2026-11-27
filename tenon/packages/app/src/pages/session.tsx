@@ -102,6 +102,7 @@ import {
   sidePanelWidthMax,
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
+import { activeTurn, agentPanelOpener, type AgentSection } from "@/pages/session/agent-panel"
 import { createLiveDocumentOpener } from "@/pages/session/live-document-view"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { SessionFileReferences, panelSettled, slidePanelOpen } from "@/pages/session/file-reference"
@@ -704,6 +705,23 @@ export default function Page() {
   const threadTasks = useThreadTasks(() => true)
   const liveTerminals = useLiveTerminals()
   const runningTasks = createMemo(() => taskCounts(threadTasks(), liveTerminals()).running)
+  const agentMayOpen = agentPanelOpener()
+  const agentUsed = (section: AgentSection) => {
+    const id = params.id
+    if (!id || !desktopRailOpen()) return
+    if (!agentMayOpen(activeTurn(sync().data.message[id] ?? []), section)) return
+    if (desktopV2ReviewOpen() && tabState.section() === section) return
+    view().reviewPanel.open()
+    tabs().setActive(SECTION_TAB[section])
+  }
+  onMount(() => {
+    const offBrowser = platform.browser?.onAgent(() => agentUsed("browser"))
+    const offDevice = platform.device?.onAgent(() => agentUsed("device"))
+    onCleanup(() => {
+      offBrowser?.()
+      offDevice?.()
+    })
+  })
   createEffect(() => {
     const tab = activeFileTab()
     if (tab) lastFileTab.set(sessionKey(), tab)

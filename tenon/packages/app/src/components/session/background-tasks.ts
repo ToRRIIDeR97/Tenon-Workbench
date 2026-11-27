@@ -133,3 +133,13 @@ export function stopTarget(
   if (child) return { sessionID: child, scope: "task" as const }
   return threadSessionID ? { sessionID: threadSessionID, scope: "turn" as const } : undefined
 }
+
+export function runningOverview(tasks: readonly BackgroundTask[], live?: ReadonlySet<string>) {
+  const statuses = tasks.map((task) => taskStatus(task.part, live))
+  return {
+    total: tasks.length,
+    running: statuses.filter((status) => status === "running").length,
+    done: statuses.filter((status) => status === "done").length,
+    commands: taskSections(tasks, "command", live).running,
+  }
+}

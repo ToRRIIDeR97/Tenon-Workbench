@@ -828,6 +828,8 @@ export const dict = {
   "secondBrain.environment.openSubagent": "Open {{agent}} in Agents",
   "secondBrain.environment.noneRunning": "None running now",
   "secondBrain.environment.openAgents": "All subagents",
+  "secondBrain.environment.openTask": "Open {{task}} in Background tasks",
+  "secondBrain.environment.openTasks": "All background tasks",
   "secondBrain.sessionTab.compacted": "Compacted",
   "secondBrain.sessionTab.subagentUsage": "{{tokens}} tokens · {{cost}}",
   "secondBrain.sessionTab.subagentsMissing.one": "{{count}} subagent's totals aren't loaded and aren't counted",

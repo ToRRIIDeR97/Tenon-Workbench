@@ -18,7 +18,10 @@ import {
 } from "@/components/prompt-input/environment-model"
 import { contextBreakdown, type ContextPartKey } from "@/components/session/context-breakdown-model"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
-import { useThreadSubagents } from "@/components/session/subagent-tab"
+import { commandTitle, runningOverview, taskElapsed } from "@/components/session/background-tasks"
+import { useLiveTerminals, useThreadTasks } from "@/components/session/background-tasks-tab"
+import { useNow, useThreadSubagents } from "@/components/session/subagent-tab"
+import { formatTurnDuration } from "@/components/session/turn-steps-summary"
 import { subagentBar, subagentContexts } from "@/components/session/subagent-context"
 import { subagentName } from "@tenon/session-ui/step-kind"
 import { useData } from "@tenon/session-ui/context"
@@ -444,9 +447,13 @@ function ChangesSection() {
 function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0]; onClose: () => void }) {
   const language = useLanguage()
   const terminal = useTerminal()
-  const { view } = useSessionLayout()
+  const { view, params } = useSessionLayout()
   const sync = useSync()
   const data = useData()
+  const tasks = useThreadTasks(() => true)
+  const liveTerminals = useLiveTerminals()
+  const overview = createMemo(() => runningOverview(tasks(), liveTerminals()))
+  const now = useNow(() => overview().commands.length > 0)
   const rows = createMemo(() =>
     subagentContexts(props.groups, (id) => sync().session.get(id)).map((row) => {
       const named = subagentName(row.input)
@@ -460,8 +467,8 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
       }
     }),
   )
-  const running = () => runningSubagents(props.groups)
-  const done = () => rows().filter((row) => row.status === "completed").length
+  const running = () => Math.max(overview().running, runningSubagents(props.groups))
+  const done = () => Math.max(overview().done, rows().filter((row) => row.status === "completed").length)
   const live = createMemo(() => liveSubagents(rows()))
   const open = (row: { sessionID: string; id?: string }) => {
     data.openSubagent?.({ sessionID: row.sessionID, partID: row.id })
@@ -521,7 +528,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
   )
   return (
     <Show
-      when={rows().length > 0}
+      when={rows().length > 0 || overview().total > 0}
       fallback={
         <Section title={language.t("secondBrain.environment.running")} last>
           <div class="flex flex-col gap-1.5">
@@ -539,7 +546,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
                 <circle cx="7" cy="7" r="5" />
                 <path d="M7 4.5V7l1.5 1" />
               </svg>
-              <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.subagents")}</span>
+              <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.backgroundTasks.title")}</span>
               <span class="text-v2-text-text-muted">0</span>
             </div>
             {terminals()}
@@ -548,7 +555,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
       }
     >
       <Section
-        title={language.t("secondBrain.environment.subagents")}
+        title={language.t("secondBrain.backgroundTasks.title")}
         meta={[
           running() > 0 ? language.t("secondBrain.environment.subagentsRunning", { running: running() }) : undefined,
           done() > 0 ? language.t("secondBrain.environment.subagentsDone", { done: done() }) : undefined,
@@ -558,7 +565,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
         last
       >
         <div class="flex flex-col gap-0.5">
-          <Show when={live().length === 0}>
+          <Show when={live().length === 0 && overview().commands.length === 0}>
             <div class="py-1 text-v2-text-text-muted">{language.t("secondBrain.environment.noneRunning")}</div>
           </Show>
           <For each={live()}>
@@ -597,14 +604,40 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
               </button>
             )}
           </For>
-          <Show when={data.openSubagent && rows()[0]}>
-            {(first) => (
+          <For each={overview().commands}>
+            {(task) => {
+              const title = () => commandTitle(task.part) ?? language.t("secondBrain.backgroundTasks.commandFallback")
+              return (
+                <button
+                  type="button"
+                  data-action="environment-command"
+                  disabled={!data.openSubagent || !params.id}
+                  aria-label={language.t("secondBrain.environment.openTask", { task: title() })}
+                  class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left transition-colors duration-short ease-standard enabled:hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                  onClick={() => params.id && open({ sessionID: params.id, id: task.part.id })}
+                >
+                  <span
+                    aria-hidden="true"
+                    class="mx-1 size-1.5 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
+                  />
+                  <span class="min-w-0 flex-1 truncate font-mono text-[11.5px]">{title()}</span>
+                  <span class="shrink-0 text-right tabular-nums text-v2-text-text-muted">
+                    {formatTurnDuration(language, taskElapsed(task.part, now(), liveTerminals()))}
+                  </span>
+                  <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                </button>
+              )
+            }}
+          </For>
+          <Show when={data.openSubagent && params.id}>
+            {(sessionID) => (
               <button
                 type="button"
+                data-action="environment-open-tasks"
                 class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
-                onClick={() => open({ sessionID: first().sessionID })}
+                onClick={() => open({ sessionID: sessionID() })}
               >
-                <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.openAgents")}</span>
+                <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.openTasks")}</span>
                 <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
               </button>
             )}
