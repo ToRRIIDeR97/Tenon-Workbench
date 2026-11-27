@@ -1273,7 +1273,11 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/thread-sync`,
-            body: { enabled: input?.["enabled"], bucket: input?.["bucket"], machineName: input?.["machineName"] },
+            body: {
+              enabled: input?.["enabled"],
+              driveFolder: input?.["driveFolder"],
+              machineName: input?.["machineName"],
+            },
             successStatus: 200,
             declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
             empty: false,

@@ -4146,26 +4146,26 @@ export type ComputerUseSetOutput = {
 export type ThreadSyncStatusOutput = {
   readonly ready: boolean
   readonly enabled: boolean
-  readonly bucket: string
+  readonly driveFolder: string
   readonly machine: { readonly id: string; readonly name: string }
-  readonly missing: ReadonlyArray<"bucket" | "key" | "store">
+  readonly missing: ReadonlyArray<"key" | "store">
   readonly lastError: string | null
 }
 
 export type ThreadSyncConfigureInput = {
   readonly enabled?: {
     readonly enabled?: boolean | undefined
-    readonly bucket?: string | undefined
+    readonly driveFolder?: string | undefined
     readonly machineName?: string | undefined
   }["enabled"]
-  readonly bucket?: {
+  readonly driveFolder?: {
     readonly enabled?: boolean | undefined
-    readonly bucket?: string | undefined
+    readonly driveFolder?: string | undefined
     readonly machineName?: string | undefined
-  }["bucket"]
+  }["driveFolder"]
   readonly machineName?: {
     readonly enabled?: boolean | undefined
-    readonly bucket?: string | undefined
+    readonly driveFolder?: string | undefined
     readonly machineName?: string | undefined
   }["machineName"]
 }
@@ -4173,9 +4173,9 @@ export type ThreadSyncConfigureInput = {
 export type ThreadSyncConfigureOutput = {
   readonly ready: boolean
   readonly enabled: boolean
-  readonly bucket: string
+  readonly driveFolder: string
   readonly machine: { readonly id: string; readonly name: string }
-  readonly missing: ReadonlyArray<"bucket" | "key" | "store">
+  readonly missing: ReadonlyArray<"key" | "store">
   readonly lastError: string | null
 }
 

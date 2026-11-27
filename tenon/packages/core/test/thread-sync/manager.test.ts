@@ -61,7 +61,7 @@ const world = (root: string) => {
         hostname: name,
         credentials: {
           key: async () => (options.key === false ? undefined : made.key),
-          store: async (bucket) => ThreadSync.folderStore(path.join(root, "buckets", bucket)),
+          store: async (driveFolder) => ThreadSync.folderStore(path.join(root, "drives", driveFolder)),
         },
         projects: { resolve: async (directory) => ({ id: `prj_${name}`, worktree: directory }) },
       })
@@ -69,7 +69,7 @@ const world = (root: string) => {
   const ready = (name: string) =>
     Effect.gen(function* () {
       const sync = yield* manager(name)
-      yield* sync.configure({ enabled: true, bucket: "my-threads" })
+      yield* sync.configure({ enabled: true })
       return sync
     })
   return { made, manager, ready, on: (name: string) => computer(path.join(root, `${name}.sqlite`)) }
@@ -124,21 +124,21 @@ describe("P5a sync manager", () => {
       yield* Effect.gen(function* () {
         const first = yield* sync.manager("desk")
         const before = yield* first.status()
-        expect(before).toMatchObject({ ready: false, enabled: false, bucket: "" })
+        expect(before).toMatchObject({ ready: false, enabled: false, driveFolder: "Tenon Workbench Threads" })
         expect(before.machine.name).toBe("desk")
         expect(before.machine.id).toMatch(/^desk-[0-9a-f]{6}$/)
-        expect(before.missing).toContain("bucket")
-        expect(yield* code(first.configure({ bucket: "Not A Bucket" }))).toBe("invalid_name")
-        const after = yield* first.configure({ enabled: true, bucket: "my-threads", machineName: "  Desk PC " })
-        expect(after).toMatchObject({ ready: true, enabled: true, bucket: "my-threads", missing: [] })
+        expect(before.missing).not.toContain("bucket")
+        expect(yield* code(first.configure({ driveFolder: "   " }))).toBe("invalid_name")
+        const after = yield* first.configure({ enabled: true, driveFolder: "My threads", machineName: "  Desk PC " })
+        expect(after).toMatchObject({ ready: true, enabled: true, driveFolder: "My threads", missing: [] })
         expect(after.machine).toEqual({ id: before.machine.id, name: "Desk PC" })
         const again = yield* (yield* sync.manager("desk")).status()
-        expect(again).toMatchObject({ ready: true, bucket: "my-threads", machine: after.machine })
+        expect(again).toMatchObject({ ready: true, driveFolder: "My threads", machine: after.machine })
         const stored = yield* Effect.promise(() => fs.readFile(path.join(tmp.path, "desk-thread-sync.json"), "utf8"))
         expect(stored.includes(sync.made.phrase)).toBe(false)
         expect(stored.includes(Buffer.from(sync.made.key).toString("hex"))).toBe(false)
         expect(stored.includes(Buffer.from(sync.made.key).toString("base64"))).toBe(false)
-        expect(JSON.parse(stored)).toMatchObject({ enabled: true, bucket: "my-threads" })
+        expect(JSON.parse(stored)).toMatchObject({ enabled: true, driveFolder: "My threads" })
       }).pipe(Effect.provide(sync.on("desk")))
     }),
   )
@@ -158,7 +158,7 @@ describe("P5a sync manager", () => {
         expect(result.pushed).toBe(false)
         expect(typeof result.reason).toBe("string")
         const keyless = yield* sync.manager("desk", { key: false })
-        const status = yield* keyless.configure({ enabled: true, bucket: "my-threads" })
+        const status = yield* keyless.configure({ enabled: true })
         expect(status.ready).toBe(false)
         expect(status.missing).toEqual(["key"])
         expect(yield* code(keyless.push(id))).toBe("not_ready")

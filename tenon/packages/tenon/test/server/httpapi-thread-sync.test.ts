@@ -25,29 +25,34 @@ describe("thread sync HttpApi", () => {
   test("serves the manager and answers its error codes with fitting statuses", async () => {
     const status = await request("/api/thread-sync")
     expect(status.status).toBe(200)
-    expect(await status.json()).toMatchObject({ enabled: false, ready: false, missing: ["bucket", "key", "store"] })
+    expect(await status.json()).toMatchObject({
+      enabled: false,
+      ready: false,
+      driveFolder: "Tenon Workbench Threads",
+      missing: ["key", "store"],
+    })
 
     const invalid = await request("/api/thread-sync", {
       method: "PUT",
-      body: JSON.stringify({ bucket: "Not A Bucket" }),
+      body: JSON.stringify({ driveFolder: "   " }),
     })
     expect(invalid.status).toBe(400)
     expect(await invalid.json()).toMatchObject({ code: "invalid_name" })
 
     const configured = await request("/api/thread-sync", {
       method: "PUT",
-      body: JSON.stringify({ enabled: true, bucket: "my-threads", machineName: " Desk " }),
+      body: JSON.stringify({ enabled: true, driveFolder: "My threads", machineName: " Desk " }),
     })
     expect(configured.status).toBe(200)
     expect(await configured.json()).toMatchObject({
       enabled: true,
       ready: false,
-      bucket: "my-threads",
+      driveFolder: "My threads",
       machine: { name: "Desk" },
       missing: ["key", "store"],
     })
     const saved = await fs.readFile(path.join(Global.make().config, ThreadSync.SETTINGS_FILE), "utf8")
-    expect(JSON.parse(saved)).toMatchObject({ enabled: true, bucket: "my-threads" })
+    expect(JSON.parse(saved)).toMatchObject({ enabled: true, driveFolder: "My threads" })
 
     const blocked = await Promise.all([
       request("/api/thread-sync/threads"),
