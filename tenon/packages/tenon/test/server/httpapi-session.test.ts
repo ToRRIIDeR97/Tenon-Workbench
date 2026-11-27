@@ -726,13 +726,21 @@ describe("session HttpApi", () => {
         const headers = { "x-opencode-directory": test.directory }
         const session = yield* createSession({ title: "v2 unavailable" })
 
-        const compact = yield* request(`/api/session/${session.id}/compact`, { method: "POST", headers })
+        const compact = yield* request(`/api/session/${session.id}/compact`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({}),
+        })
         expect(compact.status).toBe(503)
         expect(yield* responseJson(compact)).toEqual({
           _tag: "ServiceUnavailableError",
-          message: "Session compact is not available yet",
+          message: "Nothing to compact yet, or the thread is running. Wait for the turn to finish and try again.",
           service: "session.compact",
         })
+
+        const bare = yield* request(`/api/session/${session.id}/compact`, { method: "POST", headers })
+        expect(bare.status).toBe(400)
+        expect(yield* responseJson(bare)).toMatchObject({ _tag: "InvalidRequestError", kind: "Payload" })
 
         const wait = yield* request(`/api/session/${session.id}/wait`, { method: "POST", headers })
         expect(wait.status).toBe(503)

@@ -88,7 +88,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
   })
   const home = page.getByRole("heading", { name: "Home", exact: true })
   const prompt = page.locator('main [data-component="prompt-input-v2"] [contenteditable="true"]')
-  const selector = page.locator('[data-action="prompt-model-pill"]')
+  const selector = page.locator('main [data-component="prompt-input-v2"] [data-action="prompt-model-pill"]')
   const expectHarness = async (name: string) => {
     await selector.click()
     await expect(page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]')).toContainText(name)
@@ -102,7 +102,8 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await prompt.fill("A draft while data loads")
     await expect(prompt).toContainText("A draft while data loads")
     await expect(start).toBeEnabled()
-    await expect(page.getByText("Checking harnesses…", { exact: true })).toHaveCount(0)
+    await expect(page.getByText("Checking harnesses…", { exact: true }).filter({ visible: true })).toHaveCount(0)
+    await expect(selector).not.toContainText("Checking harnesses…")
     await page.screenshot({ path: testInfo.outputPath("home-pending.png"), fullPage: true })
 
     await page.locator('[data-sidebar-item="command"]').click()

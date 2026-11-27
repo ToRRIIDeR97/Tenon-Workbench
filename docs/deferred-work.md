@@ -111,6 +111,10 @@ external_directory approval before edit approval.
 - `session/session.ts`: reasoning tokens are charged at the output-token rate
   until models.dev has a better pricing model.
 - `tool/tool.ts`: remove the workaround hack.
+- `test/tool/shell.test.ts` ("tool.shell abort", 2 tests): fails only when the
+  suite is started from PowerShell, because the shell tool then runs the
+  test's `bun -e '…'` command in PowerShell, which cannot parse its quoting.
+  It passes from Git Bash.
 
 ## Other packages
 

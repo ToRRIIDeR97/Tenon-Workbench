@@ -2604,7 +2604,8 @@ it through these routes:
     `type: "apiKey"`, or `account/logout`), and Codex stores it in its own
     home.
   - **Claude Code and OpenCode:** the key is written to
-    `harness-credentials.json` (`0600`) in the data folder, and
+    `harness-credentials.json` (`0600`; on Windows an access list naming
+    only the signed-in account) in the data folder, and
     `withSetupKeys` in `harness.ts` adds it to that built-in's environment as
     `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `OPENROUTER_API_KEY`.
   - Each change bumps a process-wide revision, because runtimes are built per

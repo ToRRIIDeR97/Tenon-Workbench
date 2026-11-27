@@ -12,12 +12,14 @@ test("AC-1.1 rail and panel share one outlined, neutral container", async ({ pag
   const style = await sidebar(page).evaluate((element) => {
     const css = getComputedStyle(element)
     return {
-      borderWidth: parseFloat(css.borderTopWidth),
+      ring: css.boxShadow,
       radius: parseFloat(css.borderTopLeftRadius),
+      clips: css.overflow,
     }
   })
-  expect(style.borderWidth).toBeGreaterThanOrEqual(1)
+  expect(style.ring).toMatch(/0px 0px 0px 1px/)
   expect(style.radius).toBeGreaterThan(0)
+  expect(style.clips).toBe("hidden")
   await expect(sidebar(page).locator("nav")).toHaveCount(1)
   await expect(sidebar(page).locator("aside")).toHaveCount(1)
   const backgrounds = await sidebar(page).evaluate((element) =>
@@ -41,7 +43,7 @@ test("AC-1.2 toggling animates the container between rail-only and rail plus pan
     return { property: css.transitionProperty, duration: css.transitionDuration, easing: css.transitionTimingFunction }
   })
   expect(closing.property).toContain("width")
-  expect(closing.duration).toContain("0.2s")
+  expect(closing.duration).toContain("0.15s")
   expect(closing.easing).toContain("cubic-bezier(0.3, 0, 0.8, 0.15)")
   await expect.poll(() => width(page)).toBeLessThanOrEqual(72)
   expect(await width(page)).toBeGreaterThanOrEqual(60)
@@ -71,7 +73,7 @@ test("AC-1.4 rail destinations keep their order and Settings opens the dialog", 
   const ids = await sidebar(page)
     .locator("nav [data-sidebar-item]")
     .evaluateAll((items) => items.map((item) => item.getAttribute("data-sidebar-item")))
-  expect(ids).toEqual(["overview", "projects", "calendar", "command", "settings"])
+  expect(ids).toEqual(["overview", "projects", "calendar", "command", "usage", "settings"])
   await sidebar(page).locator('[data-sidebar-item="settings"]').click()
   await expect(page.locator('[data-component="dialog-v2"][data-variant="settings"]')).toBeVisible()
 })

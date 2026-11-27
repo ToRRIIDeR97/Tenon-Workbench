@@ -1,12 +1,14 @@
 export * as HarnessSetup from "./setup"
 
 import { Harness } from "@tenon/schema/harness"
+import { execFile } from "child_process"
 import { Effect, Option, Schema, Semaphore } from "effect"
 import { ChildProcess } from "effect/process"
 import fs from "fs/promises"
 import { parse } from "jsonc-parser"
 import os from "os"
 import path from "path"
+import { promisify } from "util"
 import type { AppProcess } from "../process"
 import { HarnessDelegation } from "./delegation"
 import { which } from "../util/which"
@@ -190,12 +192,42 @@ async function writeAtomic(file: string, content: string) {
   await fs.mkdir(path.dirname(file), { recursive: true })
   const temp = `${file}.${process.pid}.${Date.now()}.tmp`
   try {
+    await fs.writeFile(temp, "", { mode: 0o600 })
+    await restrictToCurrentUser(temp)
     await fs.writeFile(temp, content, { mode: 0o600 })
     await fs.rename(temp, file)
   } catch (error) {
     await fs.rm(temp, { force: true })
     throw error
   }
+}
+
+export const windowsTool = (env: Readonly<Record<string, string | undefined>>, name: "icacls.exe" | "whoami.exe") =>
+  path.win32.join(env.SystemRoot ?? env.windir ?? "C:\\Windows", "System32", name)
+
+export const parseWhoami = (stdout: string) => {
+  const match = /^"(.+)","(S-1-[\d-]+)"$/.exec(stdout.trim())
+  if (!match) return undefined
+  return { name: match[1]!, sid: match[2]! }
+}
+
+export const privateAccessArgs = (file: string, sid: string) => [file, "/inheritance:r", "/grant:r", `*${sid}:F`]
+
+export const currentWindowsAccount = async () => {
+  const { stdout } = await promisify(execFile)(windowsTool(process.env, "whoami.exe"), ["/user", "/fo", "csv", "/nh"], {
+    windowsHide: true,
+  })
+  const account = parseWhoami(stdout)
+  if (!account) throw new Error("Could not read the signed-in Windows account")
+  return account
+}
+
+async function restrictToCurrentUser(file: string) {
+  if (process.platform !== "win32") return
+  const account = await currentWindowsAccount()
+  await promisify(execFile)(windowsTool(process.env, "icacls.exe"), privateAccessArgs(file, account.sid), {
+    windowsHide: true,
+  })
 }
 
 async function readJson(file: string) {

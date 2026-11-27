@@ -3,7 +3,7 @@ import { expect, test, type Page, type Route } from "@playwright/test"
 import { installSseTransport } from "../utils/sse-transport"
 import { currentSession } from "../utils/mock-server"
 
-const serverA = "http://127.0.0.1:4096"
+const serverA = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const serverB = "http://127.0.0.1:4097"
 const directoryA = "C:/server-a"
 const directoryB = "/home/server-b"
@@ -38,7 +38,11 @@ test("session settings use the remote server context", async ({ page }) => {
     .toBe(true)
   expect(permissionRequests.every((request) => new URL(request).origin === serverB)).toBe(true)
 
-  await dialog.getByRole("tab", { name: "Models" }).click()
+  await dialog.getByRole("tab", { name: "Built-in harness" }).click()
+  await dialog
+    .getByRole("tabpanel", { name: "Built-in harness" })
+    .getByRole("button", { name: "Models", exact: true })
+    .click()
   await expect(dialog.getByRole("switch", { name: "Server B Model" })).toBeEnabled()
   await expect(dialog.getByRole("switch", { name: "Server A Model" })).toHaveCount(0)
 })

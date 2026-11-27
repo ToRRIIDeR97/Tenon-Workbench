@@ -18,6 +18,6 @@
     "test:app": "bun run --cwd tenon/packages/app test",
     "test:second-brain": "bun run --cwd tenon/packages/tenon test test/knowledge test/planner brain",
     "test:routes": "bun run --cwd tenon/packages/app test:e2e e2e/regression/brain-home-routing.spec.ts e2e/regression/project-picker-recent-search.spec.ts e2e/regression/session-list-path-loading.spec.ts --workers=1",
-    "test:engine": "bun run --cwd tenon/packages/core test && bun run --cwd tenon/packages/tenon test"
+    "test:engine": "bun run --cwd tenon turbo run test --continue --concurrency=1 --filter=@tenon/core --filter=tenon"
   }
 }

@@ -8,6 +8,7 @@ import { File } from "@tenon/core/file"
 import { Git } from "@tenon/core/git"
 import { AbsolutePath, RelativePath } from "@tenon/core/schema"
 import { branch, commit, gitRemote } from "./fixture/git"
+import { reportSymlinkSkip } from "./fixture/symlink"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 
@@ -163,7 +164,8 @@ describe("Git trees", () => {
     }),
   )
 
-  it.live("diffs many files in one pass with the same result as per-file git diffs", () =>
+  const liveWithSymlinks = reportSymlinkSkip("Git trees") ? it.live.skip : it.live
+  liveWithSymlinks("diffs many files in one pass with the same result as per-file git diffs", () =>
     Effect.gen(function* () {
       const root = yield* Effect.acquireRelease(
         Effect.promise(() => tmpdir()),

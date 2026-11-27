@@ -117,6 +117,8 @@ Extra run, not one of the listed commands: `bun run --cwd tenon/packages/tenon t
 
 Spec paths are under `tenon/packages/app/`.
 
+Added in P3b: `e2e/regression/remote-session-settings.spec.ts` › auto-accept responds for an unfocused server session also failed on the base commit (with `PLAYWRIGHT_SERVER_PORT` set) and was missed by the baseline run; its row is in [the app repair record](e2e-repair-2026-11-26-app.md).
+
 Patterns in the e2e failures, for P3 to confirm:
 
 - Most are `element(s) not found`, visibility or timeout errors: the specs look for markup that the

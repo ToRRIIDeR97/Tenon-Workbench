@@ -47,6 +47,13 @@ const brokenPluginLayer = Layer.succeed(
   }),
 )
 
+const zodPackage = path.dirname(fileURLToPath(import.meta.resolve("zod")))
+const zodRuntimeFile = async (source: string) => {
+  if (path.relative(zodPackage, source).split(path.sep).includes("src")) return false
+  if ((await fs.stat(source)).isDirectory()) return true
+  return source.endsWith(".js") || source.endsWith(".json")
+}
+
 const root = LayerNode.group([ToolRegistry.node, Agent.node])
 const replacements = [
   [Config.node, configLayer],
@@ -345,9 +352,10 @@ describe("tool.registry", () => {
         yield* Effect.promise(() => fs.mkdir(path.join(plugin, "dist"), { recursive: true }))
         yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
         yield* Effect.promise(() =>
-          fs.cp(path.dirname(fileURLToPath(import.meta.resolve("zod"))), path.join(opencode, "node_modules", "zod"), {
+          fs.cp(zodPackage, path.join(opencode, "node_modules", "zod"), {
             dereference: true,
             recursive: true,
+            filter: zodRuntimeFile,
           }),
         )
         yield* Effect.promise(() =>

@@ -1,7 +1,7 @@
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { preloadMarkdown } from "@tenon/session-ui/markdown-cache"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { useQuery } from "@tanstack/solid-query"
+import { useQuery, useQueryClient } from "@tanstack/solid-query"
 import { previousLocalDay, sameLocalDay } from "@/utils/date"
 import { type Accessor, createEffect, createMemo, createRoot, type JSX, startTransition } from "solid-js"
 import { produce } from "solid-js/store"
@@ -10,6 +10,7 @@ import {
   homeSessionIndexQueryOptions,
   retainHomeSessions,
   type HomeSessionEvents,
+  type HomeSessionIndex,
 } from "@/context/global-sync/home-session-index"
 import type { LocalProject } from "@/context/layout"
 import { useLanguage } from "@/context/language"
@@ -17,6 +18,7 @@ import { ServerConnection } from "@/context/server"
 import { compareSessionTime, displayName, errorMessage, projectForSession } from "@/pages/layout/helpers"
 import { useSessionTabAvatarState } from "@/pages/layout/project-avatar-state"
 import { pathKey } from "@/utils/path-key"
+import { cachedQueryData } from "@/utils/query-data"
 import { showToast } from "@/utils/toast"
 import { sessionHref } from "@/utils/session-route"
 import { useNavigate } from "@solidjs/router"
@@ -68,7 +70,13 @@ export function createHomeSessionsController(home: HomeController) {
       enabled: !!ctx,
     }
   })
-  const homeIndexSessions = createMemo(() => homeSessions().sessions(sessionLoad.data, sessionEventLoad.data))
+  const queryClient = useQueryClient()
+  const homeIndexSessions = createMemo(() =>
+    homeSessions().sessions(
+      cachedQueryData<HomeSessionIndex>(queryClient, sessionLoad, homeSessions().indexKey),
+      cachedQueryData<HomeSessionEvents>(queryClient, sessionEventLoad, homeSessions().eventsKey),
+    ),
+  )
   const indexedSessions = createMemo(() => retainHomeSessions(homeIndexSessions(), HOME_SESSION_LIMIT, Date.now()))
   const allRecords = createMemo(() =>
     buildHomeSessionRecords({
