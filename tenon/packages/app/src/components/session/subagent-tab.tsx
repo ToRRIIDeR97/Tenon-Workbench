@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, createMemo, onCleanup } from "solid-js"
+import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { AssistantMessage, ToolPart } from "@opencode-ai/sdk/v2/client"
 import { Harness } from "@tenon/schema/harness"
@@ -8,29 +8,22 @@ import { useData } from "@tenon/session-ui/context"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
-import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { getRelativeTime } from "@/utils/time"
 import { createSessionContextFormatter } from "./session-context-format"
 import { subagentDetail, type SubagentTranscriptEntry } from "./subagent-detail"
-import { SubagentLane, childLaneSteps, laneTokens, subagentLane, subagentRunning, taskSessionID } from "./subagent-lane"
+import { laneTokens, subagentRunning, taskSessionID } from "./subagent-lane"
 import {
   childTranscript,
-  findSubagent,
-  matchesFilter,
   splitResult,
-  subagentCounts,
   subagentModel,
   subagentModelLabel,
   taskResult,
   threadSubagents,
-  type SubagentFilter,
   type SubagentGroup,
   type ThreadSubagent,
 } from "./subagent-list"
-import { formatTurnDuration } from "./turn-steps-summary"
 
 export function useThreadSubagents(enabled: () => boolean) {
   const sync = useSync()
@@ -42,46 +35,7 @@ export function useThreadSubagents(enabled: () => boolean) {
   })
 }
 
-export function AgentsTabLabel(props: { groups: SubagentGroup[] }) {
-  const language = useLanguage()
-  const running = createMemo(() => subagentCounts(props.groups).running)
-  return (
-    <>
-      <span>{language.t("secondBrain.agents.title")}</span>
-      <Show when={running() > 0}>
-        <span
-          data-slot="agents-tab-badge"
-          aria-label={language.t("secondBrain.agents.runningBadge", { count: running() })}
-          class="flex h-4 min-w-4 items-center justify-center rounded-full bg-v2-background-bg-accent-container px-1 text-[11px] leading-4 tabular-nums text-v2-text-text-on-accent-container"
-        >
-          {running().toLocaleString(language.intl())}
-        </span>
-      </Show>
-    </>
-  )
-}
-
-export function AgentsTab(props: {
-  groups: SubagentGroup[]
-  selected?: string
-  onSelect: (partID: string | undefined) => void
-  harnessName?: (id: string) => string | undefined
-}) {
-  const selected = createMemo(() => findSubagent(props.groups, props.selected))
-  return (
-    <ViewSwitch class="h-full" key={props.selected ?? "list"}>
-      <Show when={props.selected} fallback={<AgentsList groups={props.groups} onSelect={(id) => props.onSelect(id)} />}>
-        <Show when={selected()} keyed fallback={<Missing onBack={() => props.onSelect(undefined)} />}>
-          {(item) => (
-            <AgentDetail item={item} onBack={() => props.onSelect(undefined)} harnessName={props.harnessName} />
-          )}
-        </Show>
-      </Show>
-    </ViewSwitch>
-  )
-}
-
-function useNow(active: () => boolean) {
+export function useNow(active: () => boolean) {
   const [clock, setClock] = createStore({ now: Date.now() })
   createEffect(() => {
     if (!active()) return
@@ -92,128 +46,22 @@ function useNow(active: () => boolean) {
   return () => clock.now
 }
 
-function AgentsList(props: { groups: SubagentGroup[]; onSelect: (partID: string) => void }) {
-  const language = useLanguage()
-  const sync = useSync()
-  const [state, setState] = createStore<{ filter: SubagentFilter }>({ filter: "all" })
-  const counts = createMemo(() => subagentCounts(props.groups))
-  const now = useNow(() => counts().running > 0)
-  const groups = createMemo(() =>
-    props.groups.flatMap((group) => {
-      const items = group.items.filter((item) => matchesFilter(item.part, state.filter))
-      return items.length > 0 ? [{ ...group, items }] : []
-    }),
-  )
-  const childSteps = (part: ToolPart) => {
-    const id = taskSessionID(part)
-    if (!id) return undefined
-    return childLaneSteps((sync().data.message[id] ?? []).flatMap((message) => sync().data.part[message.id] ?? []))
-  }
-  const childSession = (part: ToolPart) => {
-    const id = taskSessionID(part)
-    return id ? sync().session.get(id) : undefined
-  }
-  const modelLabel = (item: ThreadSubagent) => {
-    const id = taskSessionID(item.part)
-    const child = id
-      ? (sync().data.message[id] ?? []).findLast((message): message is AssistantMessage => message.role === "assistant")
-      : undefined
-    return subagentModelLabel(subagentModel(item, child))
-  }
-  const filters: SubagentFilter[] = ["all", "running", "failed"]
-  const time = (createdAt: number | undefined) =>
-    createdAt === undefined
-      ? undefined
-      : getRelativeTime(new Date(createdAt).toISOString(), (key, params) => language.t(key, params))
-
-  return (
-    <ScrollView class="@container h-full">
-      <div data-slot="agents-tab-list" class="flex flex-col gap-4 px-4 pt-2 pb-10">
-        <div role="radiogroup" class="flex flex-wrap gap-1.5">
-          <For each={filters}>
-            {(filter) => (
-              <button
-                type="button"
-                role="radio"
-                data-slot="agents-tab-filter"
-                aria-checked={state.filter === filter}
-                class="flex h-7 items-center gap-1.5 rounded-full px-3 text-[12px] leading-4 transition-colors duration-short ease-standard motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
-                classList={{
-                  "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": state.filter === filter,
-                  "bg-v2-background-bg-layer-01 text-v2-text-text-base hover:bg-v2-background-bg-layer-02":
-                    state.filter !== filter,
-                }}
-                onClick={() => setState("filter", filter)}
-              >
-                <span>{language.t(`secondBrain.agents.filter.${filter}`)}</span>
-                <span class="tabular-nums opacity-70">{counts()[filter].toLocaleString(language.intl())}</span>
-              </button>
-            )}
-          </For>
-        </div>
-        <Show
-          when={groups().length > 0}
-          fallback={
-            <div class="px-1 text-[13px] text-v2-text-text-muted">
-              {language.t(counts().all === 0 ? "secondBrain.agents.empty" : "secondBrain.agents.emptyFilter")}
-            </div>
-          }
-        >
-          <For each={groups()}>
-            {(group) => (
-              <section data-slot="agents-tab-group" class="flex flex-col gap-2">
-                <div class="flex min-w-0 items-center gap-1.5 px-1 text-[12px] leading-4 text-v2-text-text-muted">
-                  <span class="shrink-0 [font-weight:500]">
-                    {language.t("secondBrain.agents.turn", { number: group.turn.toLocaleString(language.intl()) })}
-                  </span>
-                  <Show when={time(group.createdAt)}>
-                    {(value) => (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span class="min-w-0 truncate">{value()}</span>
-                      </>
-                    )}
-                  </Show>
-                </div>
-                <div class="flex flex-col gap-1 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px] leading-5 text-v2-text-text-base">
-                  <For each={group.items}>
-                    {(item) => (
-                      <SubagentLane
-                        lane={subagentLane(item.part, childSteps)}
-                        now={now()}
-                        formatDuration={(ms) => formatTurnDuration(language, ms)}
-                        tokens={laneTokens(item.part, childSession(item.part))}
-                        model={modelLabel(item)}
-                        onOpen={() => props.onSelect(item.part.id)}
-                      />
-                    )}
-                  </For>
-                </div>
-              </section>
-            )}
-          </For>
-        </Show>
-      </div>
-    </ScrollView>
-  )
-}
-
-function BackLink(props: { onBack: () => void }) {
+export function BackLink(props: { onBack: () => void; action?: string }) {
   const language = useLanguage()
   return (
     <button
       type="button"
-      data-action="agents-tab-back"
+      data-action={props.action ?? "agents-tab-back"}
       class="-ms-1 flex items-center gap-0.5 self-start rounded-[6px] px-1 text-[12px] leading-5 text-v2-text-text-accent transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
       onClick={() => props.onBack()}
     >
       <Icon name="chevron-left" size="small" />
-      {language.t("secondBrain.agents.back")}
+      {language.t("secondBrain.backgroundTasks.title")}
     </button>
   )
 }
 
-function Missing(props: { onBack: () => void }) {
+export function Missing(props: { onBack: () => void }) {
   const language = useLanguage()
   return (
     <div class="flex h-full flex-col gap-4 px-4 pt-2">
@@ -223,10 +71,11 @@ function Missing(props: { onBack: () => void }) {
   )
 }
 
-function AgentDetail(props: {
+export function AgentDetail(props: {
   item: ThreadSubagent
   onBack: () => void
   harnessName?: (id: string) => string | undefined
+  actions?: JSX.Element
 }) {
   const language = useLanguage()
   const sync = useSync()
@@ -400,8 +249,9 @@ function AgentDetail(props: {
               </>
             )}
           </Show>
+          <span class="flex-1" />
+          {props.actions}
           <Show when={childID() && data.navigateToSession}>
-            <span class="flex-1" />
             <button
               type="button"
               data-action="agents-tab-open-session"

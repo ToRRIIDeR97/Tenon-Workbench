@@ -132,8 +132,8 @@ import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
-import { useThreadSubagents } from "@/components/session/subagent-tab"
-import { subagentCounts } from "@/components/session/subagent-list"
+import { useLiveTerminals, useThreadTasks } from "@/components/session/background-tasks-tab"
+import { taskCounts } from "@/components/session/background-tasks"
 import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
 type ChangeMode = "git" | "branch" | "turn"
@@ -701,8 +701,9 @@ export default function Page() {
   })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
-  const threadSubagentGroups = useThreadSubagents(() => true)
-  const runningSubagents = createMemo(() => subagentCounts(threadSubagentGroups()).running)
+  const threadTasks = useThreadTasks(() => true)
+  const liveTerminals = useLiveTerminals()
+  const runningTasks = createMemo(() => taskCounts(threadTasks(), liveTerminals()).running)
   createEffect(() => {
     const tab = activeFileTab()
     if (tab) lastFileTab.set(sessionKey(), tab)
@@ -2407,7 +2408,7 @@ export default function Page() {
                 canReview={canReview()}
                 reviewCount={reviewCount()}
                 hasReview={hasReview()}
-                running={runningSubagents()}
+                running={runningTasks()}
                 onSelect={selectPanelSection}
                 onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
               />

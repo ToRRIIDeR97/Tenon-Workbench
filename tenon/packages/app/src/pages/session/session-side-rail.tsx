@@ -159,7 +159,7 @@ export function SessionSideRail(props: {
         })}
         {item({
           section: "agents",
-          label: language.t("secondBrain.agents.title"),
+          label: language.t("secondBrain.backgroundTasks.title"),
           icon: <Icon name="activity" />,
           badge: (
             <Show when={props.running > 0}>

@@ -3325,7 +3325,7 @@ context window comes from `getSessionContext`: the window the harness reported
 for the last step (`contextWindow` on `Step.Ended` and the assistant message,
 from ACP `usage_update.size` or Codex `tokenUsage.modelContextWindow`), else
 the provider's limit for that model. Harness model IDs can be aliases such as
-Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Agents tab. Tool counts come from
+Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Background tasks section. Tool counts come from
 `summarizeTurn` over the harness's parts.
 The tab (labelled Details) follows the Details workshop's variant C, context first: the used tokens over the
 window (compact numbers), one bar that scales the estimated parts to the window so the rest reads as free, and an
@@ -3346,20 +3346,29 @@ that the rail should offer Canvas for that thread. An agent using the browser
 or a device sets `setSectionAttention` for that section (a dot on the rail,
 cleared when the section is shown) instead of switching the panel.
 
-Subagents (built-in `task` and ACP `acp_subagent` parts) open in the Agents
-section (`agents`) of the same side panel. With nothing active, a file tab
-wins, then a stored Agents tab, then context, then review. The selected agent is per-session state held for the app's lifetime
+Subagents (built-in `task` and ACP `acp_subagent` parts) open in the Background tasks
+section (tab id `agents`) of the same side panel, which lists subagents and shell commands together
+(`threadBackgroundTasks` in `components/session/background-tasks.ts`: subagent parts, step kind `run`, and
+`terminal_start` calls, which count as running while their PTY is among the thread's terminal tabs,
+`useTerminal().all()`;
+Running and Finished, All / Agents / Commands filters). A command opens its output (`commandOutput`); Stop calls
+`session.interrupt` on what `stopTarget` names: a built-in subagent's child session, otherwise the thread's
+session (the whole turn), since the server interrupts sessions, not single tool calls. An agent terminal is the
+exception: Stop closes just that terminal (`terminal.close`, i.e. `pty.remove`), and its detail offers Show
+terminal instead of captured output. The rail badge is
+`taskCounts(...).running`. With nothing active, a file tab
+wins, then a stored Background tasks tab, then context, then review. The selected agent is per-session state held for the app's lifetime
 (`selectAgent`); none selected shows the list. Stored tab lists with the
-retired per-agent `agent://<partID>` tabs are folded into the Agents tab with
+retired per-agent `agent://<partID>` tabs are folded into the Background tasks tab with
 that agent selected (`migrateAgentTabs`, run by the side panel). The opener
 (`onOpenSubagent` in the session-ui data context, wired in
 `pages/directory-layout.tsx`) takes an optional part ID and switches the
-panel to Agents; open file tabs are left as they are. It only exists on desktop
-widths. The list (`components/session/subagent-tab.tsx`, grouped by
-`threadSubagents` in `subagent-list.ts`) shows every subagent as the same
-`SubagentLane` the live turn card uses (`subagent-lane.tsx`), grouped by user
-turn with All / Running / Failed filters; it only scans the thread while the
-tab is open. A subagent is named by its task description, with the agent type
+panel to Background tasks; open file tabs are left as they are. It only exists on desktop
+widths. The list (`TaskList` in `components/session/background-tasks-tab.tsx`, built by
+`threadBackgroundTasks` in `background-tasks.ts`) shows every subagent and command as a row
+(`TaskRow`) under Running or Finished with All / Agents / Commands filters; the panel only scans
+the thread while the tab is open (the rail badge scans it always, as the Agents badge did). The
+subagent detail (`AgentDetail`) stays in `subagent-tab.tsx`. A subagent is named by its task description, with the agent type
 as a tag (`subagentName` in `session-ui/src/components/step-kind.ts`). The
 detail shows the prompt, the steps (the ACP transcript from
 `subagentDetail(part)`, or a `task` agent's child session, loaded on demand),

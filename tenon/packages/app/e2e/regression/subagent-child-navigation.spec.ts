@@ -93,7 +93,7 @@ async function openChildFromParent(page: Page) {
   await expectSessionTitle(page, parentTitle)
   await expandTurnSteps(page)
 
-  await page.locator('[data-component="session-side-rail"]').getByRole("tab", { name: "Agents" }).click()
+  await page.locator('[data-component="session-side-rail"]').getByRole("tab", { name: "Background tasks" }).click()
   const panel = page.locator("#review-panel")
   await panel.getByRole("button", { name: new RegExp(taskDescription) }).click()
   await panel.locator('[data-action="agents-tab-open-session"]').click()
