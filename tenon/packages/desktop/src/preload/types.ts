@@ -1,5 +1,5 @@
 import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
-import type { GoogleCalendarPlatform } from "@tenon/app"
+import type { GoogleCalendarPlatform, ThreadSyncPlatform } from "@tenon/app"
 import type { WslServersPlatform } from "@tenon/app/wsl/types"
 import type { UpdaterState } from "@tenon/app/updater"
 import type { DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
@@ -53,6 +53,7 @@ export type ElectronAPI = {
   wslServers: WslServersAPI
   updater: UpdaterAPI
   googleCalendar: GoogleCalendarPlatform
+  threadSync: ThreadSyncPlatform
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>

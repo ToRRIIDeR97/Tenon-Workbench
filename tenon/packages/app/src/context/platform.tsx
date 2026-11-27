@@ -185,6 +185,26 @@ export type FatalRendererErrorLog = {
   os?: DesktopOS
 }
 
+export type ThreadSyncDesktopStatus = {
+  secureStorage: boolean
+  clientId: string | null
+  signedIn: boolean
+  signingIn: boolean
+  key: boolean
+  error: string | null
+}
+
+export type ThreadSyncPlatform = {
+  status(): Promise<ThreadSyncDesktopStatus>
+  setClient(input: { clientId: string; clientSecret: string }): Promise<ThreadSyncDesktopStatus>
+  signIn(): Promise<ThreadSyncDesktopStatus>
+  cancelSignIn(): Promise<void> | void
+  signOut(): Promise<ThreadSyncDesktopStatus>
+  createKey(): Promise<{ phrase: string; status: ThreadSyncDesktopStatus }>
+  enterPhrase(phrase: string): Promise<ThreadSyncDesktopStatus>
+  forgetKey(): Promise<ThreadSyncDesktopStatus>
+}
+
 type PlatformBase = {
   version?: string
 
@@ -273,6 +293,8 @@ type PlatformBase = {
   mail?: MailPlatform
 
   harnessSync?: HarnessSyncPlatform
+
+  threadSync?: ThreadSyncPlatform
 
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
   chooseVaultFolder?(): Promise<

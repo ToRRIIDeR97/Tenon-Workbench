@@ -27,6 +27,8 @@ export {
   type MailImapInput,
   type MailPlatform,
   type Platform,
+  type ThreadSyncDesktopStatus,
+  type ThreadSyncPlatform,
   PlatformProvider,
 } from "./context/platform"
 export { type UpdaterPlatform, type UpdaterState } from "./updater"

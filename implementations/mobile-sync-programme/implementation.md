@@ -893,6 +893,145 @@ RemoteAccess.allows(request: { method: string; path: string }): boolean
 | AC-P6a-4 | the implementor's HTTP tests, modelled on `tenon/test/server/httpapi-authorization.test.ts` | reading the middleware; the verifier's own requests |
 | AC-P6a-5 | diff review | diff review |
 
+### P5b: thread sync in the desktop app
+
+One agent (TOR-1, no subagents) wrote this section, both test sets and the code. The review panel is a
+scored self-review in three lenses (plan conformance, correctness and regressions, integrity and scope).
+
+Before: the server's sync manager asks the desktop for `sync_key` and `sync_token` over the loopback
+bridge, and the bridge answers "Unknown tool", so `status().missing` is always `["key", "store"]`; there is
+no Settings page, no Google sign-in for Drive and no way to continue a thread here.
+
+After: Settings › Sync signs in to Google Drive in the system browser with the user's own OAuth client,
+keeps the refresh token and the sync key in the operating system's credential store through Electron
+`safeStorage`, shows a new key's recovery phrase once or takes a phrase from another computer, turns sync on,
+names the Drive folder and this computer, lists the stored threads with their state, and continues a thread
+owned by another computer in a folder the user picks.
+
+#### Contract
+
+`tenon/packages/desktop/src/main/thread-sync/` holds the domain code; `ipc.ts` only forwards.
+
+```ts
+googleSignIn(input: {
+  clientId: string; clientSecret: string; scope: string
+  endpoints: { authorize: string; token: string }
+  openExternal(url: string): Promise<void>; fetch: typeof fetch
+  signal?: AbortSignal; timeoutMs?: number
+}): Promise<{ accessToken: string; refreshToken: string; expiresAt: number; scope: string }>
+
+encodePhrase(key: Uint8Array): string
+decodePhrase(phrase: string): Uint8Array   // throws Error("invalid_phrase")
+
+createThreadSyncService(input: {
+  secrets: { available(): Promise<boolean>; encrypt(value: string): Promise<string>; decrypt(value: string): Promise<string> }
+  store: { get(key: string): unknown; set(key: string, value: unknown): void; delete(key: string): void }
+  fetch: typeof fetch; openExternal(url: string): Promise<void>
+  endpoints?: { authorize: string; token: string; revoke: string }
+  now?: () => number; random?: (size: number) => Uint8Array
+}): {
+  status(): Promise<ThreadSyncDesktopStatus>
+  setClient(input: { clientId: string; clientSecret: string }): Promise<ThreadSyncDesktopStatus>
+  signIn(): Promise<ThreadSyncDesktopStatus>
+  cancelSignIn(): void
+  signOut(): Promise<ThreadSyncDesktopStatus>
+  createKey(): Promise<{ phrase: string; status: ThreadSyncDesktopStatus }>
+  enterPhrase(phrase: string): Promise<ThreadSyncDesktopStatus>
+  forgetKey(): Promise<ThreadSyncDesktopStatus>
+  bridge(route: "sync_key" | "sync_token"): Promise<{ text: string }>
+}
+type ThreadSyncDesktopStatus = {
+  secureStorage: boolean
+  clientId: string | null
+  signedIn: boolean; signingIn: boolean
+  key: boolean
+  error: string | null
+}
+```
+
+`DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"`. Default endpoints are Google's
+(`https://accounts.google.com/o/oauth2/v2/auth`, `https://oauth2.googleapis.com/token`,
+`https://oauth2.googleapis.com/revoke`). An unpackaged build reads `TENON_THREAD_SYNC_OAUTH_ENDPOINT` (a base URL
+whose `/authorize`, `/token` and `/revoke` stand in for Google's) and `TENON_THREAD_SYNC_DRIVE_ENDPOINT` (passed
+to the server, which hands it to `driveStore`) so a fake OAuth server and the Drive fake can stand in; a packaged
+build ignores both.
+
+#### Acceptance criteria
+
+- **AC-P5b-1 Installed-app sign-in.** `googleSignIn` listens on `127.0.0.1` on a free port, opens the
+  authorize URL in the system browser (`openExternal`) with `client_id`, `redirect_uri`
+  `http://127.0.0.1:<port>/oauth2/callback`, `response_type=code`, `access_type=offline`,
+  `prompt=consent`, `scope` exactly the given scope, a random `state` and a PKCE `code_challenge`
+  (S256 of a random 43-character `code_verifier`). The callback with the right `state` and a `code` is
+  exchanged at the token endpoint (form body with `grant_type=authorization_code`, the code, the verifier,
+  the redirect URI, the client ID and the client secret; Google issues a secret for every Desktop-app client and documents that it is not treated as confidential). A callback with another `state`
+  answers 400 and keeps waiting; `error=access_denied` rejects with `google_oauth_denied`; a token
+  answer without a refresh token rejects with `google_refresh_token_missing`; a granted `scope` without
+  `drive.file` rejects with `google_scope_missing`; the timeout rejects with `google_oauth_timeout` and
+  the abort signal with `google_oauth_cancelled`. The listener is closed on every outcome. The browser
+  page says only that sign-in finished or failed.
+- **AC-P5b-2 Credentials at rest.** The service stores in the desktop store only: the client ID, the
+  encrypted client secret, the encrypted refresh token and the encrypted sync key (each through
+  `secrets.encrypt`); nothing else, and never a plain token, secret, key or phrase. Without secure
+  storage `status().secureStorage` is false and `setClient`, `signIn`, `createKey` and `enterPhrase` reject with
+  `secure_storage_unavailable` and store nothing. `setClient` checks the client with the Calendar sign-in's rules (an ID ending in `.apps.googleusercontent.com`, a secret without spaces; `google_client_id_invalid`, `google_client_secret_invalid`), and saving a different client signs out of the old one. `signIn` without a client is `google_client_missing` and opens nothing; a second `signIn` while one is open is `google_operation_busy`; `cancelSignIn` ends it with `google_oauth_cancelled`, which `status().error` then shows. `signOut` revokes the refresh token at the revoke endpoint (a failure
+  is ignored) and deletes it; the key stays. `forgetKey` deletes only the key.
+- **AC-P5b-3 Key and phrase.** `createKey` makes 32 random bytes, stores them and returns the phrase
+  once; it rejects with `key_exists` when a key is stored. `encodePhrase` and `decodePhrase` use the
+  core engine's format (eighteen groups of four hex digits: the key and the first four bytes of its
+  SHA-256), so a phrase made by `ThreadSync.generateKey` opens here and the reverse; `decodePhrase`
+  ignores case and surrounding white space and rejects anything else with `invalid_phrase`.
+  `enterPhrase` stores the decoded key, replacing any stored key. No method ever returns the key or the
+  phrase except `createKey`'s one answer.
+- **AC-P5b-4 Bridge.** `bridge("sync_key")` answers `{ text: JSON.stringify({ key: <base64url> }) }` with
+  the stored key, or `{ text: "{}" }` without one. `bridge("sync_token")` answers `{ text:
+  JSON.stringify({ token }) }` with an access token for the stored refresh token: the cached one while it
+  has more than a minute left, else a fresh one from the token endpoint (`grant_type=refresh_token`); a
+  rotated refresh token is stored encrypted. Not signed in, or a refused refresh (`invalid_grant`), answers
+  `{ text: "{}" }`, and an `invalid_grant` also deletes the refresh token so the page says to sign in
+  again; a token endpoint that cannot be reached answers `{}` and keeps the refresh token. Concurrent requests share one refresh. These answers are what `ThreadSync.bridgeCredentials` (P5a) decodes. The browser bridge routes
+  `sync_key` and `sync_token` to the service; they stay outside the agent tool list.
+- **AC-P5b-5 Settings › Sync.** A new Settings tab `sync` (desktop only; the web build says it needs the
+  desktop app) built from the standard Settings parts shows: Google Drive (client ID and optional secret
+  fields with Save, Sign in or Sign out, the state), the sync key (Create a key, which shows the phrase
+  once with Copy and "I saved it"; Enter a recovery phrase; Forget), sync itself (on/off, the Drive folder
+  name and this computer's name, saved through `PUT /api/thread-sync`; what is still missing; the last
+  error), and the stored threads (`GET /api/thread-sync/threads`: title, the owning computer, a state
+  word for `local`, "This computer" for `mine`), with "Continue here" on a thread owned by another
+  computer, which opens the folder picker and posts `/continue` with the chosen folder. Every string goes
+  through i18n; no colour coding. The tab appears in the matrix as `settings:sync`.
+- **AC-P5b-6 Thin IPC and platform.** New channels `thread-sync-status`, `thread-sync-set-client`,
+  `thread-sync-sign-in`, `thread-sync-cancel-sign-in`, `thread-sync-sign-out`, `thread-sync-create-key`,
+  `thread-sync-enter-phrase`, `thread-sync-forget-key` only call the service. Paths: the Electron store
+  lives in the user data folder on both systems; `safeStorage` uses DPAPI on Windows and the Keychain on
+  macOS; the loopback listener and the system browser are the same on both.
+- **AC-P5b-7 Fakes end to end.** With a fake OAuth server and the Drive fake, a test signs in, creates a
+  key, and a `ThreadSync.manager` built with `bridgeCredentials` against a bridge that answers from the
+  service reports `ready` and pushes a thread to the fake Drive.
+- **AC-P5b-8 Documentation.** The architecture's Thread sync section, the threat model (where the key and
+  refresh token live, the OAuth client as a user setting, the endpoints overrides only in unpackaged
+  builds), `docs/architecture/uml.md`, the diagram, the matrix (`settings:sync`, new channels) and a manual
+  test script `docs/records/thread-sync-manual-test.md` for the two unverified assumptions. No source
+  comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P5b-1 to 4 | `acceptance/p5b/acceptance.test.ts` with `fake-google.ts` (copied unchanged to `tenon/packages/desktop/src/main/thread-sync/`) | `verification/p5b/desktop-verification.test.ts` (client rules, busy and cancelled sign-in, the callback page, random phrases, a broken stored key, an unreachable token endpoint, one shared refresh) |
+| AC-P5b-5 | `acceptance/p5b/sync-model.test.ts` (copied as `app/src/components/settings-v2/thread-sync-model.test.ts`) and the page driven in the desktop app | screenshots of the page in the real app against the fakes |
+| AC-P5b-6, 8 | diff review, `bun run check` | diff review |
+| AC-P5b-7 | | `verification/p5b/core-e2e-verification.test.ts`, copied into `core/test/thread-sync/`: the desktop service, a loopback bridge, `bridgeCredentials` with the Drive fake and a real `ThreadSync.manager` push |
+
+Baseline on `b19e2295` (P0 tip): every new acceptance and verification file fails at its import
+(`./oauth`, `./thread-sync-model`), 0 pass.
+
+What the user must supply: a Google Cloud project with the Drive API enabled and an OAuth client of type
+"Desktop app" (its client ID, and its client secret, which Google issues for desktop clients and treats as
+not secret), entered in Settings › Sync on every computer.
+
+Unverified: the live Google sign-in and Drive; that a second computer signed in through the same client
+sees the first one's files under `drive.file`; Drive listing freshness; anything on macOS (Keychain through
+`safeStorage` is the same API, untested here).
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
@@ -1070,3 +1209,50 @@ before any spec changed.
   regressions 10 (both changes keep their assertions; stress before and after), integrity and scope 9
   (AC-P0-4 missed, must be said in the report, not hidden). Round 2 after this section: 10, 10, 10 for what
   was done; AC-P0-4 stays open.
+- `bun run check` on `b19e2295`, in a separate worktree: exit 0 (typecheck, lint with warnings only as on the
+  base, format, generated client, tests, build).
+
+### P5b thread sync in the desktop app (2026-11-27)
+
+One agent (TOR-1, no subagents) on `claude/thread-sync-desktop` from `b19e2295`. The P5b section,
+`acceptance/p5b/` and the verification set (kept in
+`C:\Users\sense\.tor-verification\tenon-mobile-sync\frozen\p5b\`) were written first and frozen. A first
+draft of the desktop code was written while the P0 runs were still going; the baseline was then taken
+with that draft moved out of the tree, so the recorded failures are the real baseline.
+
+- Baseline: every new file failed at its import (`./oauth`, `./thread-sync-model`), 0 pass.
+- After: desktop `bun test src/main/thread-sync` 25 pass with the acceptance file, `endpoints.test.ts`
+  and the verification copy (11 acceptance, 11 verification, 3 endpoint); the app model test 4 pass;
+  the core end-to-end verification (`core-e2e-verification.test.ts`: the desktop service signs in to the
+  fake Google, makes a key, answers a loopback bridge; `bridgeCredentials` with the Drive fake; a real
+  `ThreadSync.manager` reports ready and pushes) 1 pass. Both verification copies were deleted from the
+  tree afterwards.
+- Package suites: desktop 287 pass, 6 skip, 0 fail; app unit 1507 pass, browser 61 pass; core
+  `test/thread-sync` 84 pass. Typecheck of app, desktop and core clean.
+- The real desktop app (`TENON_TEST_ONBOARDING=1 bun run dev:desktop` with
+  `TENON_THREAD_SYNC_OAUTH_ENDPOINT` and `TENON_THREAD_SYNC_DRIVE_ENDPOINT` on two local fakes), driven over
+  CDP: saved a client, signed in (the system browser opened the fake's authorize page and the loopback
+  callback finished it), made a key (phrase shown once), turned sync on ("Sync is on."), then a second
+  "computer" (a core script with the same phrase) pushed a thread, which listed as "Laptop · Not on this
+  computer"; continuing it through `POST /api/thread-sync/threads/:id/continue` made it "This computer · Up
+  to date". Screenshots `evidence/p5b-*.png`. The first two show a layout fault they exposed (the client
+  fields overflowed the row and scrolled the list sideways), fixed before `p5b-4` and `p5b-5`. The
+  native folder picker of "Continue here" was not driven; the phrase in `p5b-2` is a throwaway key for the
+  fake Drive.
+- Tests changed after the freeze: none in their assertions. Prettier reformatted
+  `acceptance.test.ts` and `sync-model.test.ts` (same text without white space); the copies here were
+  updated to match.
+- Scope notes: `core/src/thread-sync/bridge.ts` gained the loopback-only Drive endpoint override (needed
+  for AC-P5b-7 and the live check), which also needs `bun run test:engine`. The Sync tab uses the existing
+  `cloud-upload` glyph, recorded in `docs/design.md`.
+- Base failure seen: `acceptance/p1-matrix.test.ts` AC-P1-2 fails on main because F-708 cites
+  `e2e/regression/session-timeline-locale-projection.spec.ts`, which no longer exists (P3c refreshes the
+  matrix).
+- Self-review, round 1: plan conformance 9 (the contract said the client secret was optional and the status
+  had a `clientSecret` flag; the plan was corrected before freezing, but AC-P5b-5's "web build" line and
+  the deferred sharing note were missing from the docs), correctness and regressions 9 (the page's input
+  rows overflowed and scrolled the list sideways, seen in the live screenshots), integrity and scope 10.
+  Fixed: narrower fields and a stacked client row, the deferred-work entry; round 2: 10, 10, 10.
+
+Left unverified, and what the user must supply: see the P5b section above (a Google Cloud OAuth client of
+type Desktop app; `docs/records/thread-sync-manual-test.md`). Nothing ran on macOS.

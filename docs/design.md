@@ -47,7 +47,8 @@ only the GitHub, Discord and MCP brand marks keep their own artwork.
   Terminal the framed prompt (`terminal`), a shell command the bare prompt
   (`console`), Harnesses the agent head (`harness`), MCP the plug (`plug`),
   Skills the sparkle wand (`skills`), Mail the envelope, Model profiles the
-  card (`model-profile`), harness sync the two arrows (`sync`). Don't reuse a
+  card (`model-profile`), harness sync the two arrows (`sync`), thread sync
+  the cloud with an arrow (`cloud-upload`). Don't reuse a
   glyph for a different destination; add one to the pack instead.
 - An unknown name renders as a plus, so add the glyph before using its name.
 
