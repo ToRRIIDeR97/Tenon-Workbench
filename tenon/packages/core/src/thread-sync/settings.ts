@@ -64,7 +64,10 @@ function defaults(hostname: string): Settings {
   return {
     enabled: false,
     bucket: "",
-    machine: { id: `${host}-${randomBytes(3).toString("hex")}`, name: Array.from(host).slice(0, MACHINE_NAME_MAX).join("") },
+    machine: {
+      id: `${host}-${randomBytes(3).toString("hex")}`,
+      name: Array.from(host).slice(0, MACHINE_NAME_MAX).join(""),
+    },
     folders: {},
   }
 }
