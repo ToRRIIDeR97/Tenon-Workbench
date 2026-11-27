@@ -209,6 +209,133 @@ standalone app can keep running on other computers.
   (`harness-sync-model.ts`). The web build has no `harnessSync` platform, so
   both stay hidden there.
 
+## Thread sync
+
+`@tenon/core/thread-sync` (`core/src/thread-sync.ts` and `thread-sync/`) moves
+one thread's event log between computers through an object store, sealed on
+the computer before it leaves. It is a library only: no route, setting or UI
+uses it yet; the Settings page, per-thread state and "Continue here" come
+later, with the Google sign-in that supplies the Cloud Storage token.
+
+![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder or Cloud Storage store with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
+
+- **Key.** `generateKey` makes 32 random bytes; the phrase is the key and a
+  4-byte SHA-256 check as hex groups (`xxxx-xxxx-…`, 18 groups), so a mistyped
+  phrase is refused (`invalid_key`). Surrounding white space and upper case
+  are accepted.
+- **Sealing.** `crypto.ts` uses WebCrypto AES-256-GCM with a fresh 12-byte
+  nonce per object. A sealed object is `TSY1`, the nonce, then ciphertext and
+  tag. The additional data binds a segment to its session ID and the SHA-256
+  of the segment before it (`null` for the first), and the manifest to its
+  session ID, so objects open only in their thread and in order. A segment
+  holds a non-empty run of consecutive events of one thread.
+- **Store layout.** Everything is under `threads/<sessionID>/`:
+  `manifest` (sealed JSON: owner machine ID and name, head sequence,
+  `updatedAt`, title, directory, project ID and worktree, and the ordered
+  list of segment names, hashes and ranges) and one
+  `segment-<first>-<last>-<sha256>` per push (sequence numbers padded to 12
+  digits). Names carry only the session ID, sequence numbers and a hash.
+- **Stores.** `Store` is `get`, `put` (with `ifGeneration`: `null` for "must
+  not exist", a generation for "unchanged since read"), `list` and `remove`.
+  Names are `/`-separated parts of `A-Z a-z 0-9 . _ -`, never `.` or `..`;
+  anything else is `invalid_name` before any I/O. `folderStore` keeps each
+  object at `<folder>/<name>` as a 32-character random generation followed by
+  the bytes, writes through a temporary file and rename under a per-name lock
+  file in `<folder>/~tenon/` (`~` is outside the name alphabet, so it never
+  collides), and works the same on Windows and macOS because paths are built
+  from the validated parts with `path.join`. `gcsStore` calls the Cloud
+  Storage JSON API with `Authorization: Bearer` from `token()` on every
+  request, percent-encodes names (slashes too), maps 412 to `conflict`, 401
+  and 403 to `unauthorized`, retries network failures, 429 and 5xx up to
+  four times with backoff within a two-second budget per call (retry requests
+  are aborted at its end), then reports `unavailable`; no single request
+  waits longer than 15 seconds (`AbortSignal.timeout`, set lower in tests
+  through `limitedGcsStore`); the time `token()` takes counts inside both
+  limits. A success reply it cannot parse is `unavailable` on every method,
+  so a listing never comes back empty because its body was malformed. It
+  follows `nextPageToken` and stops with `unavailable` when a token repeats
+  or the listing runs past 1,000 pages, and with `prefix` stores objects
+  under it and returns names without it.
+- **Push.** Only the manifest's owner pushes (`not_owner` otherwise); the
+  first push makes this machine the owner. It seals the local events after
+  the stored head into one segment, writes it with `ifGeneration: null`, then
+  writes the new manifest with the generation it read, so two computers never
+  interleave segments. If the manifest write fails, push re-reads the
+  manifest. If the re-read lists the new segment, the write landed: push
+  succeeds and sets the local owner to whichever owner that manifest names.
+  Otherwise push fails with the original error, and it removes its segment
+  only when the store definitely refused the write (`conflict`). After any
+  other failure (`unavailable`, a timeout, a failed re-read) the segment
+  stays whatever the re-read showed, because the write may still land
+  later; an orphan is harmless and a listed segment that is missing is not.
+  A segment name that already holds the same bytes is accepted. A takeover
+  whose manifest write fails succeeds only if the re-read shows this machine
+  as owner at the same head; it writes no segment, so it removes nothing.
+  Up to date is `{ uploaded: 0 }` with no store write.
+- **Pull.** Reads and opens the manifest and every segment, checks hashes and
+  ranges, then compares each local event with the stored one at the same
+  sequence (ID, type, data). Any difference is `diverged` before anything
+  local changes. Otherwise it inserts the project row if it is missing and
+  replays the missing events through `EventV2.replayAll`, so the session,
+  messages and inputs are projected as in the sending database. A pull is
+  all or nothing. First every missing event is checked: its type must be in
+  the durable event manifest, its data must decode with that event's schema
+  and name this thread. Then the project-row insert, the whole replay and
+  the owner claim run in one `BEGIN IMMEDIATE` transaction; the per-event
+  transactions inside `EventV2.replay` nest as savepoints (the SQLite client
+  is built with `releaseSavepoint`), so a replay that fails partway rolls
+  everything back. Either failure is `unsupported`: no event of that pull
+  stays, a project row it created is gone, and the local owner is unchanged.
+  `diverged` means only that a local event differs from the stored one at
+  the same sequence. Before reading segments, the
+  manifest's directory and project worktree are checked with `canHold`
+  (`thread-sync/local-path.ts`: `path.win32.isAbsolute` on Windows,
+  `path.posix.isAbsolute` elsewhere); a folder this system cannot hold, such
+  as a Windows drive path on macOS, fails `pull` and `takeOver` with
+  `foreign_path` and changes nothing. A macOS path is accepted on Windows,
+  where the database stores it as is. A pull from a stored copy whose head
+  is behind this computer's log applies nothing and leaves the local owner
+  as it was.
+- **Ownership.** The manifest is the authority. `event_sequence.owner_id` on
+  each computer records the owner it last saw: push sets it to this machine
+  (after a lost reply, to whichever owner the re-read manifest names),
+  takeover to this machine, and pull to the manifest's owner unless the
+  stored copy is behind this computer's log, when it is left as it was.
+  Replay skips events for a row whose owner differs from the one passed in,
+  so pull passes the row's current owner and claims the manifest owner in
+  the same transaction once the replay succeeds. Local prompts
+  publish without an owner check, so a pulled thread can be prompted at
+  once; pushing it still needs `takeOver`, which pulls to the head and
+  rewrites the manifest with this machine as owner under the generation it
+  read (`conflict` if someone pushed in between; a no-op for the owner).
+- **List and remove.** `list` opens every `threads/*/manifest`, newest
+  `updatedAt` (the last push that uploaded events) first. `remove` deletes
+  the stored copy only, manifest first, and is `not_owner` for others.
+- **Errors.** `ThreadSync.SyncError` has a `code`: `invalid_key`,
+  `invalid_segment`, `unreadable`, `invalid_name`, `conflict`,
+  `unauthorized`, `unavailable`, `not_found`, `not_owner`, `diverged`,
+  `foreign_path`, `unsupported`. Store
+  and segment functions reject with it, `keyFromPhrase` throws it, and engine
+  effects fail with it in the error channel.
+- **Known limits.**
+  - Files an event only points to (the tool-output store, image blobs) are
+    not synced.
+  - Child threads (subagents) are separate threads and are not pushed with
+    their parent.
+  - A pull downloads and opens the whole stored thread each time, so it can
+    compare every local event; its cost grows with the thread.
+  - `folderStore` on Windows (and on case-insensitive macOS volumes) maps
+    names that differ only in case to one file. The engine's names are
+    case-stable, so only other writers to the folder can collide.
+  - A thread whose folder this system cannot hold is `foreign_path`; mapping
+    it to a local folder is the next phase's job.
+  - Someone who can write to the store without the key can delete objects or
+    put back an older genuine manifest, handing the lock back to a previous
+    owner; two computers can then continue from the same point, which the
+    engine reports later as `diverged`, and each keeps its own copy.
+
+  Tests: `core/test/thread-sync/`.
+
 ## Product entry points and persistence
 
 `tenon/packages/app/src/app.tsx` owns routing: `/`, `/projects` (Projects: the vault's page tree and every
