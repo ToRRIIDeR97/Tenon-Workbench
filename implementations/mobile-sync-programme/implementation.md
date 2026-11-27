@@ -1242,6 +1242,31 @@ companionSession(store: { get(key): Promise<string | null>; set(key, value): Pro
 What the user must supply for iOS: a Mac with Xcode, an Apple ID (a free one runs it on their own
 device for a week), and a run of the README's steps; nothing else is needed for Android debug builds.
 
+## P3c: close the matrix's gap rows
+
+One agent (TOR-1, no subagents) on `claude/feature-gap-tests` from `b022d3a1`. The tests describe behaviour
+that already exists, so they were written against the unchanged product, run there first (the baseline is
+the same tree), then frozen (`frozen\p3c\`).
+
+### Acceptance criteria
+
+- **AC-P3c-1** Every `gap` row has an automated test at the lowest layer that proves it, or moves to
+  `manual` with the reason no automated layer reaches it (an Electron window, a native platform API, two
+  computers). No `gap` row remains.
+- **AC-P3c-2** Tests added: `app/e2e/regression/feature-gaps.spec.ts` (F-113 Pin, Fork, Delete from the
+  thread menu; F-114 dragging a row onto the composer; F-119 an unknown route; F-301 making an event in the
+  calendar form; F-618 the Environment window) and
+  `tenon/test/server/httpapi-second-brain-gaps.test.ts` (F-211 instructions read, write, remove, size limit;
+  F-504 the Command Centre folder). F-403 and F-1010 cite tests that already exist.
+- **AC-P3c-3** Rows F-1010, F-1210 and F-1212 say what P2 tested; F-708 no longer cites a spec that is gone;
+  every row whose note said it failed on the 2026-11-26 baseline says it passes since P3a/P3b.
+- **AC-P3c-4** The matrix acceptance test (`acceptance/p1-matrix.test.ts`) passes. Product bugs a new test
+  exposes are fixed with the test, or recorded.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P3c-1 to 4 | the two new test files; `acceptance/p1-matrix.test.ts` | `verification/p1-matrix.test.ts` (P1's, kept outside the repository) run on the refreshed matrix; the new e2e spec run three times |
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
@@ -1589,3 +1614,28 @@ frozen (`frozen\p8\`) before the package existed.
 
 What the user must supply: for iOS, a Mac with Xcode and an Apple ID; for the prompt and approval on the
 phone, a model the desktop can use (any harness login or provider key).
+
+`bun run check` on `b022d3a1` (P8), in the check worktree: exit 0.
+
+### P3c gap rows (2026-11-27)
+
+One agent (TOR-1, no subagents) on `claude/feature-gap-tests` from `b022d3a1`.
+
+- 22 `gap` rows before, 0 after. Tested: F-113, F-114, F-119, F-301, F-618 (e2e,
+  `feature-gaps.spec.ts`, 7 tests), F-211 and F-504 (route tests, 3 tests); F-403 and F-1010 now cite
+  tests that already existed (`runDue`; P2's device tests). Moved to `manual` with the reason in each note
+  (an Electron window or native API, or two computers): F-1009, F-1011, F-1203, F-1303, F-1304, F-1305,
+  F-1402, F-1407, F-1409, F-1411, F-1414, F-1421, F-1503. Refreshed: F-1010, F-1210, F-1212, F-708 (its
+  missing spec dropped), F-102 (cites `home-page-stable.spec.ts`, which P3b added) and the 42 rows whose
+  notes said they failed on the baseline.
+- The tests describe existing behaviour; their first run was on the unchanged product: the e2e spec 7 of 7
+  after two expectations of mine were corrected before the freeze (the Environment window lists "Folder",
+  not the folder's name; Escape closes it when focus is inside it, which the design guide implies), then
+  21 of 21 with `--repeat-each=3`; the route tests 3 of 3. No product bug was found.
+- The matrix sets: `acceptance/p1-matrix.test.ts` 8 pass and P1's verification set (outside the repository)
+  12 pass, 20 of 20; before the refresh both failed on F-708's missing spec and the verification set also on
+  the uncited `home-page-stable.spec.ts`.
+- Tests changed after the freeze: Prettier reformatted both new files.
+- Self-review, round 1: plan conformance 9 (13 of 22 rows were reclassified rather than tested; each says why,
+  and P3d drives them), correctness 10, integrity and scope 10. Round 2 after this record: 10, 10, 10, with
+  the reclassification stated as the main limit of the phase.
