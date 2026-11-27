@@ -5,6 +5,7 @@ import {
   shell,
   textPart,
   toolPart,
+  turnStep,
   userMessage,
 } from "../performance/timeline-stability/fixture"
 
@@ -17,46 +18,10 @@ for (const deviceScaleFactor of [1.25, 1.5]) {
       reducedMotion: true,
       deviceScaleFactor,
     })
-    const part = page.locator(`[data-timeline-part-id="${shellID}"]`)
-    const output = part.locator('[data-component="bash-output"]')
-    const row = page.locator("[data-timeline-key]", { has: part })
-    await expect(output).toBeVisible()
-    await timeline.settle()
-
-    const geometry = await row.evaluate((element) => {
-      const output = element.querySelector<HTMLElement>('[data-component="bash-output"]')
-      if (!output) throw new Error("Shell output is unavailable")
-      const rowRect = element.getBoundingClientRect()
-      const outputRect = output.getBoundingClientRect()
-      element.style.height = `${outputRect.bottom - rowRect.top - 0.49}px`
-      element.style.transform = "translateY(0.25px)"
-      output.style.setProperty("background", "rgb(255, 0, 255)", "important")
-      const style = getComputedStyle(output)
-      return {
-        outputWidth: outputRect.width,
-        outputHeight: outputRect.height,
-        boxShadow: style.boxShadow,
-        clipMargin: getComputedStyle(element).overflowClipMargin,
-      }
-    })
-    await timeline.settle()
-
-    const clipped = await row.evaluate((element) => {
-      const output = element.querySelector<HTMLElement>('[data-component="bash-output"]')!
-      return output.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom
-    })
-    expect(clipped).toBeCloseTo(0.49, 1)
-
+    const step = turnStep(page, shellID)
+    await expect(step.detail).toContainText("shell output")
     expect(await page.evaluate(() => devicePixelRatio)).toBe(deviceScaleFactor)
-    const edges = await captureCardEdges(page, output)
-
-    expect(edges.box.width).toBeCloseTo(geometry.outputWidth, 2)
-    expect(edges.box.height).toBeCloseTo(geometry.outputHeight, 2)
-    expect(geometry.boxShadow).toBe("none")
-    expect(geometry.clipMargin).toBe("0.5px")
-    expect(edges.magenta.top).toBeGreaterThan(0.75)
-    expect(edges.magenta.bottom).toBeGreaterThan(0.75)
-    expect(edges.magenta.vertical).toBeGreaterThanOrEqual(2)
+    await expectCardInsideShortRow(page, timeline, step.item)
   })
 }
 
@@ -81,42 +46,51 @@ test("keeps the patch card inside a fractionally short virtual row", async ({ pa
     settings: { editToolPartsExpanded: true },
     reducedMotion: true,
   })
-  const part = page.locator(`[data-timeline-part-id="${patchID}"]`)
-  const card = part.locator('[data-component="accordion"][data-scope="apply-patch"]')
-  const row = page.locator("[data-timeline-key]", { has: part })
-  await expect(card).toBeVisible()
+  const step = turnStep(page, patchID)
+  await expect(step.detail.locator('[data-slot="turn-steps-diff"] [data-component="file"]')).toBeVisible()
+  await expectCardInsideShortRow(page, timeline, step.item)
+})
+
+async function expectCardInsideShortRow(page: Page, timeline: { settle: () => Promise<void> }, step: Locator) {
+  const row = page.locator("[data-timeline-key]", { has: step })
+  const card = row.locator('[data-slot="turn-steps"]')
+  await expect(card).toHaveCount(1)
+  await expect(card.locator(step)).toBeVisible()
   await timeline.settle()
 
   const geometry = await row.evaluate((element) => {
-    const card = element.querySelector<HTMLElement>('[data-component="accordion"][data-scope="apply-patch"]')
-    if (!card) throw new Error("Patch card is unavailable")
+    const card = element.querySelector<HTMLElement>('[data-slot="turn-steps"]')
+    if (!card) throw new Error("Worked card is unavailable")
     card.style.setProperty("background", "rgb(255, 0, 255)", "important")
-    for (const child of card.querySelectorAll<HTMLElement>("*"))
+    card.style.setProperty("box-shadow", "none", "important")
+    for (const child of card.querySelectorAll<HTMLElement>("*")) {
       child.style.setProperty("background", "transparent", "important")
+      child.style.setProperty("visibility", "hidden", "important")
+    }
     const rowRect = element.getBoundingClientRect()
     const cardRect = card.getBoundingClientRect()
     element.style.height = `${cardRect.bottom - rowRect.top - 0.49}px`
+    element.style.transform = "translateY(0.25px)"
     const clipMargin = getComputedStyle(element).overflowClipMargin
-    const bottom = element.getBoundingClientRect().bottom
-    return {
-      overflow: card.getBoundingClientRect().bottom - bottom,
-      paintOverflow: card.getBoundingClientRect().bottom - bottom - Number.parseFloat(clipMargin),
-      clipMargin,
-      cardWidth: cardRect.width,
-      cardHeight: cardRect.height,
-    }
+    return { clipMargin, cardWidth: cardRect.width, cardHeight: cardRect.height }
   })
   await timeline.settle()
 
-  expect(geometry.overflow).toBeCloseTo(0.49, 1)
-  expect(geometry.paintOverflow).toBeLessThanOrEqual(0)
+  const overflow = await row.evaluate((element) => {
+    const card = element.querySelector<HTMLElement>('[data-slot="turn-steps"]')!
+    return card.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom
+  })
+  expect(overflow).toBeCloseTo(0.49, 1)
+  expect(overflow - Number.parseFloat(geometry.clipMargin)).toBeLessThanOrEqual(0)
+  expect(geometry.clipMargin).toBe("0.5px")
+
   const edges = await captureCardEdges(page, card)
   expect(edges.box.width).toBeCloseTo(geometry.cardWidth, 2)
   expect(edges.box.height).toBeCloseTo(geometry.cardHeight, 2)
   expect(edges.magenta.top).toBeGreaterThan(0.75)
   expect(edges.magenta.bottom).toBeGreaterThan(0.75)
-  expect(geometry.clipMargin).toBe("0.5px")
-})
+  expect(edges.magenta.vertical).toBeGreaterThanOrEqual(2)
+}
 
 test("allows paint rounding for every framed row but not fixed turn gaps", async ({ page }) => {
   const secondUserID = "msg_outline_second_user"

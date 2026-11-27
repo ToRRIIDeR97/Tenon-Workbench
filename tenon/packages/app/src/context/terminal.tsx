@@ -37,6 +37,14 @@ export function agentTerminalTab(
   return { id: info.id, title: info.title, titleNumber: 0 }
 }
 
+export function listedTerminals(data: unknown): AgentTerminal[] {
+  if (!Array.isArray(data)) return []
+  return data.filter(
+    (item): item is AgentTerminal =>
+      !!item && typeof item === "object" && typeof item.id === "string" && typeof item.title === "string",
+  )
+}
+
 const WORKSPACE_KEY = "__workspace__"
 const MAX_TERMINAL_SESSIONS = 20
 
@@ -304,7 +312,7 @@ function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: Serv
     untrack(() => {
       sdk.api.pty
         .list({ location })
-        .then((result) => result.data.forEach(adopt))
+        .then((result) => listedTerminals(result.data).forEach(adopt))
         .catch((error: unknown) => console.error("Failed to list terminals", error))
     })
   })

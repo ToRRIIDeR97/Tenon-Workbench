@@ -65,6 +65,15 @@ describe("summarizeTurn", () => {
     expect(summarizeTurn(parts)).toEqual({ counts: { run: 3 }, failed: 1, declined: 2, running: 0 })
   })
 
+  test("counts a dismissed question as declined, not failed", () => {
+    const parts = [
+      errored("question", "The user dismissed this question"),
+      errored("question", "Question transport failed"),
+    ]
+    expect(parts.map(isDeclined)).toEqual([true, false])
+    expect(summarizeTurn(parts)).toEqual({ counts: { question: 2 }, failed: 1, declined: 1, running: 0 })
+  })
+
   test("does not count a call cut short by Stop as failed", () => {
     const parts = [errored("bash", "Tool execution interrupted"), errored("bash", "exit code 1")]
     expect(parts.map(isStopped)).toEqual([true, false])
