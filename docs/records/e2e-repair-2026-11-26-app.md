@@ -102,16 +102,18 @@ five runs: the Home editor lost focus part-way through the typed text. It is use
   logs no suspending read, and `home-page-stable` with `home-thread-composer` passed 16 of 16 with four workers and
   four repeats. `src/pages/home/home-sessions-loaded.test.ts` checks the helper and that the controller no longer
   reads either `data` getter; it fails on the base.
-- Still open, outside this part's scope: the same kind of read on the new-thread page. The same probe on
-  `/new-thread` (10x throttling, 12 runs) logged a suspending read in 4 runs at
-  `pages/session/composer/session-composer-controls.ts` (`createPromptProjectControls`, the `workspaceProjects` memo
-  reads `projectThreads.data` when the query's status is `success`, which still suspends while it refetches), besides
-  the page's intended first suspension in `pages/new-session.tsx` (`suspendUntilPromptReady`). That file belongs to
-  part P3a. It is the likely cause of the remaining intermittent failure of
-  `e2e/user-story/model-selection-flow.spec.ts` with ten workers (3 of 19 cold runs): its trace shows the model pill's
-  panel open, then "element was detached from the DOM", with focus back on the document, as a page detach does. The
-  probe did not reproduce the panel closing, so this link is not proven. Reading that query through
-  `cachedQueryData` would be the same fix as Home's.
+- The same kind of read on the new-thread page: the probe on `/new-thread` (10x throttling, 12 runs) logged a
+  suspending read in 4 runs at `pages/session/composer/session-composer-controls.ts` (`createPromptProjectControls`:
+  the `workspaceProjects` memo read `projectThreads.data` once the query's status was `success`, which still suspends
+  while it refetches), besides the page's intended first suspension in `pages/new-session.tsx`
+  (`suspendUntilPromptReady`). `e2e/user-story/model-selection-flow.spec.ts` failed in 3 of 19 cold ten-worker runs
+  with the model pill's panel open, then "element was detached from the DOM" and focus back on the document, as a page
+  detach does. The memo now reads the query through `cachedQueryData` with the query's key;
+  `src/pages/session/composer/project-controls-loaded.test.ts` checks that (it fails on the previous source). After the
+  change the same 12-run probe logged no suspending read on `/new-thread` other than `suspendUntilPromptReady`, but in
+  2 of the 12 runs the pill was closed again by the time the network was idle, so something else can still close it on
+  that page; that was not investigated further. No `/new-thread` page-stability spec was added: the probe never showed
+  the page itself being detached, so such a spec could not be made to fail before the change.
 
 Not a baseline failure, found while checking: `tenon/test/tool/shell.test.ts` (2 tests in "tool.shell abort") fails
 when the suite is started from PowerShell, because the shell tool then runs its commands in PowerShell and the

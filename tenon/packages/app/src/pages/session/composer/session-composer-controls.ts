@@ -1,6 +1,6 @@
-import { useProjectThreads } from "@/components/sidebar/sidebar-controller"
+import { projectThreadsQueryKey, useProjectThreads } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
-import { createQuery } from "@tanstack/solid-query"
+import { createQuery, useQueryClient } from "@tanstack/solid-query"
 import { useNavigate, useSearchParams } from "@solidjs/router"
 import { type Accessor, createMemo } from "solid-js"
 import type { PromptInputControls } from "@/components/prompt-input/contracts"
@@ -17,6 +17,7 @@ import { useSync } from "@/context/sync"
 import { useDrafts } from "@/context/drafts"
 import { useProviders } from "@/hooks/use-providers"
 import { pathKey } from "@/utils/path-key"
+import { cachedQueryData } from "@/utils/query-data"
 
 export function createPromptInputController(input: {
   sessionKey: Accessor<string>
@@ -77,10 +78,16 @@ export function createPromptProjectControls() {
   const language = useLanguage()
   const navigate = useNavigate()
   const projectThreads = useProjectThreads()
+  const queryClient = useQueryClient()
   const workspaceProjects = createMemo((): PromptProject[] => {
     const brain = layout.home.workspace()
     if (!brain) return []
-    const entries = projectThreads.status === "success" ? projectThreads.data : []
+    const entries =
+      cachedQueryData<NonNullable<typeof projectThreads.data>>(
+        queryClient,
+        projectThreads,
+        projectThreadsQueryKey(server.key, brain),
+      ) ?? []
     return [
       { worktree: brain, name: language.t("secondBrain.sidebar.workspaceThreads") },
       ...entries
