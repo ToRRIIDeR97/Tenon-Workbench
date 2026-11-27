@@ -969,3 +969,45 @@ One agent (TOR-1, no subagents, no reviewer panel) implemented P5a on base `2fc3
 - Left for later: the desktop half of both bridge calls (P5b); a Windows thread cannot be continued on
   macOS (deferred work); `threads()` downloads every stored thread; only `session.idle` (published by
   the `tenon` session status) triggers a push.
+
+### P4b Google Drive store (2026-11-27)
+
+One agent (TOR-1, no subagents) wrote the plan, both test sets and the code on base `ed33593a`, branch
+`claude/thread-sync-drive-store`. The verification set was frozen with the plan in a folder outside the
+repository and is not committed; it is the same author's second design, not an independent check. The
+review panel was replaced by a scored self-review in three lenses.
+
+- Baseline, before any product edit: the new acceptance and verification cases all failed for the
+  intended reasons (`ThreadSync.driveStore is not a function`, a status that still had `bucket`); the
+  P4 engine cases on the folder store passed (10 pass, 44 fail).
+- After: `bun test test/thread-sync` in `tenon/packages/core` with the verification copies in place:
+  96 pass, 0 fail across 8 files (P4b acceptance 23, verification 13, P5a acceptance 4, the P4
+  acceptance and the engine and store suites with both stores); P4b acceptance, P4 acceptance and P5a
+  acceptance together 41 pass, and the verification file 13 pass, on their first run after the code. Protocol tests 5 pass; route test 1 pass.
+- `bun run check`: typecheck, lint (warnings only, as on the base), format and `check:generated` pass;
+  its `bun run test` step hung once in `@tenon/desktop` (no output for 25 minutes) and was stopped. The
+  desktop suite alone: 262 pass, 6 skip, 0 fail in 18 s. Then `bun run test` and `bun run build` from
+  the root: both exit 0. The regeneration rewrote six client files with line endings only; they were
+  restored with `git checkout -- tenon/packages/client`.
+- `bun run test:engine`: core 1610 pass, 15 skip, 4 fail: the three Windows baseline failures (F-1201,
+  F-909, F-211) and `Npm.add` › reifies when package cache directory exists, which timed out at 9 s
+  under load and passes alone (5 of 5); `npm.test.ts` touches nothing in this change. The `&&` stops the script there, so `tenon/packages/tenon` was run
+  on its own: 2973 pass, 57 skip, 4 fail: `session HttpApi` › returns v2 public unavailable errors
+  (F-1604, on the baseline) and the three `tool.shell abort` timing tests known to fail on this
+  computer.
+- Tests changed after the freeze, each without changing an assertion: Prettier reformatted the copied
+  acceptance and verification files (checked equal with white space, commas and parentheses removed)
+  and the copies in this folder were updated to match; `acceptance/p4/acceptance.test.ts` types its
+  store list as `Array<"folder" | "drive">` because `describe.each` refuses a readonly tuple
+  (typecheck). The P5a assertion changes are listed above, under P4b.
+- Removed: `core/src/thread-sync/gcs.ts`, `core/test/thread-sync/gcs-fake.ts`,
+  `acceptance/p4/gcs-fake.ts`, the Cloud Storage cases of `store.test.ts`; `engine.test.ts` stores
+  nothing readable in Drive instead, and its flaky-store cases run on both stores.
+- Self-review, round 1 on `70622485`: plan conformance 9 (no completion evidence or record of test
+  changes after the freeze yet), correctness and regressions 10, integrity and scope 9.5 (same record
+  missing). Fixed by this section; round 2: 10, 10, 10.
+- Left unverified: the live Drive API (no credentials exist; two local fakes only); that a second
+  computer signed in through the same OAuth client sees the files under `drive.file` (the documentation
+  implies it, does not say it); how fresh Drive listings are, on which the emulated conditional write
+  depends. `status()` now asks the credentials for a store on every call, also while sync is off, where
+  P5a asked only once a bucket was set.
