@@ -91,9 +91,8 @@ external_directory approval before edit approval.
   signed in through the same client sees the files under `drive.file`, and
   measure how soon a `files.list` shows a file another client just created:
   the emulated conditional write is exact only if it shows it at once.
-- `app/src/components/settings-v2/sync.tsx`: say on the page that the Drive
-  folder never needs sharing; drive "Continue here" end to end in a test
-  (the folder picker is native, so only the route was driven in P5b).
+- `app/src/components/settings-v2/sync.tsx`: drive "Continue here" end to end
+  in a test (the folder picker is native, so only the route was driven in P5b).
 - `thread-sync/drive.ts`: `list` reads every Tenon file in the Drive and
   each write lists the name twice; if that grows slow, keep a start page token
   from the Drive changes feed instead of listing again.

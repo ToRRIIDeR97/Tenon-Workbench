@@ -151,7 +151,7 @@ export const SettingsServersV2: Component = () => {
               <SettingsListV2>
                 <SettingsRowV2
                   title={language.t("secondBrain.companion.settings.paired", { url: companion().url })}
-                  description={companion().name}
+                  description={language.t("secondBrain.companion.settings.description", { name: companion().name })}
                 >
                   <ButtonV2
                     size="small"

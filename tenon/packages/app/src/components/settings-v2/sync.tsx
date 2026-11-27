@@ -355,7 +355,9 @@ export function SettingsSyncV2() {
                   </SettingsRowV2>
                   <SettingsRowV2
                     title={language.t("secondBrain.settings.sync.folder")}
-                    description={server.latest?.driveFolder}
+                    description={language.t("secondBrain.settings.sync.folder.description", {
+                      folder: server.latest?.driveFolder ?? "",
+                    })}
                   >
                     <div class="flex items-center gap-2">
                       <TextInputV2

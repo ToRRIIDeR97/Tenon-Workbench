@@ -17,6 +17,8 @@ Start with the root [README](../README.md) for setup and commands, and
 | [records/](records/) | Dated cleanup and audit records for the Electron app |
 | [records/feature-test-matrix.md](records/feature-test-matrix.md) | Every feature and how it is tested: covered, gap, manual or blocked |
 | [records/test-baseline-2026-11-26.md](records/test-baseline-2026-11-26.md) | Baseline run of every test suite on 2026-11-26 |
+| [product/feature-backlog.md](product/feature-backlog.md) | Ranked feature backlog after the mobile and sync programme |
+| [records/manual-feature-checks-2026-11-27.md](records/manual-feature-checks-2026-11-27.md) | Manual feature checks in the desktop app, 2026-11-27 |
 | [records/e2e-first-wave-2026-11-27.md](records/e2e-first-wave-2026-11-27.md) | App e2e first-wave time-outs and other flaky tests, measured and fixed |
 | [archive/tauri/](archive/tauri/README.md) | Retired Tauri app: plans, checkpoints, handovers, contracts, and evidence |
 

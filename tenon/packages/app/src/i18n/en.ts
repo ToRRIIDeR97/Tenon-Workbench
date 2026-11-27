@@ -2074,6 +2074,8 @@ export const dict = {
   "secondBrain.companion.settings.title": "This phone",
   "secondBrain.companion.settings.paired": "Paired with {{url}}",
   "secondBrain.companion.settings.signOut": "Sign out",
+  "secondBrain.companion.settings.description":
+    "{{name}}. Signing out forgets the token on this phone; revoke the phone in Phone access on the computer as well.",
   "secondBrain.settings.remote.title": "Phone access",
   "secondBrain.settings.remote.warning":
     "Phones talk to this computer over plain HTTP. Turn this on only on a home network or a VPN you trust. A paired phone can read and steer every thread until you revoke it. Windows or macOS may ask you to allow Tenon through the firewall.",
@@ -2146,6 +2148,8 @@ export const dict = {
     "Uploads a thread when it goes idle, unless another computer is working on it.",
   "secondBrain.settings.sync.lastError": "Last sync failed: {{error}}",
   "secondBrain.settings.sync.folder": "Drive folder",
+  "secondBrain.settings.sync.folder.description":
+    "{{folder}}. It never needs sharing: someone you share it with can delete threads, though not read them.",
   "secondBrain.settings.sync.machine": "This computer's name",
   "secondBrain.settings.sync.stored": "Stored threads",
   "secondBrain.settings.sync.stored.empty": "No threads are stored yet",
