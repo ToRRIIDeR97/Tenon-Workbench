@@ -1962,6 +1962,12 @@ export const dict = {
   "secondBrain.device.home": "Home",
   "secondBrain.device.back": "Back",
   "secondBrain.device.attach": "Screenshot to thread",
+  "secondBrain.device.boot.starting": "Starting {{name}}. This can take a minute or two.",
+  "secondBrain.device.boot.slow": "{{name}} is still starting. A first boot can take up to three minutes.",
+  "secondBrain.device.boot.timeout":
+    "{{name}} hasn't started after three minutes. Check its window for an error, then try again.",
+  "secondBrain.device.hint.unauthorized": "Unlock the phone and allow USB debugging for this computer.",
+  "secondBrain.device.hint.offline": "The phone isn't responding. Reconnect the cable, or restart adb.",
   "secondBrain.browser.title": "Browser",
   "secondBrain.browser.open": "Open browser",
   "secondBrain.browser.desktopOnly": "The browser is available in the desktop app.",

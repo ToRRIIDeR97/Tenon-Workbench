@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { readFile, rm } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
-import { join } from "node:path"
+import path, { join } from "node:path"
 
 export type DevicePlatform = "android" | "ios"
 export type Device = { platform: DevicePlatform; id: string; name: string; state: string }
@@ -13,14 +13,30 @@ export type DeviceStatus = {
 
 const exe = process.platform === "win32" ? ".exe" : ""
 
+const present = (value: string | undefined): value is string => !!value && value.trim() !== ""
+
+export function sdkRootCandidates(input: {
+  env: Record<string, string | undefined>
+  platform: NodeJS.Platform
+  home: string
+}): string[] {
+  const paths = input.platform === "win32" ? path.win32 : path.posix
+  const fallback = () => {
+    if (input.platform === "win32")
+      return present(input.env.LOCALAPPDATA) ? paths.join(input.env.LOCALAPPDATA, "Android", "Sdk") : undefined
+    if (!present(input.home)) return undefined
+    if (input.platform === "darwin") return paths.join(input.home, "Library", "Android", "sdk")
+    return paths.join(input.home, "Android", "Sdk")
+  }
+  return [input.env.ANDROID_HOME, input.env.ANDROID_SDK_ROOT, fallback()]
+    .filter(present)
+    .filter((dir) => paths.isAbsolute(dir))
+}
+
 function sdkRoot() {
-  const candidates = [
-    process.env.ANDROID_HOME,
-    process.env.ANDROID_SDK_ROOT,
-    process.platform === "win32" ? join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk") : undefined,
-    process.platform === "darwin" ? join(homedir(), "Library", "Android", "sdk") : join(homedir(), "Android", "Sdk"),
-  ]
-  return candidates.find((dir) => dir && existsSync(join(dir, "platform-tools", `adb${exe}`)))
+  return sdkRootCandidates({ env: process.env, platform: process.platform, home: homedir() }).find((dir) =>
+    existsSync(join(dir, "platform-tools", `adb${exe}`)),
+  )
 }
 
 const adbPath = () => {
@@ -135,26 +151,85 @@ export type DeviceInput =
   | { kind: "text"; text: string }
   | { kind: "key"; key: "home" | "back" | "enter" }
 
-export async function deviceInput(platform: DevicePlatform, id: string, input: DeviceInput) {
-  const n = (value: number) => String(Math.max(0, Math.round(value)))
-  if (platform === "android") {
-    const adb = requireAdb()
-    if (input.kind === "tap") return run(adb, ["-s", id, "shell", "input", "tap", n(input.x), n(input.y)])
-    if (input.kind === "swipe")
-      return run(adb, ["-s", id, "shell", "input", "swipe", n(input.x), n(input.y), n(input.toX), n(input.toY), "300"])
-    if (input.kind === "text") return run(adb, ["-s", id, "shell", "input", "text", androidText(input.text)])
-    const code = { home: "KEYCODE_HOME", back: "KEYCODE_BACK", enter: "KEYCODE_ENTER" }[input.key]
-    return run(adb, ["-s", id, "shell", "input", "keyevent", code])
-  }
+export type DeviceCommand = { tool: "adb" | "idb"; args: string[] }
+
+const coordinate = (value: number) =>
+  typeof value === "number" && Number.isFinite(value) ? String(Math.max(0, Math.round(value))) : "0"
+const ANDROID_KEYS = { home: "KEYCODE_HOME", back: "KEYCODE_BACK", enter: "KEYCODE_ENTER" } as const
+const IOS_RETURN_KEY = "40"
+
+function androidCommands(id: string, input: DeviceInput): DeviceCommand[] {
+  const adb = (...args: string[]): DeviceCommand => ({ tool: "adb", args: ["-s", id, "shell", "input", ...args] })
+  if (input.kind === "tap") return [adb("tap", coordinate(input.x), coordinate(input.y))]
+  if (input.kind === "swipe")
+    return [adb("swipe", coordinate(input.x), coordinate(input.y), coordinate(input.toX), coordinate(input.toY), "300")]
+  if (input.kind === "key") return [adb("keyevent", ANDROID_KEYS[input.key])]
+  if (/[^\x20-\x7e\r\n]|\r(?!\n)/.test(input.text))
+    throw new Error(
+      "Android can only type printable ASCII text and line breaks. Remove accents, emoji and other characters.",
+    )
+  if (input.text === "") return []
+  return input.text
+    .split(/\r?\n/)
+    .flatMap((line, index) => [
+      ...(index > 0 ? [adb("keyevent", ANDROID_KEYS.enter)] : []),
+      ...(line === "" ? [] : [adb("text", androidText(line))]),
+    ])
+}
+
+function iosCommands(id: string, input: DeviceInput): DeviceCommand[] {
+  const idb = (...args: string[]): DeviceCommand => ({ tool: "idb", args: ["ui", ...args] })
+  if (input.kind === "tap") return [idb("tap", "--udid", id, coordinate(input.x), coordinate(input.y))]
+  if (input.kind === "swipe")
+    return [
+      idb(
+        "swipe",
+        "--udid",
+        id,
+        coordinate(input.x),
+        coordinate(input.y),
+        coordinate(input.toX),
+        coordinate(input.toY),
+      ),
+    ]
+  if (input.kind === "text") return input.text === "" ? [] : [idb("text", "--udid", id, input.text)]
+  if (input.key === "back")
+    throw new Error("The iOS Simulator has no Back button. Use Home, or tap the app's own back control.")
+  if (input.key === "enter") return [idb("key", "--udid", id, IOS_RETURN_KEY)]
+  return [idb("button", "--udid", id, "HOME")]
+}
+
+const INPUT_KINDS: ReadonlySet<unknown> = new Set(["tap", "swipe", "text", "key"])
+const INPUT_KEYS: ReadonlySet<unknown> = new Set(Object.keys(ANDROID_KEYS))
+
+function checkInput(input: DeviceInput) {
+  const value: unknown = input
+  if (typeof value !== "object" || value === null || !("kind" in value) || !INPUT_KINDS.has(value.kind))
+    throw new Error("Device input must be a tap, swipe, text or key.")
+  if (value.kind === "key" && (!("key" in value) || !INPUT_KEYS.has(value.key)))
+    throw new Error("Device keys are home, back and enter.")
+  if (value.kind === "text" && (!("text" in value) || typeof value.text !== "string"))
+    throw new Error("Device text must be a string.")
+}
+
+export function inputCommands(platform: DevicePlatform, id: string, input: DeviceInput): DeviceCommand[] {
+  checkInput(input)
+  return platform === "android" ? androidCommands(id, input) : iosCommands(id, input)
+}
+
+async function inputTool(platform: DevicePlatform) {
+  if (platform === "android") return requireAdb()
   requireMac()
   const idb = await which("idb")
   if (!idb) throw new Error("Taps on the iOS Simulator need idb (brew install idb-companion, pipx install fb-idb).")
-  if (input.kind === "tap") return run(idb, ["ui", "tap", "--udid", id, n(input.x), n(input.y)])
-  if (input.kind === "swipe")
-    return run(idb, ["ui", "swipe", "--udid", id, n(input.x), n(input.y), n(input.toX), n(input.toY)])
-  if (input.kind === "text") return run(idb, ["ui", "text", "--udid", id, input.text])
-  const button = { home: "HOME", back: "HOME", enter: "HOME" }[input.key]
-  return run(idb, ["ui", "button", "--udid", id, button])
+  return idb
+}
+
+export async function deviceInput(platform: DevicePlatform, id: string, input: DeviceInput) {
+  const commands = inputCommands(platform, id, input)
+  if (commands.length === 0) return
+  const file = await inputTool(platform)
+  for (const command of commands) await run(file, command.args)
 }
 
 export function androidText(text: string) {

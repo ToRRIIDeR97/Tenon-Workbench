@@ -104,7 +104,8 @@ export const TOOLS = [
   },
   {
     name: "device_type",
-    description: "Type text into the focused field on the running device.",
+    description:
+      "Type text into the focused field on the running device. On Android only printable ASCII is accepted and each line break presses Enter.",
     inputSchema: {
       type: "object",
       properties: { text: { type: "string" }, device: { type: "string" } },
@@ -114,7 +115,8 @@ export const TOOLS = [
   },
   {
     name: "device_key",
-    description: "Press home, back (Android) or enter on the running device.",
+    description:
+      "Press a key on the running device. home and enter work on Android and iOS; back is Android only and returns an error on iOS.",
     inputSchema: {
       type: "object",
       properties: { key: { type: "string", enum: ["home", "back", "enter"] }, device: { type: "string" } },
