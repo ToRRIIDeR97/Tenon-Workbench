@@ -84,7 +84,7 @@ async function renameTo(page: Page, row: ReturnType<Page["locator"]>, renames: u
   await page.keyboard.press("Enter")
   await expect(input).toHaveCount(0)
   await expect(row.getByText("Renamed thread", { exact: true })).toBeVisible()
-  expect(renames).toEqual([{ title: "Renamed thread" }])
+  await expect.poll(() => renames).toEqual([{ title: "Renamed thread" }])
 }
 
 test("pressing R in a thread's menu starts a rename that Enter saves", async ({ page }) => {

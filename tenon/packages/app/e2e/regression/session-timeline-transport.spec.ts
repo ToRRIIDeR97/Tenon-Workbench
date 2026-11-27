@@ -55,6 +55,9 @@ test("delivers server heartbeat without mutating the timeline", async ({ page })
     messages: [userMessage(), assistantMessage([textPart("prt_transport_steady", "steady")])],
   })
   await timeline.waitForPart("prt_transport_steady")
+  await expect(page.locator('[data-timeline-part-id="prt_transport_steady"] [data-component="markdown"] p')).toHaveText(
+    "steady",
+  )
   const before = await stableTimelineRows(page)
 
   await timeline.transport.writeRaw(": heartbeat\n\n")
