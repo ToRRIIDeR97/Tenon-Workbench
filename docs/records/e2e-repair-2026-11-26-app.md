@@ -30,6 +30,8 @@ With `optimizeDeps.include` listing those six packages (as `@tenon/session-ui > 
 does not depend on them directly) Vite bundles them at start-up, no reload appears in the log, and the same commands
 passed cold.
 
+The plan author counts `tenon/packages/app/vite.config.ts` as product code for these rows: it is the app's build configuration, not a spec.
+
 ## End-to-end failures
 
 | Spec | Test | Decision | Evidence | Change |
@@ -77,15 +79,31 @@ The root `test:engine` script chained the two packages with `&&`, so the second 
 runs `turbo run test --continue --concurrency=1 --filter=@tenon/core --filter=tenon` from `tenon/`, which runs both
 one after the other in any shell and exits non-zero if either fails.
 
-Not a baseline failure, left open: `e2e/regression/home-thread-composer.spec.ts` passes with one worker but, with the
-default ten workers on a cold dev server, one of its tests failed in three of five runs ("sending from Home creates
-the thread and opens it" twice, the other two once): the editor loses focus part-way through the typed text. A
-`MutationObserver` probe under 8x CPU throttling shows the whole page (`[data-component="view-switch-v2"]` inside
-`main`) removed from the DOM and put back once or twice while Home loads, which is what the `<Suspense>` around the
-page in `pages/layout-new.tsx` does when a read under it suspends again; a focused editor that is detached loses focus.
-The suspending read was not identified.
+## Home page detached while it loads (not a baseline failure)
+
+With the default ten workers on a cold dev server, `e2e/regression/home-thread-composer.spec.ts` failed in three of
+five runs: the Home editor lost focus part-way through the typed text. It is user-visible, not only a test problem.
+
+- What remounts: a `MutationObserver` under 8x CPU throttling shows the whole page (`[data-component="view-switch-v2"]`,
+  the child of `<main>`) replaced by an empty text node and put back in the same task, once or twice while Home loads.
+  That is the `<Suspense>` around the page in `pages/layout-new.tsx` showing its empty fallback and then the page
+  again, which detaches the focused editor.
+- Which read: patching Solid's resource `read` (as Vite serves it) to keep the reader's stack and print it when the
+  boundary counts a pending read showed one reader, `createHomeSessionsController` in
+  `pages/home/home-sessions-controller.tsx`, whose memo read `sessionLoad.data` and `sessionEventLoad.data`. In
+  TanStack Solid Query the `data` getter suspends while the query fetches, including the first fetch, which starts when
+  the server context arrives after Home has rendered. Guarding with `isSuccess` was not enough: the probe then showed
+  the same read suspending during a refetch.
+- Base or tip: the new check `e2e/regression/home-page-stable.spec.ts` (8x throttling, no page removals while Home
+  loads, editor still focused) failed 4 of 4 with the base `vite.config.ts` and 4 of 4 with the tip's, so the Vite
+  change did not cause it.
+- Fix: the memo reads both queries from the query cache through `cachedQueryData` (`utils/query-data.ts`), which
+  tracks the query's `dataUpdatedAt` and calls `getQueryData`, so nothing under the page suspends. After it the probe
+  logs no suspending read, and `home-page-stable` with `home-thread-composer` passed 16 of 16 with four workers and
+  four repeats. `src/pages/home/home-sessions-loaded.test.ts` checks the helper and that the controller no longer
+  reads either `data` getter; it fails on the base.
 
 Not a baseline failure, found while checking: `tenon/test/tool/shell.test.ts` (2 tests in "tool.shell abort") fails
 when the suite is started from PowerShell, because the shell tool then runs its commands in PowerShell and the
 test's `bun -e '…'` quoting is a PowerShell parse error. Started from Git Bash all 67 pass. It belongs to neither P3
-part and is left as found.
+part; it is listed in `docs/deferred-work.md`.
