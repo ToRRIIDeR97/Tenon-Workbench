@@ -955,7 +955,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-[30px] rounded-full p-1.5 enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+        class="size-[30px] max-[600px]:!size-10 [@media(pointer:coarse)]:!size-10 rounded-full p-1.5 enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()

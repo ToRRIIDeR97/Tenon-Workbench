@@ -909,7 +909,7 @@ export default function CalendarPage() {
               </SegmentedControlV2>
             )}
           </Show>
-          <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]">
+          <h2 class="ml-1 min-w-0 flex-1 truncate max-[600px]:order-first max-[600px]:basis-full text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]">
             <Show when={!taskView()}>{viewTitle()}</Show>
           </h2>
           <Show when={!taskView()}>

@@ -1144,6 +1144,7 @@ export const dict = {
   "sidebar.empty.description": "Open a project to get started",
 
   "secondBrain.sidebar.title": "Tenon",
+  "secondBrain.sidebar.threads": "Threads",
   "secondBrain.sidebar.overview": "Home",
   "secondBrain.sidebar.workspace": "Workspace",
   "secondBrain.sidebar.projects": "Projects",

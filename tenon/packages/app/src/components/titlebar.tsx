@@ -203,7 +203,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
               <KeybindV2 keys={command.keybindParts("sidebar.toggle")} variant="neutral" />
             </>
           }
-          class="shrink-0"
+          class="shrink-0 max-[600px]:hidden"
         >
           <IconButtonV2
             type="button"

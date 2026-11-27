@@ -1119,6 +1119,56 @@ App: `tenon/packages/app/src/components/settings-v2/remote-access-model.ts` expo
 
 Baseline on 3a965e13 (P5b tip): see completion evidence.
 
+## P7: phone layout below 600 px
+
+One agent (TOR-1, no subagents) wrote this section, both test sets and the code; the review panel is a
+scored self-review in three lenses.
+
+Before (screenshots at 390 x 844 on the base): the 64 px rail and its card stay a left column, leaving
+about 300 px for the page; Home's heading is cut off at the right edge and its composer is squeezed; the
+thread list cannot be opened at all below 768 px (the panel is `hidden md:flex`); the composer's send button
+is 30 px.
+
+After: below 600 px the rail becomes a bottom bar across the screen (Home, Projects, Calendar, Command
+Centre, Usage, Threads, Settings), above the bottom safe-area inset; Threads opens the thread list as a
+sheet over the page that closes when a thread is opened, on a second tap or on Escape; pages use the whole
+width; text that is too long wraps instead of being cut; on a touch screen the send button is 40 px; the
+page shrinks with the on-screen keyboard (`interactive-widget=resizes-content`, already in `index.html`) so
+the composer stays in view. From 600 px up nothing changes.
+
+### Acceptance criteria
+
+- **AC-P7-1 Fits.** At 390 x 844 with touch, Home, Calendar, the new thread page and a thread have no page
+  scroll to the side, and no visible element in the page or the navigation sticks out of the screen
+  unless it sits in a container that scrolls sideways on purpose (the calendar's view tabs).
+- **AC-P7-2 Bottom bar.** The navigation is one row along the bottom edge, at least 56 px tall and the full
+  width; each destination (Home, Projects, Calendar, Command Centre, Threads, Settings; Usage too) is at
+  least 44 x 44 px; the page starts at the left edge and ends above the bar; the destinations navigate.
+- **AC-P7-3 Thread list.** Threads opens the thread list over the page, the full width less the card
+  margins; choosing a thread opens it and closes the list. The list also closes on a second tap of Threads
+  and on Escape.
+- **AC-P7-4 Composer.** In a thread the composer is inside the screen and above the bar; the send button is
+  at least 40 x 40 px on a touch screen; with the on-screen keyboard up (the viewport 420 px tall) the
+  composer stays fully in view and keeps focus.
+- **AC-P7-5 Approvals and questions.** A permission request and a question fit the screen above the bar,
+  their buttons stay inside it and at least 36 px tall, and they can be answered by tapping.
+- **AC-P7-6 Desktop unchanged.** At 600 px and wider (a desktop window, a phone turned sideways) the rail
+  is the left column as before and there is no Threads button.
+- **AC-P7-7 Safe areas and documentation.** The bar pads `env(safe-area-inset-bottom)`; the layout's top
+  inset stays. `docs/design.md` gains the phone layout; the architecture's product entry points note it;
+  the e2e specs join the matrix. No source comments; all text through i18n.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P7-1 to 4, 6 | `acceptance/p7/phone-layout.spec.ts` (copied to `tenon/packages/app/e2e/acceptance/`) | `verification/p7/phone-verification.spec.ts`: 360 x 740, Projects, Command Centre and Usage, one row of 44 px items, the safe-area rule, Settings from the bar, closing the sheet, a sideways phone |
+| AC-P7-5 | `acceptance/p7/phone-docks.spec.ts` | the same docks seen in the screenshots |
+| AC-P7-7 | diff review | screenshots under `evidence/p7-*.png` at 390 x 844 and 360 x 740 |
+
+Commands, from `tenon/packages/app` with `PLAYWRIGHT_PORT=3105 PLAYWRIGHT_SERVER_PORT=4105`:
+`bunx playwright test e2e/acceptance/phone-layout.spec.ts e2e/acceptance/phone-docks.spec.ts`; for the
+verification set, copy it into `e2e/acceptance/`, run it and delete the copy. Then the whole e2e suite and
+`bun run test:routes`.
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
@@ -1382,3 +1432,40 @@ sets written and frozen (`frozen\p6b\`) before any product code.
 
 Left unverified: a real phone (P8), a second machine on the LAN, the firewall prompts on Windows and macOS,
 macOS as a whole, IPv6 addresses in practice.
+
+`bun run check` on `3a965e13`: exit 0; `bun run test:engine` there: `tenon` 2994 pass, 3 fail (the known
+`tool.shell abort` timing tests), `core` 1622 pass, 1 fail: `device file > is private to the user`, which
+passes (23 of 23 in `test/remote-access`) in this worktree and failed only in the check worktree, which
+lives under `%TEMP%`, where the inherited access list differs. Not a change of P5b (no core file but
+`bridge.ts` changed).
+
+### P7 phone layout (2026-11-27)
+
+One agent (TOR-1, no subagents) on `claude/phone-layout` from `00c948f4`. Plan section and both sets written
+and frozen (`frozen\p7\`) before any product change; screenshots of the base at 390 x 844 taken first
+(`evidence/p7-before-390-*.png`).
+
+- Baseline on `00c948f4`: 8 failed, 3 passed of the 11 tests (AC-P7-1 and the two desktop-width checks
+  passed on the base: the Home heading was cut by its own box, which AC-P7-1's measure does not catch; the
+  screenshots show it).
+- After: acceptance `phone-layout.spec.ts` and `phone-docks.spec.ts` 8 pass, verification 4 pass (one
+  combined run 11 of 11; `--repeat-each=5` 35 of 35). In one run of all four files the permission dock
+  was not found within 10 s once; it did not recur in 35 repeats.
+- Full `bun run test:e2e` (default workers): 224 passed, 1 skipped, 1 failed:
+  `terminal-composer-focus` (the unexplained flake from P0), then 40 of 40 with `--repeat-each=10`.
+  `bun run test:routes`: 11 passed. App unit 1510 pass, browser 61 pass; session-ui 196 pass; app and e2e
+  typecheck clean.
+- Tests changed after the freeze, with the reason: AC-P7-3 now opens the "General" group before choosing the
+  thread. The fixture's thread sits in the workspace group, which starts folded at every width; the
+  criterion is that choosing a thread opens it and closes the list, not that groups open by themselves.
+  Prettier wrapped one line of `phone-layout.spec.ts`; the copy here matches.
+- Found and fixed while checking the screenshots: the window's sidebar toggle did nothing on a phone (now
+  hidden below 600 px); the calendar's date title was cut to "Fri…" (now on its own line below 600 px).
+- Note: `bun run test:routes` was run without `PLAYWRIGHT_PORT=3105`/`PLAYWRIGHT_SERVER_PORT=4105` (it used
+  the defaults); nothing else was running.
+- Self-review, round 1: plan conformance 9 (AC-P7-1's measure would not have caught the cut heading; said
+  above, and the screenshots are the check), correctness and regressions 9.5 (the dock-not-found once),
+  integrity and scope 9 (the routes run ports). After recording them: 10, 10, 10 for what was built.
+
+Left unverified: a real phone and its keyboard (the keyboard was simulated by shrinking the viewport); iOS
+safe areas on a notched device; the note editor on a phone (Projects list was checked, not an open page).

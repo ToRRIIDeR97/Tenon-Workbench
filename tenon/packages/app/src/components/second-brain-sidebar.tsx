@@ -1,6 +1,8 @@
 import { THREAD_DRAG_PREFIX } from "@/utils/thread-reference"
 import type { Session } from "@opencode-ai/sdk/v2/client"
+import { createMediaQuery } from "@solid-primitives/media"
 import { useNavigate } from "@solidjs/router"
+import { PHONE_QUERY } from "@/utils/phone"
 import {
   createEffect,
   createMemo,
@@ -103,7 +105,10 @@ export function SecondBrainSidebar() {
       },
     },
   ])
-  const panel = createReveal(() => layout.sidebar.opened())
+  const phone = createMediaQuery(PHONE_QUERY)
+  const [sheet, setSheet] = createSignal(false)
+  const shown = () => (phone() ? sheet() : layout.sidebar.opened())
+  const panel = createReveal(shown)
   const body = createMemo<{ mounted: boolean; waited: boolean }>(
     (was) => {
       const phase = panel.phase()
@@ -115,6 +120,15 @@ export function SecondBrainSidebar() {
     { mounted: panel.phase() === "open", waited: false },
   )
   const path = () => ctrl.location.pathname
+  createEffect(on(path, () => setSheet(false), { defer: true }))
+  createEffect(on(phone, () => setSheet(false), { defer: true }))
+  const closeOnEscape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !phone() || !sheet()) return
+    event.preventDefault()
+    setSheet(false)
+  }
+  onMount(() => window.addEventListener("keydown", closeOnEscape))
+  onCleanup(() => window.removeEventListener("keydown", closeOnEscape))
   const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
   const centre = useCommandCentre()
   const inCommandThread = () => {
@@ -142,19 +156,28 @@ export function SecondBrainSidebar() {
   return (
     <div
       data-component="second-brain-sidebar"
-      data-expanded={layout.sidebar.opened() ? "" : undefined}
+      data-expanded={shown() ? "" : undefined}
+      data-phone={phone() ? "" : undefined}
       classList={{
-        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 overflow-hidden rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0": true,
-        "w-16 duration-medium ease-emphasized-decelerate md:w-[320px]": layout.sidebar.opened(),
-        "w-16 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
+        "flex min-h-0 overflow-hidden bg-v2-background-bg-base": true,
+        "titlebar-inset-margin m-2 shrink-0 rounded-[16px] shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0":
+          !phone(),
+        "fixed inset-x-0 bottom-0 z-30 w-full flex-col pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_var(--v2-border-border-muted)]":
+          phone(),
+        "w-16 duration-medium ease-emphasized-decelerate md:w-[320px]": !phone() && layout.sidebar.opened(),
+        "w-16 duration-short ease-emphasized-accelerate": !phone() && !layout.sidebar.opened(),
       }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
       }}
     >
       <nav
-        class="flex w-16 shrink-0 flex-col items-center gap-1.5 self-stretch bg-v2-background-bg-layer-01 py-2"
-        classList={{ "shadow-[inset_-1px_0_0_var(--v2-border-border-muted)]": panel.phase() !== "closed" }}
+        classList={{
+          "flex shrink-0 bg-v2-background-bg-layer-01": true,
+          "w-16 flex-col items-center gap-1.5 self-stretch py-2": !phone(),
+          "w-full flex-row items-center justify-around px-1 py-1.5": phone(),
+          "shadow-[inset_-1px_0_0_var(--v2-border-border-muted)]": !phone() && panel.phase() !== "closed",
+        }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
@@ -163,33 +186,50 @@ export function SecondBrainSidebar() {
               id={item.id}
               icon={item.icon}
               label={item.label}
+              phone={phone()}
               active={railActive(item.id, item.href)}
               onClick={() => navigate(item.href)}
             />
           )}
         </For>
+        <Show when={phone()}>
+          <RailItem
+            id="threads"
+            icon="sidebar"
+            label={language.t("secondBrain.sidebar.threads")}
+            phone
+            active={sheet()}
+            expanded={sheet()}
+            onClick={() => setSheet((open) => !open)}
+          />
+        </Show>
         <RailItem
           id="settings"
           icon="settings-gear"
           label={language.t("sidebar.settings")}
+          phone={phone()}
           onClick={() => openSettings()}
         />
       </nav>
 
       <aside
         aria-label={language.t("secondBrain.sidebar.projectsSection")}
-        inert={layout.sidebar.opened() ? undefined : true}
+        inert={shown() ? undefined : true}
         classList={{
-          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0 md:flex": true,
-          "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
-          "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0": true,
+          "md:flex": !phone(),
+          "fixed inset-x-2 top-[calc(env(safe-area-inset-top,0px)+8px)] bottom-[calc(env(safe-area-inset-bottom,0px)+64px)] z-40 rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]":
+            phone(),
+          "!flex": phone() && panel.phase() !== "closed",
+          "opacity-100 duration-medium ease-emphasized-decelerate": shown(),
+          "opacity-0 duration-short ease-emphasized-accelerate": !shown(),
         }}
       >
         <Show when={body().mounted}>
           <div
             data-sidebar-section="projects"
-            class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto px-2 pb-3 pt-1"
-            classList={{ "animate-enter": body().waited }}
+            class="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-3 pt-1"
+            classList={{ "animate-enter": body().waited, "w-[256px]": !phone(), "w-full": phone() }}
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show
@@ -249,16 +289,29 @@ export function SecondBrainSidebar() {
   )
 }
 
-function RailItem(props: { id: string; icon: string; label: string; active?: boolean; onClick: () => void }) {
+function RailItem(props: {
+  id: string
+  icon: string
+  label: string
+  active?: boolean
+  phone?: boolean
+  expanded?: boolean
+  onClick: () => void
+}) {
+  const wrapper = () => {
+    if (props.phone) return "flex min-w-11 flex-1 justify-center"
+    return props.id === "settings" ? "mt-auto w-full" : "w-full"
+  }
   return (
-    <TooltipV2 placement="right" value={props.label} class={props.id === "settings" ? "mt-auto w-full" : "w-full"}>
+    <TooltipV2 placement={props.phone ? "top" : "right"} value={props.label} class={wrapper()}>
       <button
         type="button"
         data-sidebar-item={props.id}
         data-selected={props.active ? "" : undefined}
         class="group/rail flex w-full justify-center focus-visible:outline-none"
         aria-label={props.label}
-        aria-current={props.active ? "page" : undefined}
+        aria-current={props.active && props.expanded === undefined ? "page" : undefined}
+        aria-expanded={props.expanded}
         onClick={props.onClick}
       >
         <span

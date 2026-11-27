@@ -88,6 +88,18 @@ Use `[font-weight:N]` when a weight must differ from the role.
   each has a tooltip with its name. Settings sits at the rail's foot. Add
   project and Scan sit in one bordered button group in the panel's header
   (10px corners, `bg-layer-01`, a hairline between the 32×30 buttons).
+- **Phone (below 600px wide):** the left shell becomes a bottom bar across
+  the screen (`bg-layer-01`, a hairline on top, the bottom safe-area inset
+  under it): Home, Projects, Calendar, Command Centre, Usage, Threads and
+  Settings as 44px targets in one row, where you are in the accent container.
+  Threads opens the thread list as a sheet over the page (a 16px card inset
+  8px, ending above the bar) and closes on choosing a thread, on a second tap
+  or on Escape; the window's own sidebar toggle is hidden. Pages take the whole
+  width above the bar. On a phone or any touch screen the composer's Send is
+  40px and buttons in approval and question docks are at least 40px tall. The
+  page shrinks with the on-screen keyboard (`interactive-widget=resizes-content`)
+  so the composer stays in view. From 600px up nothing changes (a phone turned
+  sideways uses the desktop layout).
 - **Right shell (thread):** the side panel and the thread's rail are one
   card, mirroring the left: the panel on `bg-base` with the card's left
   corners, the 48px rail strip (`bg-layer-01`) against it with the right

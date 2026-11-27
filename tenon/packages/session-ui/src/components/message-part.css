@@ -1463,3 +1463,9 @@ body[data-new-layout] [data-component="user-message"] {
   flex-direction: column;
   gap: 8px;
 }
+
+@media (max-width: 599.98px), (pointer: coarse) {
+  [data-component="dock-prompt"] button {
+    min-height: 40px;
+  }
+}
