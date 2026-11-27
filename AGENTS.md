@@ -101,8 +101,8 @@ bun run build
 ```
 
 `bun run test` skips the engine packages (`core`, `tenon`). Also run
-`bun run test:engine` when changing `tenon/packages/core` or
-`tenon/packages/tenon`, and `bun run test:routes` when changing
+`bun run test:engine` (both packages, one after the other; it fails if either
+fails) when changing `tenon/packages/core` or `tenon/packages/tenon`, and `bun run test:routes` when changing
 navigation or routing. `bun install` inside `tenon/` also installs a git
 pre-push hook (`tenon/.husky/pre-push`) that runs typecheck and lint.
 The CI workflow runs only on manual dispatch.

@@ -52,6 +52,6 @@ test("Harness picker lists the built-in loop first, then external agents, with a
   await page.screenshot({ path: testInfo.outputPath("harness-picker-groups.png") })
 
   await add.click()
-  await expect(page.getByRole("dialog")).toBeVisible()
+  await expect(page.locator(".settings-v2-dialog")).toBeVisible()
   await expect(page.getByRole("tab", { name: "Harnesses" })).toHaveAttribute("aria-selected", "true")
 })
