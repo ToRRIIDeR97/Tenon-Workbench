@@ -589,8 +589,8 @@ export function registerIpcHandlers(deps: Deps) {
     updateTitlebar(win)
   })
   trustedHandle("get-pinch-zoom-enabled", () => getPinchZoomEnabled())
-  trustedHandle("set-pinch-zoom-enabled", (_event: IpcMainInvokeEvent, enabled: boolean) => {
-    setPinchZoomEnabled(enabled)
+  trustedHandle("set-pinch-zoom-enabled", (_event: IpcMainInvokeEvent, enabled: unknown) => {
+    setPinchZoomEnabled(enabled === true)
   })
   trustedHandle("set-titlebar", (event: IpcMainInvokeEvent, theme: TitlebarTheme) => {
     const win = BrowserWindow.fromWebContents(event.sender)
