@@ -1,4 +1,6 @@
+import { createMediaQuery } from "@solid-primitives/media"
 import { useLocation } from "@solidjs/router"
+import { PHONE_QUERY } from "@/utils/phone"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import {
@@ -37,6 +39,7 @@ function FirstRouteMark() {
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
   const location = useLocation()
+  const phone = createMediaQuery(PHONE_QUERY)
   const [state, setState] = createStore({ debugTools: true })
   const pageKey = createMemo<PageMotionKey>((previous) => nextPageMotionKey(previous, location.pathname), {
     section: routeSection(untrack(() => location.pathname)),
@@ -75,7 +78,7 @@ export default function NewLayout(props: ParentProps) {
         <CommandCentreProvider>
           <WorkflowsProvider>
             <SidebarControllerProvider>
-              <div class="relative flex flex-1 min-h-0 min-w-0">
+              <div class="relative flex flex-1 min-h-0 min-w-0" classList={{ "pb-14": phone() }}>
                 <SecondBrainSidebar />
                 <main class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
                   <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>

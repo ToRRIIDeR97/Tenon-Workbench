@@ -648,6 +648,13 @@ Drive sign-in and the sync key (`desktop/src/main/thread-sync/`).
 
 ## Product entry points and persistence
 
+Below 600px (`utils/phone.ts`, `PHONE_QUERY`) the layout is the phone layout of
+[the design guide](../design.md): `SecondBrainSidebar` renders its rail as a
+fixed bottom bar with a Threads button whose sheet state is its own (it never
+touches the persisted desktop `layout.sidebar.opened`), and `layout-new.tsx`
+keeps the page above the bar. The routes are the same on every width; the
+specs are `app/e2e/acceptance/phone-layout.spec.ts` and `phone-docks.spec.ts`.
+
 `tenon/packages/app/src/app.tsx` owns routing: `/`, `/projects` (Projects: the vault's page tree and every
 Project; `/notes…` redirects there with its query),
 `/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/usage` (token usage), `/projects/overview` (every Project's
