@@ -682,3 +682,30 @@ an event only points to and child threads are not synced; a pull downloads the w
 holds the database connection while it applies; a macOS path is accepted on Windows; one unreadable
 manifest fails the whole `list`; orphan segments are never cleaned up except by `remove`; a store
 writer without the key can delete objects or roll a thread back.
+
+### P5a sync manager (2026-11-27)
+
+One agent (TOR-1, no subagents, no reviewer panel) implemented P5a on base `2fc3daaf`, branch
+`claude/thread-sync-manager`. The plan and both test sets were written earlier by the plan author.
+
+- Acceptance `core/test/thread-sync/manager.test.ts` (copied unchanged): 4 pass, first run after the
+  code existed (before it, `ThreadSync.manager` did not exist). Verification set, run from an untracked
+  copy and deleted: 6 pass, first run.
+- The implementor's own tests: `manager-edges.test.ts` (settings set aside, field limits, `lastError`,
+  `win32` and `darwin` folder forms, owned continue, bridge calls and that they are not agent tools),
+  `service.test.ts` (a `session.idle` event pushes the thread), `protocol/test/thread-sync.test.ts`
+  (every code's status), `tenon/test/server/httpapi-thread-sync.test.ts` (routes through the app
+  server: 200, 400, 412 with the code in the body).
+- `bun run check` from the root: exit 0. `core` tests: 1565 pass, 4 fail (the three baseline Windows
+  failures and `RepositoryCache` timing out at 5 s, which passes 6 of 6 alone). `tenon` tests: 2973
+  pass, 4 fail (baseline F-1604 and three `tool.shell abort` timing tests that also fail alone; that
+  file imports nothing this phase changed; not checked on the base).
+- Scope notes, each needed by a criterion: the engine gained `compare` (read only) for AC-P5a-3; the
+  app server (`tenon/src/server/routes/instance/httpapi/server.ts`) and `server/src/routes.ts` each add
+  `ThreadSync.node` so the routes and the idle hook exist in the running server (AC-P5a-6);
+  `client/src/contract.ts` and `client/test/promise.test.ts` name the new `threadSync` group. The manager
+  takes an optional `platform` so tests check both path forms. Bridge contract chosen here for P5b:
+  `sync_key` answers `{ key: base64url }`, `sync_token` answers `{ token }`.
+- Left for later: the desktop half of both bridge calls (P5b); a Windows thread cannot be continued on
+  macOS (deferred work); `threads()` downloads every stored thread; only `session.idle` (published by
+  the `tenon` session status) triggers a push.
