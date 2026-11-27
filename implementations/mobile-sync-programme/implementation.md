@@ -1267,6 +1267,35 @@ the same tree), then frozen (`frozen\p3c\`).
 | --- | --- | --- |
 | AC-P3c-1 to 4 | the two new test files; `acceptance/p1-matrix.test.ts` | `verification/p1-matrix.test.ts` (P1's, kept outside the repository) run on the refreshed matrix; the new e2e spec run three times |
 
+## P3d: manual feature checks
+
+One agent (TOR-1, no subagents) on `claude/manual-feature-checks` from `d717f7eb`.
+
+### Acceptance criteria
+
+- **AC-P3d-1** Every `manual` row (7 from P1, 13 moved there by P3c) is either run in the real desktop app with
+  its result and evidence in `docs/records/manual-feature-checks-2026-11-27.md` and the programme's
+  `evidence/p3d-*.png`, or says plainly why it was not run.
+- **AC-P3d-2** Rows that need a harness login or a model are `blocked` with the exact step the user must take.
+- **AC-P3d-3** Bugs found are fixed in their own change or recorded; the matrix tests still pass.
+
+| Criterion | Check |
+| --- | --- |
+| AC-P3d-1 to 3 | the record and screenshots; `acceptance/p1-matrix.test.ts`; desktop typecheck and tests |
+
+### Completion evidence
+
+- Run in the app (driven over CDP, `window.api` and Settings): F-1303, F-1304, F-1305 (panels), F-1402,
+  F-1407 (Windows), F-1409, F-1411, F-1414, F-1421, F-1503 (page); F-1211 cites the P2 run. Not run, with the
+  reason in the record: F-1105, F-1203, F-1209, F-1408 (native dialog), F-1412 and F-1422 (packaged build),
+  F-627 (microphone and model). F-1009 and F-1011 are now `blocked`: an agent needs a model.
+- Found: `set-pinch-zoom-enabled` crashed electron-store on a missing value (fixed: it stores
+  `enabled === true`; the fix was not driven again with a missing value after the change); the effective
+  zoom range is Chromium's 0.25 to 5, inside the handler's clamp (recorded); `checkAppExists` is always true
+  on Windows by design (recorded).
+- Matrix acceptance 8 pass; desktop typecheck clean.
+- Self-review: plan conformance 9 (seven rows not run, each said), correctness 10, integrity 10.
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
