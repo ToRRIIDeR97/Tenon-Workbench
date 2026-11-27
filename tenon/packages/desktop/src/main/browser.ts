@@ -27,6 +27,11 @@ const state = {
   agentCalls: 0,
   allowedHosts: new Set<string>(),
   askingHosts: new Set<string>(),
+  threadSync: undefined as ((route: "sync_key" | "sync_token") => Promise<{ text: string }>) | undefined,
+}
+
+export function answerThreadSyncBridge(handler: (route: "sync_key" | "sync_token") => Promise<{ text: string }>) {
+  state.threadSync = handler
 }
 
 function push(entry: LogEntry) {
@@ -272,6 +277,10 @@ async function runTool(
   args: Record<string, unknown>,
   signal: AbortSignal,
 ): Promise<{ text?: string; image?: string }> {
+  if (name === "sync_key" || name === "sync_token") {
+    if (!state.threadSync) throw new Error("Thread sync is not available.")
+    return state.threadSync(name)
+  }
   if (name.startsWith("device_")) return runDeviceTool(name, args)
   if (name === "computer_indicator") return indicate(args, nativeTheme.shouldUseDarkColors)
   if (name === "computer_watch") return watch(signal)

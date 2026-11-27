@@ -16,6 +16,7 @@ import { SettingsInstructionsV2 } from "./instructions"
 import { SettingsModelProfilesV2 } from "./model-profiles"
 import { SettingsMcpServersV2 } from "./mcp-servers"
 import { SettingsCalendarV2 } from "./calendar"
+import { SettingsSyncV2 } from "./sync"
 import { SettingsDictationV2 } from "./dictation"
 import { SettingsCommandCentreV2 } from "./command-centre"
 import { SettingsAccountsV2 } from "./accounts"
@@ -103,6 +104,10 @@ export const DialogSettings: Component<{
                       <Icon name="command-centre" />
                       {language.t("secondBrain.commandCentre.settings.tab")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="sync">
+                      <Icon name="cloud-upload" />
+                      {language.t("secondBrain.settings.sync.tab")}
+                    </TabsV2.Trigger>
                     <Show when={platform.mail}>
                       <TabsV2.Trigger value="accounts">
                         <Icon name="mail" />
@@ -169,6 +174,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="command-centre" class="settings-v2-panel">
           <SettingsCommandCentreV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="sync" class="settings-v2-panel">
+          <SettingsSyncV2 />
         </TabsV2.Content>
         <Show when={platform.mail}>
           <TabsV2.Content value="accounts" class="settings-v2-panel">

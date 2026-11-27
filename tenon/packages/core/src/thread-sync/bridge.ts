@@ -44,7 +44,15 @@ export function bridgeCredentials(env: Readonly<Record<string, string | undefine
     async store(driveFolder) {
       const answer = await ask("sync_token")
       if (!answer?.token) return undefined
-      return driveStore({ token: accessToken, folder: driveFolder })
+      const endpoint = loopbackEndpoint(env.TENON_THREAD_SYNC_DRIVE_ENDPOINT)
+      return driveStore({ token: accessToken, folder: driveFolder, ...(endpoint ? { endpoint } : {}) })
     },
   }
+}
+
+function loopbackEndpoint(value: string | undefined) {
+  if (!value) return undefined
+  const url = URL.parse(value)
+  if (!url || url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return undefined
+  return url.origin
 }

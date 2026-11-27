@@ -1,5 +1,5 @@
 import "./legacy-env"
-import { blockBrowserOrigin, startBrowserBridge } from "./browser"
+import { answerThreadSyncBridge, blockBrowserOrigin, startBrowserBridge } from "./browser"
 import { registerFileViewerProtocol } from "./file-viewer"
 import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, rmSync, statSync } from "node:fs"
@@ -23,6 +23,7 @@ import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { hideWidget, openInApp, registerWidgetShortcut, resizeWidget, toggleWidget } from "./widget"
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
+import { createDesktopThreadSync, threadSyncServerEnv } from "./thread-sync/electron"
 import { createDictationService } from "./dictation-service"
 import { createMailService, startMailEndpoint } from "./mail/service"
 import { createHarnessSyncService } from "./harness-sync-service"
@@ -422,6 +423,8 @@ const main = Effect.gen(function* () {
   const updater = setupAutoUpdater(stopSidecars)
   const googleCalendar = createGoogleCalendarService()
   const mail = createMailService({ onGoogleGrant: googleCalendar.adoptGrant })
+  const threadSync = createDesktopThreadSync()
+  answerThreadSyncBridge((route) => threadSync.bridge(route))
   const harnessSync = createHarnessSyncService()
   harnessSync.start()
   app.once("will-quit", () => harnessSync.stop())
@@ -472,6 +475,7 @@ const main = Effect.gen(function* () {
     dictation: createDictationService(),
     mail,
     harnessSync,
+    threadSync,
   })
   registerWslIpcHandlers(wslServers)
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
@@ -526,6 +530,7 @@ const main = Effect.gen(function* () {
     const bridgeEnv = {
       ...(bridge && { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token }),
       ...(mailEndpoint && { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token }),
+      ...threadSyncServerEnv(),
     }
     const startSidecar = (port: number) =>
       superviseSidecar({

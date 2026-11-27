@@ -273,9 +273,8 @@ one thread's event log between computers through a store, sealed on the
 computer before it leaves. For one person's own computers the store is a
 folder in their Google Drive. The engine below does the moving; the
 [manager](#thread-sync-manager) puts it in the server with settings, routes,
-a push after each turn and "Continue here". The Settings page, the Google
-sign-in that supplies the Drive token and the key in the system credential
-store come in the app half (P5b).
+a push after each turn and "Continue here"; the [desktop half](#thread-sync-in-the-desktop-app)
+signs in to Google Drive, keeps the key and token, and adds Settings › Sync.
 
 ![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder store or a Google Drive folder with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
 
@@ -398,10 +397,11 @@ store come in the app half (P5b).
 REST API with plain `fetch` and `Authorization: Bearer` from `token()` on
 every request. The token needs only `https://www.googleapis.com/auth/drive.file`,
 which lets Tenon see the files and folders it made and nothing else in the
-person's Drive. Every computer signs in with the same Tenon OAuth client and
-the same Google account; the documentation ties `drive.file` access to the
-user and the app, not to a device, which is what lets a second computer see
-the first one's files (to be confirmed with a real account in P5b). Cloud
+person's Drive. Every computer signs in with the same OAuth client (the
+user's own, entered in Settings › Sync) and the same Google account; the
+documentation ties `drive.file` access to the user and the app, not to a
+device, which is what lets a second computer see the first one's files (not
+yet confirmed with a real account: [manual test](../records/thread-sync-manual-test.md)). Cloud
 Storage was the first plan and is gone: the person uses their own Drive.
 
 ![Google Drive store: each store name is a chain of immutable Drive file versions linked by parent IDs in appProperties; a write lists the versions, checks the condition against the winner, creates a child version, lists again and succeeds only if its version is the winner, then removes superseded versions](../diagrams/thread-sync-drive.svg)
@@ -546,8 +546,10 @@ include it.
   The store is `driveStore` with the `driveFolder` name, which asks for a
   token on every request. Both calls are outside `HarnessBrowserTools.TOOLS`,
   so an agent cannot call them. Without the bridge (a plain `tenon serve`),
-  the status is `missing: ["key", "store"]`. The desktop half of both calls
-  is P5b.
+  the status is `missing: ["key", "store"]`. The desktop answers both calls
+  ([below](#thread-sync-in-the-desktop-app)). An unpackaged desktop build may set
+  `TENON_THREAD_SYNC_DRIVE_ENDPOINT` to a plain-HTTP loopback address (the Drive
+  fake); `bridgeCredentials` ignores any other value, and a packaged build sets it empty.
 - **Routes.** `server.threadSync` (`protocol/src/groups/thread-sync.ts`,
   handlers in `server/src/handlers/thread-sync.ts`): `GET /api/thread-sync`
   (status), `PUT /api/thread-sync` (configure), `GET /api/thread-sync/threads`,
@@ -562,6 +564,66 @@ include it.
   Tests: `core/test/thread-sync/manager.test.ts` (acceptance),
   `manager-edges.test.ts`, `service.test.ts`, `protocol/test/thread-sync.test.ts`
   and `tenon/test/server/httpapi-thread-sync.test.ts`.
+
+### Thread sync in the desktop app
+
+The desktop main process holds what the server must never store: the Google
+Drive sign-in and the sync key (`desktop/src/main/thread-sync/`).
+
+![Thread sync in the desktop app: Settings › Sync calls the desktop over IPC for sign-in and the key and the server over /api/thread-sync; the desktop signs in through the system browser and a loopback listener, keeps secrets with safeStorage and answers the server's sync_key and sync_token bridge calls](../diagrams/thread-sync-desktop.svg)
+
+- **Sign-in** (`oauth.ts`, `googleSignIn`). The installed-app flow: a listener
+  on `127.0.0.1` on a free port, the system browser (`shell.openExternal`) on
+  Google's authorize page with `scope=https://www.googleapis.com/auth/drive.file`,
+  `access_type=offline`, `prompt=consent`, a random `state` and a PKCE S256
+  challenge, then the code exchanged at the token endpoint with the verifier,
+  the redirect URI and the client ID and secret. A wrong `state` answers 400 and
+  keeps waiting; denial, a missing refresh token, a missing `drive.file` grant,
+  five minutes without a callback and a cancel each reject with their own code;
+  the listener closes on every outcome. The OAuth client (a Google "Desktop
+  app" client: ID and secret) is the user's own, entered in Settings › Sync;
+  Tenon ships none for Drive. The PKCE and token helpers are shared with the
+  Calendar sign-in (`google-calendar-domain.ts`).
+- **Credentials** (`service.ts`, `createThreadSyncService`). An electron-store
+  file `tenon.thread-sync` in the user data folder holds the client ID in plain
+  text and the client secret, the refresh token and the key (base64url) sealed
+  with `safeStorage` (DPAPI on Windows, the Keychain on macOS); nothing is
+  saved when `safeStorage` is unavailable (or is the Linux `basic_text`
+  backend). The access token lives only in memory and is refreshed a minute
+  before it expires; concurrent requests share one refresh, a rotated refresh
+  token is sealed again, and `invalid_grant` signs out. Saving a different
+  client revokes the old sign-in; Sign out revokes the refresh token; the key
+  stays until Forget key.
+- **Key and phrase** (`phrase.ts`). `createKey` makes 32 random bytes once and
+  returns the recovery phrase once (the engine's format: eighteen groups of
+  four hex digits, the key and four bytes of its SHA-256); `enterPhrase`
+  replaces the stored key with the one a phrase holds. No other call returns the
+  key or the phrase.
+- **Bridge.** `answerThreadSyncBridge` in `browser.ts` routes the loopback
+  bridge's `sync_key` and `sync_token` to the service, which answers the shapes
+  the server's `bridgeCredentials` decodes.
+- **Settings › Sync** (`app/src/components/settings-v2/sync.tsx`, the model in
+  `thread-sync-model.ts`, the `/api/thread-sync` calls in
+  `thread-sync-client.ts`). Google Drive (client, Sign in or out), the sync key
+  (Create a key with the phrase shown once, a recovery phrase field, Forget
+  key), sync (on/off, Drive folder name, this computer's name, the last error)
+  and the stored threads with their state; "Continue here" on a thread owned by
+  another computer opens the folder picker and posts `/continue`. A line at the
+  top names the next step. The web build says sync needs the desktop app.
+- **IPC.** `thread-sync-status`, `-set-client`, `-sign-in`, `-cancel-sign-in`,
+  `-sign-out`, `-create-key`, `-enter-phrase`, `-forget-key`; each handler only
+  calls the service.
+- **Platforms.** The same code runs on Windows and macOS: the loopback listener,
+  the system browser and `safeStorage` behave alike; the store file sits in the
+  user data folder of each (`app.getPath("userData")`: under `%APPDATA%` on
+  Windows, `~/Library/Application Support` on macOS). macOS has not been run.
+- **Testing.** An unpackaged build reads `TENON_THREAD_SYNC_OAUTH_ENDPOINT` (a
+  loopback base URL standing in for Google's `/authorize`, `/token` and
+  `/revoke`) and `TENON_THREAD_SYNC_DRIVE_ENDPOINT` (`thread-sync/endpoints.ts`);
+  a packaged build ignores both. Tests: `desktop/src/main/thread-sync/acceptance.test.ts`
+  (with `fake-google.ts`), `endpoints.test.ts` and
+  `app/src/components/settings-v2/thread-sync-model.test.ts`. A real account on
+  two computers is still unverified: [manual test](../records/thread-sync-manual-test.md).
 
 ## Product entry points and persistence
 

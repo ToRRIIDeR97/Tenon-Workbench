@@ -14,7 +14,7 @@ import { basename, isAbsolute, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
-import type { GoogleCalendarPlatform } from "@tenon/app"
+import type { GoogleCalendarPlatform, ThreadSyncPlatform } from "@tenon/app"
 import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
 
 import type { FatalRendererError, ServerReadyData, StartupMilestone, TitlebarTheme } from "../preload/types"
@@ -121,6 +121,7 @@ type Deps = {
   dictation: DictationService
   mail: MailService
   harnessSync: HarnessSyncService
+  threadSync: ThreadSyncPlatform
 }
 
 const settle = (work: () => Promise<unknown>) =>
@@ -204,6 +205,21 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("google-calendar-disconnect", (_event, input: Parameters<GoogleCalendarPlatform["disconnect"]>[0]) =>
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )
+  trustedHandle("thread-sync-status", () => deps.threadSync.status())
+  trustedHandle("thread-sync-set-client", (_event, input: { clientId?: unknown; clientSecret?: unknown }) =>
+    deps.threadSync.setClient({
+      clientId: typeof input?.clientId === "string" ? input.clientId : "",
+      clientSecret: typeof input?.clientSecret === "string" ? input.clientSecret : "",
+    }),
+  )
+  trustedHandle("thread-sync-sign-in", () => deps.threadSync.signIn())
+  trustedHandle("thread-sync-cancel-sign-in", () => deps.threadSync.cancelSignIn())
+  trustedHandle("thread-sync-sign-out", () => deps.threadSync.signOut())
+  trustedHandle("thread-sync-create-key", () => deps.threadSync.createKey())
+  trustedHandle("thread-sync-enter-phrase", (_event, phrase: unknown) =>
+    deps.threadSync.enterPhrase(typeof phrase === "string" ? phrase : ""),
+  )
+  trustedHandle("thread-sync-forget-key", () => deps.threadSync.forgetKey())
   trustedHandle("dictation-start", (event, options: { language?: unknown } | undefined) =>
     deps.dictation.start(
       (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),

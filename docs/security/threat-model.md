@@ -1407,8 +1407,8 @@ local folder, or a folder the person can see in their own Google Drive
 (personal use, one Google account, their own computers). The store is
 outside Tenon's trust boundary; only computers holding the sync key are
 trusted. The server's sync manager calls the engine through
-`/api/thread-sync`, behind the server's existing authorization; the Settings
-page and the Google sign-in are not built yet (P5b).
+`/api/thread-sync`, behind the server's existing authorization; the desktop
+main process signs in to Google Drive and keeps the key (Settings › Sync).
 
 - **What is encrypted.** Every object the engine writes is sealed with
   AES-256-GCM (WebCrypto) under the sync key with a fresh random nonce: event
@@ -1462,7 +1462,8 @@ page and the Google sign-in are not built yet (P5b).
     thread back by writing an older genuine manifest as the new winner (see
     Integrity) or make it unreadable. They cannot read or forge content
     without the key. The token lives only in memory in the server for one
-    call; its lifetime and refresh are the desktop's job (P5b).
+    call; the desktop keeps the refresh token sealed with `safeStorage` and the
+    access token (about an hour) in memory.
 - **Integrity.** Authenticated encryption plus additional data bind each
   segment to its session ID and to the hash of the segment before it, and the
   manifest to its session ID, and the manifest lists every segment's hash. A
@@ -1494,12 +1495,19 @@ page and the Google sign-in are not built yet (P5b).
   replay that fails partway) are refused as `unsupported`: they are checked
   before replay, and the replay runs in one transaction, so a pull leaves
   no event, project row or owner change behind.
-- **Where the key lives.** The engine only receives the key as bytes. The app
-  is expected to keep it in the operating system's credential store
-  (Windows Credential Manager through DPAPI, the macOS Keychain) and show the
-  phrase once so the person can enter it on another computer. It must never be
+- **Where the key lives.** The engine only receives the key as bytes. The
+  desktop main process keeps it, base64url, sealed with Electron `safeStorage`
+  (DPAPI on Windows, the macOS Keychain) in the `tenon.thread-sync` store in
+  the user data folder, beside the sealed client secret and refresh token and
+  the plain client ID; without `safeStorage` (or with Linux's `basic_text`)
+  nothing is saved and sync cannot start. Settings › Sync shows the recovery
+  phrase once, when the key is made, and takes a phrase from another computer;
+  no IPC call, status or log returns the key or phrase afterwards (a test
+  searches the store and the status for the key in hex, base64, base64url and
+  the phrase). Anyone who can run code as the user can ask `safeStorage` to
+  unseal it, as with any credential the user's account holds. It is never
   stored in Google Drive, in `tenon.db`, in logs or in the renderer's storage.
-  The desktop side is P5b and is not yet built. The server never stores the
+  The server never stores the
   key or the Google Drive token: the manager asks the desktop main process
   for them on each operation over the loopback bridge (`POST /sync_key`,
   `POST /sync_token`, bearer `TENON_BROWSER_TOKEN`, bound to `127.0.0.1`) and
@@ -1535,9 +1543,21 @@ page and the Google sign-in are not built yet (P5b).
   than `drive.file`, never uses `appDataFolder`, and never changes a file it
   made: every write is a new file, so a bug cannot overwrite the person's
   other files. 401 is `unauthorized`; a 403 other than a rate limit or a full
-  Drive is `unauthorized`. Every computer must use the same Tenon OAuth
-  client; one signed in through another client sees none of the files. The
-  OAuth client is Tenon's own (AGENTS.md: no borrowed client IDs).
+  Drive is `unauthorized`. Every computer must use the same OAuth client; one
+  signed in through another client sees none of the files. The client is the
+  user's own Google "Desktop app" client, entered in Settings › Sync: Tenon
+  ships no client ID for Drive and borrows none (AGENTS.md). Its secret is
+  sealed like the refresh token, although Google documents that a desktop
+  client's secret is not treated as confidential; PKCE and the loopback
+  redirect protect the code exchange. The sign-in asks only for `drive.file`
+  and refuses a grant without it.
+- **Test endpoints.** An unpackaged build reads
+  `TENON_THREAD_SYNC_OAUTH_ENDPOINT` and `TENON_THREAD_SYNC_DRIVE_ENDPOINT` so
+  local fakes can stand in for Google; both must be plain HTTP on a loopback
+  address. A packaged build ignores the first and sets the second empty for
+  the server, and the server's `bridgeCredentials` ignores any value that is
+  not a loopback address, so neither can send a token anywhere but Google or
+  this computer.
 - **Folder store.** Names are validated before any file access (parts of
   `A-Z a-z 0-9 . _ -`, never `.` or `..`, no `\` or `:`), so no name can
   leave the folder. Files get the user's default permissions on Windows and

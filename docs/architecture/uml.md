@@ -71,6 +71,13 @@ and writes the "Continue here" folder into the local `session` row only.
 Details are in the [README](README.md#thread-sync-manager) and the
 [threat model](../security/threat-model.md#thread-sync).
 
+![Thread sync in the desktop app: Settings › Sync calls the desktop over IPC for sign-in and the key and the server over /api/thread-sync; the desktop signs in through the system browser and a loopback listener, keeps secrets with safeStorage and answers the server's sync_key and sync_token bridge calls](../diagrams/thread-sync-desktop.svg)
+
+Electron main (`desktop/src/main/thread-sync/`) signs in to Google Drive with
+the user's own OAuth client, seals the refresh token and the sync key with
+`safeStorage`, and answers the bridge; Settings › Sync drives both halves
+([README](README.md#thread-sync-in-the-desktop-app)).
+
 ### Deployment
 
 ![Deployment view: Electron main, renderer and utility-process server on the user machine, optional harness processes and CLI daemon, profile and workspace stores, Google, LLM providers and the build host](../diagrams/deployment.svg)
@@ -327,6 +334,9 @@ the registry and the companion scope before any handler. See
 | `thread-sync.json` (on, optional Google Drive folder name, machine ID and name, folder per continued thread; no key or token) | Store | Component: thread sync | `core/src/thread-sync/settings.ts`, `service.ts` (`Global.config`) |
 | Push after a turn (`session.idle` → `settled` → push when owned or not stored, `lastError` on store failure) | Critical workflow | Component: thread sync | `core/src/thread-sync/service.ts`, `manager.ts` (`settled`), `tenon/src/session/status.ts` (publishes `session.idle`) |
 | Continue here (takeover, folder recorded on this computer, session row re-pointed after every pull) | Critical workflow | Component: thread sync | `core/src/thread-sync/manager.ts` (`continueHere`, `placeFolder`), `settings.ts` (`withFolder`) |
+| Thread sync in the desktop app (Google Drive sign-in with the user's own OAuth client, sealed key and refresh token, bridge answers, Settings › Sync) | Subsystem | Component: thread sync; text in [README](README.md#thread-sync-in-the-desktop-app), [diagram](../diagrams/thread-sync-desktop.svg) and the [threat model](../security/threat-model.md#thread-sync) | `desktop/src/main/thread-sync/{oauth,service,phrase,endpoints,electron}.ts`, `desktop/src/main/browser.ts` (`answerThreadSyncBridge`), `app/src/components/settings-v2/{sync.tsx,thread-sync-model.ts,thread-sync-client.ts}` |
+| `tenon.thread-sync` desktop store (client ID; client secret, refresh token and key sealed with `safeStorage`) | Store | Component: thread sync | `desktop/src/main/thread-sync/service.ts`, `electron.ts` |
+| Google sign-in for Drive (loopback listener, system browser, PKCE, `drive.file`) | Critical workflow | Component: thread sync | `desktop/src/main/thread-sync/oauth.ts` (`googleSignIn`) |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
 | Remote access (pairing codes, device tokens, companion scope, stream tickets, owner device routes) | Subsystem | Sequence: pairing a phone; text in [README](README.md#remote-access) and the [threat model](../security/threat-model.md#remote-access) | `core/src/remote-access.ts`, `core/src/remote-access/{registry,scope,file,limits,error,service}.ts`, `server/src/middleware/remote-device.ts`, `server/src/middleware/authorization.ts`, `server/src/handlers/remote.ts`, `protocol/src/groups/remote.ts`, `tenon/src/server/routes/instance/httpapi/{middleware/authorization,groups/remote,handlers/remote}.ts` |
 | `remote-devices.json` (device IDs, names, token SHA-256, paired and last-seen times) | Shared store | Sequence: pairing a phone | `core/src/remote-access/file.ts`, `core/src/remote-access/service.ts` (path in the data folder) |
