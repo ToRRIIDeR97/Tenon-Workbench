@@ -2,15 +2,20 @@ import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
 import { dict as en } from "@/i18n/en"
 import {
+  assignRunKeys,
   blockedNote,
   foldDuration,
   hasVisibleSteps,
   reasoningTopic,
+  sameDiffs,
+  sameFileDiff,
+  stepKeys,
   subagentLanes,
   tickerStep,
   toolDetail,
   turnDuration,
 } from "./turn-steps-summary"
+import { editDiffs } from "./step-diff"
 
 const tool = (
   id: string,
@@ -166,5 +171,85 @@ describe("blockedNote", () => {
 
   test("leaves a call the user declined alone", () => {
     expect(blockedNote(failed())).toBeUndefined()
+  })
+})
+
+describe("stepKeys", () => {
+  test("keys each step by its part, so an earlier step that appears keeps the later ones on their rows", () => {
+    expect(stepKeys([tool("shell", "running")])).toEqual(["shell"])
+    expect(stepKeys([tool("question", "error"), tool("shell", "error")])).toEqual(["question", "shell"])
+    expect(stepKeys([undefined, tool("shell", "completed")])).toEqual(["shell"])
+  })
+})
+
+describe("assignRunKeys", () => {
+  const read = (id: string) => tool(id, "completed", "read")
+
+  test("a step arriving at the front of an open group keeps the group's key, so it stays open", () => {
+    const first = assignRunKeys([[read("b"), read("c")]], new Map())
+    expect(first.keys).toEqual(["b"])
+    const grown = assignRunKeys([[read("a"), read("b"), read("c")]], first.byPart)
+    expect(grown.keys).toEqual(first.keys)
+  })
+
+  test("a step that becomes a group keeps its row", () => {
+    const single = assignRunKeys([[read("b")]], new Map())
+    expect(assignRunKeys([[read("b"), read("c")]], single.byPart).keys).toEqual(single.keys)
+  })
+
+  test("a new run before others gets its own key and the others keep theirs", () => {
+    const before = assignRunKeys([[tool("shell", "running", "bash")]], new Map())
+    const after = assignRunKeys(
+      [[tool("question", "error", "question")], [tool("shell", "error", "bash")]],
+      before.byPart,
+    )
+    expect(after.keys).toEqual(["question", "shell"])
+  })
+
+  test("a group split in two gives each half a distinct key", () => {
+    const whole = assignRunKeys([[read("a"), read("b"), read("c")]], new Map())
+    const split = assignRunKeys([[read("a")], [tool("x", "completed", "bash")], [read("b"), read("c")]], whole.byPart)
+    expect(split.keys[0]).toBe("a")
+    expect(new Set(split.keys).size).toBe(3)
+  })
+})
+
+describe("sameDiffs", () => {
+  const edit = (additions: number, after = "export const value = 2\n") =>
+    editDiffs({
+      id: "prt_edit",
+      type: "tool",
+      tool: "edit",
+      state: {
+        status: "completed",
+        input: { filePath: "src/a.ts" },
+        output: "",
+        title: "src/a.ts",
+        metadata: {
+          filediff: { file: "src/a.ts", additions, deletions: 1, before: "export const value = 1\n", after },
+        },
+        time: { start: 0, end: 1 },
+      },
+    } as unknown as ToolPart)
+
+  test("treats a rebuilt but unchanged diff as the same, so its view is kept", () => {
+    const first = edit(1)
+    const again = edit(1)
+    expect(again[0]).not.toBe(first[0])
+    expect(sameDiffs(first, again)).toBe(true)
+  })
+
+  test("sees a changed count, while the file view underneath stays the same", () => {
+    const first = edit(1)
+    const counted = edit(2)
+    expect(sameDiffs(first, counted)).toBe(false)
+    expect(sameFileDiff(first[0].fileDiff, counted[0].fileDiff)).toBe(true)
+  })
+
+  test("sees changed content", () => {
+    const first = edit(1)
+    const changed = edit(1, "export const value = 3\n")
+    expect(sameDiffs(first, changed)).toBe(false)
+    expect(sameFileDiff(first[0].fileDiff, changed[0].fileDiff)).toBe(false)
   })
 })

@@ -56,11 +56,12 @@ test("shows the V2 thinking level control while relevant", async ({ page }) => {
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   const composer = page.locator('[data-component="prompt-input-v2"]')
   const input = composer.locator('[data-component="prompt-input"]')
-  const control = composer.getByRole("button", { name: "Choose model variant" })
+  const control = composer.getByRole("button", { name: /^Reasoning: / })
   await expectAppVisible(composer)
 
   await idleComposer(page)
   await expect(control).toBeVisible()
+  await expect(control).toHaveAccessibleName("Reasoning: Default")
 
   await control.click()
   const high = page.getByRole("menuitemradio", { name: "high" })
@@ -69,6 +70,8 @@ test("shows the V2 thinking level control while relevant", async ({ page }) => {
   await expect(control).toBeVisible()
   await expect(high).toBeVisible()
   await high.click()
+  await expect(high).toHaveCount(0)
+  await expect(control).toHaveAccessibleName("Reasoning: high")
 
   await idleComposer(page)
   await input.focus()

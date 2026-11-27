@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 500" width="980" height="500" role="img" aria-labelledby="title desc">
+<title id="title">Thread sync manager</title>
+<desc id="desc">Inside the local server, the ThreadSync service holds one manager. Clients call it through the /api/thread-sync routes. It reads and writes thread-sync.json in the Tenon config folder, which holds the switch, an optional Google Drive folder name, the machine ID and name and the folder choices but never the key or a token. It asks the desktop main process for the key and a Google Drive token with the drive.file scope over the loopback bridge with the sync_key and sync_token calls, which are not agent tools, and keeps them only in memory. A session.idle event makes it call settled, which pushes the thread through the engine when this computer owns it or it is not stored yet. Continue here takes the thread over through the engine and then points the thread's local session row at the chosen folder and its project, again after every pull.</desc>
+
+<style>
+  .bg{fill:#ffffff}
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;fill:#1f2328}
+  .t{font-weight:600}
+  .s{font-size:11.5px;fill:#57606a}
+  .h{font-size:16px;font-weight:600}
+  .lbl{font-size:11px;fill:#424a53}
+  .lblbg{fill:#ffffff;opacity:.92}
+  .sub{fill:#ffffff;stroke:#8c959f;stroke-width:1}
+  .box{fill:#f6f8fa;stroke:#57606a;stroke-width:1.2}
+  .store{fill:#fff8e5;stroke:#9a6700;stroke-width:1.2}
+  .ext{fill:#ddf4ff;stroke:#0969da;stroke-width:1.2}
+  .proc{fill:#fbefff;stroke:#8250df;stroke-width:1.2}
+  .zone{fill:none;stroke:#8c959f;stroke-width:1.2;stroke-dasharray:7 5}
+  .zonet{font-size:12px;font-weight:600;fill:#57606a}
+  .e{fill:none;stroke:#57606a;stroke-width:1.3}
+  .ah{fill:#57606a}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#0d1117}
+    text{fill:#e6edf3}
+    .s{fill:#9198a1} .lbl{fill:#c9d1d9} .lblbg{fill:#0d1117}
+    .box{fill:#161b22;stroke:#8b949e} .sub{fill:#0d1117;stroke:#6e7681}
+    .store{fill:#2b2111;stroke:#d29922} .ext{fill:#0c2d4a;stroke:#4493f8}
+    .proc{fill:#271a3d;stroke:#ab7df8}
+    .zone{stroke:#6e7681} .zonet{fill:#9198a1}
+    .e{stroke:#9198a1} .ah{fill:#9198a1}
+  }
+</style>
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="980" height="500"/>
+<text x="20" y="28" class="h">Thread sync manager</text>
+<text x="20" y="46" class="s">component view · core/src/thread-sync/{manager,settings,bridge,service}.ts · one manager per server</text>
+
+<rect class="ext" x="20" y="80" width="200" height="74" rx="6"/>
+<text x="30" y="98" class="t">Client</text>
+<text x="30" y="114" class="s">@tenon/client threadSync</text>
+<text x="30" y="130" class="s">Settings › Sync comes in P5b</text>
+
+<rect class="proc" x="20" y="300" width="200" height="104" rx="6"/>
+<text x="30" y="318" class="t">Desktop main process</text>
+<text x="30" y="334" class="s">loopback bridge, bearer token</text>
+<text x="30" y="350" class="s">sync_key: the key (base64url)</text>
+<text x="30" y="366" class="s">sync_token: Drive token (drive.file)</text>
+<text x="30" y="382" class="s">not agent tools (isTool false)</text>
+
+<rect class="zone" x="265" y="60" width="430" height="420" rx="10"/>
+<text x="275" y="76" class="zonet">Local server</text>
+
+<rect class="box" x="280" y="86" width="400" height="64" rx="6"/>
+<text x="290" y="104" class="t">/api/thread-sync (server.threadSync)</text>
+<text x="290" y="120" class="s">GET · PUT · GET /threads · POST /threads/:id/push,</text>
+<text x="290" y="136" class="s">/pull, /continue · DELETE /threads/:id · code → status</text>
+
+<rect class="box" x="280" y="180" width="400" height="160" rx="6"/>
+<text x="290" y="198" class="t">ThreadSync.Service → manager</text>
+<text x="290" y="216" class="s">status: ready, driveFolder, missing key · store, lastError</text>
+<text x="290" y="232" class="s">configure: Drive folder and computer name checked first</text>
+<text x="290" y="248" class="s">threads: stored list with this computer's local state</text>
+<text x="290" y="264" class="s">push · pull · remove: not_ready until on and complete</text>
+<text x="290" y="280" class="s">continueHere: takeOver, then folder on this computer only</text>
+<text x="290" y="296" class="s">settled: push if mine or not stored; never fails</text>
+<text x="290" y="312" class="s">key and token held only in memory, asked for each call</text>
+<text x="290" y="328" class="s">one lock per thread</text>
+
+<rect class="sub" x="280" y="372" width="190" height="94" rx="6"/>
+<text x="290" y="390" class="t">EventV2 bus</text>
+<text x="290" y="406" class="s">session.idle → settled</text>
+<text x="290" y="422" class="s">(SessionStatus.set idle)</text>
+
+<rect class="sub" x="490" y="372" width="190" height="94" rx="6"/>
+<text x="500" y="390" class="t">tenon.db</text>
+<text x="500" y="406" class="s">session.directory and</text>
+<text x="500" y="422" class="s">project_id ← chosen folder,</text>
+<text x="500" y="438" class="s">re-applied after every pull;</text>
+<text x="500" y="454" class="s">never in the event log</text>
+
+<rect class="store" x="740" y="80" width="220" height="110" rx="6"/>
+<text x="750" y="98" class="t">thread-sync.json</text>
+<text x="750" y="114" class="s">Tenon config folder, 0600</text>
+<text x="750" y="130" class="s">enabled, driveFolder?, machine id</text>
+<text x="750" y="146" class="s">(hostname-xxxxxx) and name,</text>
+<text x="750" y="162" class="s">folders by session ID</text>
+<text x="750" y="178" class="s">no key, no token</text>
+
+<rect class="box" x="740" y="230" width="220" height="74" rx="6"/>
+<text x="750" y="248" class="t">ThreadSync.make (engine)</text>
+<text x="750" y="264" class="s">push, pull, takeOver, list,</text>
+<text x="750" y="280" class="s">remove, compare</text>
+
+<rect class="ext" x="740" y="340" width="220" height="60" rx="6"/>
+<text x="750" y="358" class="t">Store</text>
+<text x="750" y="374" class="s">driveStore: a folder in your Drive</text>
+
+<path class="e" d="M220,117 L280,117" marker-end="url(#a)"/>
+<path class="e" d="M480,150 L480,180" marker-end="url(#a)"/>
+<path class="e" d="M220,340 L280,300" marker-end="url(#a)" marker-start="url(#a)"/>
+<path class="e" d="M375,372 L375,340" marker-end="url(#a)"/>
+<path class="e" d="M585,340 L585,372" marker-end="url(#a)"/>
+<path class="e" d="M680,200 L740,150" marker-end="url(#a)" marker-start="url(#a)"/>
+<path class="e" d="M680,267 L740,267" marker-end="url(#a)"/>
+<path class="e" d="M850,304 L850,340" marker-end="url(#a)"/>
+
+<rect class="lblbg" x="224" y="100" width="52" height="13" rx="2"/>
+<text class="lbl" x="250" y="110" text-anchor="middle">HTTP</text>
+<rect class="lblbg" x="214" y="306" width="62" height="13" rx="2"/>
+<text class="lbl" x="245" y="316" text-anchor="middle">key, token</text>
+<rect class="lblbg" x="684" y="160" width="54" height="13" rx="2"/>
+<text class="lbl" x="711" y="170" text-anchor="middle">settings</text>
+<rect class="lblbg" x="684" y="250" width="54" height="13" rx="2"/>
+<text class="lbl" x="711" y="260" text-anchor="middle">per call</text>
+</svg>

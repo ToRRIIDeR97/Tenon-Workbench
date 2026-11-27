@@ -70,7 +70,10 @@ for (const profile of profiles) {
     await timeline.send(status("busy"), 150)
 
     await expect(page.locator('[data-timeline-row="Thinking"]')).toHaveCount(profile.thinking ? 1 : 0)
-    await expect(page.locator(`[data-timeline-part-id="${reasoningID}"]`)).toHaveCount(profile.body ? 1 : 0)
+    const notes = page.locator('[data-timeline-row="TurnSteps"] [data-slot="turn-steps-note"]')
+    await expect(notes).toHaveCount(profile.body ? 1 : 0)
+    if (profile.body) await expect(notes).toContainText("Inspecting stability")
+    await expect(page.locator(`[data-timeline-part-id="${reasoningID}"]`)).toHaveCount(0)
     if (!profile.summaries && profile.reasoning.trim()) {
       await expect(page.getByText("Inspecting stability", { exact: true })).toBeVisible()
     }

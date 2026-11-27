@@ -21,7 +21,7 @@ import { SessionStore } from "../../src/session/store"
 import { ThreadSync } from "../../src/thread-sync"
 import { tmpdir } from "../fixture/tmpdir"
 import { testEffect } from "../lib/effect"
-import { fakeGcs } from "./gcs-fake"
+import { fakeDrive } from "./drive-fake"
 
 const projects = Layer.succeed(
   ProjectV2.Service,
@@ -120,6 +120,31 @@ const bytesOf = async (directory: string): Promise<Buffer[]> =>
     )
   ).flat()
 
+const kinds: Array<"folder" | "drive"> = ["folder", "drive"]
+
+const storeOf = (kind: "folder" | "drive", directory: string) =>
+  kind === "folder"
+    ? Effect.succeed({
+        store: ThreadSync.folderStore(path.join(directory, "bucket")),
+        stored: () => bytesOf(path.join(directory, "bucket")),
+      })
+    : Effect.acquireRelease(
+        Effect.sync(() => fakeDrive()),
+        (drive) => Effect.promise(() => drive.stop()),
+      ).pipe(
+        Effect.map((drive) => ({
+          store: ThreadSync.driveStore({ endpoint: drive.endpoint, token: async () => drive.token }),
+          stored: async () =>
+            [...drive.files.values()].map((file) =>
+              Buffer.concat([
+                Buffer.from(file.bytes),
+                Buffer.from(file.name),
+                Buffer.from(JSON.stringify(file.appProperties)),
+              ]),
+            ),
+        })),
+      )
+
 describe("P4 sync key", () => {
   test("AC-P4-1 a generated key is 32 bytes and comes back from its phrase", () => {
     const made = ThreadSync.generateKey()
@@ -210,39 +235,21 @@ describe("P4 folder store", () => {
   })
 })
 
-describe("P4 Cloud Storage store", () => {
-  test("AC-P4-5 reads and writes through the JSON API with a bearer token", async () => {
-    const gcs = fakeGcs()
-    try {
-      const store = ThreadSync.gcsStore({ bucket: "my-bucket", endpoint: gcs.endpoint, token: async () => gcs.token })
-      expect(await store.get("threads/a/manifest")).toBeUndefined()
-      const first = await store.put("threads/a/manifest", new Uint8Array([1, 2, 3]), { ifGeneration: null })
-      expect(await rejected(store.put("threads/a/manifest", new Uint8Array([9]), { ifGeneration: null }))).toBe(
-        "conflict",
-      )
-      const read = await store.get("threads/a/manifest")
-      expect([...read!.bytes]).toEqual([1, 2, 3])
-      expect(read!.generation).toBe(first.generation)
-      expect(await store.list("threads/")).toEqual([
-        { name: "threads/a/manifest", generation: first.generation, size: 3 },
-      ])
-      await store.remove("threads/a/manifest")
-      expect(await store.get("threads/a/manifest")).toBeUndefined()
-      expect(gcs.requests.length).toBeGreaterThan(4)
-    } finally {
-      gcs.stop()
-    }
+describe("P4 Google Drive store", () => {
+  test("AC-P4-5 is replaced by AC-P4b-1 to 8: Cloud Storage is gone, the store is Google Drive", () => {
+    expect("gcsStore" in ThreadSync).toBe(false)
+    expect(typeof ThreadSync.driveStore).toBe("function")
   })
 })
 
-describe("P4 engine", () => {
+describe.each(kinds)("P4 engine on the %s store", (kind) => {
   it.live("AC-P4-6 a thread pushed from one computer continues on another", () =>
     Effect.gen(function* () {
       const tmp = yield* Effect.acquireRelease(
         Effect.promise(() => tmpdir()),
         (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
       )
-      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const { store } = yield* storeOf(kind, tmp.path)
       const key = ThreadSync.generateKey().key
       const onDesk = Layer.fresh(computer(path.join(tmp.path, "desk.sqlite")))
       const onLaptop = Layer.fresh(computer(path.join(tmp.path, "laptop.sqlite")))
@@ -276,7 +283,7 @@ describe("P4 engine", () => {
         Effect.promise(() => tmpdir()),
         (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
       )
-      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const { store } = yield* storeOf(kind, tmp.path)
       const key = ThreadSync.generateKey().key
       const onDesk = Layer.fresh(computer(path.join(tmp.path, "desk.sqlite")))
       const onLaptop = Layer.fresh(computer(path.join(tmp.path, "laptop.sqlite")))
@@ -314,19 +321,19 @@ describe("P4 engine", () => {
         Effect.promise(() => tmpdir()),
         (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
       )
-      const bucket = path.join(tmp.path, "bucket")
+      const target = yield* storeOf(kind, tmp.path)
       yield* Effect.gen(function* () {
         const session = yield* SessionV2.Service
         const created = yield* session.create({ location })
         yield* say(created.id, "a very private sentence")
         const engine = yield* sync({
-          store: ThreadSync.folderStore(bucket),
+          store: target.store,
           key: ThreadSync.generateKey().key,
           machine: desk,
         })
         yield* engine.push(created.id)
       }).pipe(Effect.provide(Layer.fresh(computer(path.join(tmp.path, "desk.sqlite")))))
-      const files = yield* Effect.promise(() => bytesOf(bucket))
+      const files = yield* Effect.promise(() => target.stored())
       expect(files.length).toBeGreaterThan(1)
       expect(files.filter((file) => file.includes("a very private sentence"))).toEqual([])
       expect(files.filter((file) => file.includes("Desk"))).toEqual([])

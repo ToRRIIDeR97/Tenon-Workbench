@@ -145,6 +145,18 @@ import type {
   ComputerUseGetOutput,
   ComputerUseSetInput,
   ComputerUseSetOutput,
+  ThreadSyncStatusOutput,
+  ThreadSyncConfigureInput,
+  ThreadSyncConfigureOutput,
+  ThreadSyncThreadsOutput,
+  ThreadSyncPushInput,
+  ThreadSyncPushOutput,
+  ThreadSyncPullInput,
+  ThreadSyncPullOutput,
+  ThreadSyncContinueInput,
+  ThreadSyncContinueOutput,
+  ThreadSyncRemoveInput,
+  ThreadSyncRemoveOutput,
   EventsSubscribeOutput,
   PtysListInput,
   PtysListOutput,
@@ -1251,6 +1263,85 @@ export function make(options: ClientOptions) {
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    threadSync: {
+      status: (requestOptions?: RequestOptions) =>
+        request<ThreadSyncStatusOutput>(
+          { method: "GET", path: `/api/thread-sync`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ),
+      configure: (input?: ThreadSyncConfigureInput, requestOptions?: RequestOptions) =>
+        request<ThreadSyncConfigureOutput>(
+          {
+            method: "PUT",
+            path: `/api/thread-sync`,
+            body: {
+              enabled: input?.["enabled"],
+              driveFolder: input?.["driveFolder"],
+              machineName: input?.["machineName"],
+            },
+            successStatus: 200,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      threads: (requestOptions?: RequestOptions) =>
+        request<ThreadSyncThreadsOutput>(
+          {
+            method: "GET",
+            path: `/api/thread-sync/threads`,
+            successStatus: 200,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      push: (input: ThreadSyncPushInput, requestOptions?: RequestOptions) =>
+        request<ThreadSyncPushOutput>(
+          {
+            method: "POST",
+            path: `/api/thread-sync/threads/${encodeURIComponent(input.sessionID)}/push`,
+            successStatus: 200,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      pull: (input: ThreadSyncPullInput, requestOptions?: RequestOptions) =>
+        request<ThreadSyncPullOutput>(
+          {
+            method: "POST",
+            path: `/api/thread-sync/threads/${encodeURIComponent(input.sessionID)}/pull`,
+            successStatus: 200,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      continue: (input: ThreadSyncContinueInput, requestOptions?: RequestOptions) =>
+        request<ThreadSyncContinueOutput>(
+          {
+            method: "POST",
+            path: `/api/thread-sync/threads/${encodeURIComponent(input.sessionID)}/continue`,
+            body: { directory: input["directory"] },
+            successStatus: 200,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      remove: (input: ThreadSyncRemoveInput, requestOptions?: RequestOptions) =>
+        request<ThreadSyncRemoveOutput>(
+          {
+            method: "DELETE",
+            path: `/api/thread-sync/threads/${encodeURIComponent(input.sessionID)}`,
+            successStatus: 204,
+            declaredStatuses: [400, 404, 409, 412, 422, 502, 401],
+            empty: true,
           },
           requestOptions,
         ),

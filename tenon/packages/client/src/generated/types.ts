@@ -130,6 +130,132 @@ export type SkillToggleWriteError = {
 export const isSkillToggleWriteError = (value: unknown): value is SkillToggleWriteError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "SkillToggleWriteError"
 
+export type ThreadSyncInvalidError = {
+  readonly _tag: "ThreadSyncInvalidError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncInvalidError = (value: unknown): value is ThreadSyncInvalidError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncInvalidError"
+
+export type ThreadSyncNotFoundError = {
+  readonly _tag: "ThreadSyncNotFoundError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncNotFoundError = (value: unknown): value is ThreadSyncNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncNotFoundError"
+
+export type ThreadSyncConflictError = {
+  readonly _tag: "ThreadSyncConflictError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncConflictError = (value: unknown): value is ThreadSyncConflictError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncConflictError"
+
+export type ThreadSyncNotReadyError = {
+  readonly _tag: "ThreadSyncNotReadyError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncNotReadyError = (value: unknown): value is ThreadSyncNotReadyError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncNotReadyError"
+
+export type ThreadSyncUnprocessableError = {
+  readonly _tag: "ThreadSyncUnprocessableError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncUnprocessableError = (value: unknown): value is ThreadSyncUnprocessableError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncUnprocessableError"
+
+export type ThreadSyncStoreError = {
+  readonly _tag: "ThreadSyncStoreError"
+  readonly code:
+    | "invalid_key"
+    | "invalid_segment"
+    | "unreadable"
+    | "invalid_name"
+    | "conflict"
+    | "unauthorized"
+    | "unavailable"
+    | "not_found"
+    | "not_owner"
+    | "diverged"
+    | "foreign_path"
+    | "unsupported"
+    | "not_ready"
+  readonly message: string
+}
+export const isThreadSyncStoreError = (value: unknown): value is ThreadSyncStoreError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ThreadSyncStoreError"
+
 export type PtyNotFoundError = { readonly _tag: "PtyNotFoundError"; readonly ptyID: string; readonly message: string }
 export const isPtyNotFoundError = (value: unknown): value is PtyNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "PtyNotFoundError"
@@ -4020,6 +4146,73 @@ export type ComputerUseSetOutput = {
     readonly stopped?: number | "Infinity" | "-Infinity" | "NaN" | null
   }
 }
+
+export type ThreadSyncStatusOutput = {
+  readonly ready: boolean
+  readonly enabled: boolean
+  readonly driveFolder: string
+  readonly machine: { readonly id: string; readonly name: string }
+  readonly missing: ReadonlyArray<"key" | "store">
+  readonly lastError: string | null
+}
+
+export type ThreadSyncConfigureInput = {
+  readonly enabled?: {
+    readonly enabled?: boolean | undefined
+    readonly driveFolder?: string | undefined
+    readonly machineName?: string | undefined
+  }["enabled"]
+  readonly driveFolder?: {
+    readonly enabled?: boolean | undefined
+    readonly driveFolder?: string | undefined
+    readonly machineName?: string | undefined
+  }["driveFolder"]
+  readonly machineName?: {
+    readonly enabled?: boolean | undefined
+    readonly driveFolder?: string | undefined
+    readonly machineName?: string | undefined
+  }["machineName"]
+}
+
+export type ThreadSyncConfigureOutput = {
+  readonly ready: boolean
+  readonly enabled: boolean
+  readonly driveFolder: string
+  readonly machine: { readonly id: string; readonly name: string }
+  readonly missing: ReadonlyArray<"key" | "store">
+  readonly lastError: string | null
+}
+
+export type ThreadSyncThreadsOutput = ReadonlyArray<{
+  readonly sessionID: string
+  readonly title: string
+  readonly directory: string
+  readonly head: number
+  readonly updatedAt: number
+  readonly owner: { readonly id: string; readonly name: string }
+  readonly mine: boolean
+  readonly local: "absent" | "behind" | "current" | "ahead" | "diverged"
+  readonly folder: string | null
+}>
+
+export type ThreadSyncPushInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type ThreadSyncPushOutput = { readonly uploaded: number; readonly head: number }
+
+export type ThreadSyncPullInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type ThreadSyncPullOutput = { readonly applied: number; readonly head: number }
+
+export type ThreadSyncContinueInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly directory: { readonly directory: string }["directory"]
+}
+
+export type ThreadSyncContinueOutput = { readonly applied: number; readonly head: number }
+
+export type ThreadSyncRemoveInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type ThreadSyncRemoveOutput = void
 
 export type EventsSubscribeOutput = TenonEventEncoded
 

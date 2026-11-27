@@ -58,7 +58,6 @@ test("animates todo lifecycle without replaying it across session tabs", async (
       default: { providerID: "opencode", modelID: "claude-opus-4-6" },
     },
     sessions: [session(sourceID, sourceTitle, 1700000000000), session(otherID, otherTitle, 1700000001000)],
-    sessionStatus: { [sourceID]: { type: "busy" } },
     pageMessages: () => ({ items: [] }),
     events: () => events.splice(0, 1),
     eventRetry: 16,
@@ -173,11 +172,10 @@ function sampleDock(page: Page, duration: number, until?: "shown" | "gone") {
       while (performance.now() - start < duration) {
         const dock = document.querySelector<HTMLElement>('[data-component="session-todo-dock"]')
         const clip = dock?.parentElement?.parentElement
-        const label = dock?.querySelector<HTMLElement>('[data-action="session-todo-toggle"] span[aria-label]')
         const sample = {
           present: !!dock,
           height: clip?.getBoundingClientRect().height ?? 0,
-          opacity: label ? Number.parseFloat(getComputedStyle(label).opacity) : 0,
+          opacity: dock ? Number.parseFloat(getComputedStyle(dock).opacity) : 0,
         }
         samples.push(sample)
         if (until === "shown" && sample.present && sample.opacity >= 0.99 && seen) break

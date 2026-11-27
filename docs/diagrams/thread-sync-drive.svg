@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 520" width="980" height="520" role="img" aria-labelledby="title desc">
+<title id="title">Google Drive store</title>
+<desc id="desc">driveStore keeps each store name as a set of immutable files in the Tenon Workbench Threads folder of the person's My Drive. Each file version carries private appProperties: the marker, dir and base of the name, the parent version's file ID, a random writer ID and the content's SHA-256. The winner is found from the first-created root by following the first-created child at each step. A put lists the versions, checks ifGeneration against the winner, creates a child of the winner, lists again until its writer is visible, succeeds only if its version is the winner and then removes superseded versions, losers first and the winner never; otherwise it removes its own version and answers conflict. A late version whose parent was removed is a later root and loses.</desc>
+
+<style>
+  .bg{fill:#ffffff}
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;fill:#1f2328}
+  .t{font-weight:600}
+  .s{font-size:11.5px;fill:#57606a}
+  .h{font-size:16px;font-weight:600}
+  .lbl{font-size:11px;fill:#424a53}
+  .lblbg{fill:#ffffff;opacity:.92}
+  .sub{fill:#ffffff;stroke:#8c959f;stroke-width:1}
+  .box{fill:#f6f8fa;stroke:#57606a;stroke-width:1.2}
+  .store{fill:#fff8e5;stroke:#9a6700;stroke-width:1.2}
+  .ext{fill:#ddf4ff;stroke:#0969da;stroke-width:1.2}
+  .proc{fill:#fbefff;stroke:#8250df;stroke-width:1.2}
+  .zone{fill:none;stroke:#8c959f;stroke-width:1.2;stroke-dasharray:7 5}
+  .zonet{font-size:12px;font-weight:600;fill:#57606a}
+  .e{fill:none;stroke:#57606a;stroke-width:1.3}
+  .ah{fill:#57606a}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#0d1117}
+    text{fill:#e6edf3}
+    .s{fill:#9198a1} .lbl{fill:#c9d1d9} .lblbg{fill:#0d1117}
+    .box{fill:#161b22;stroke:#8b949e} .sub{fill:#0d1117;stroke:#6e7681}
+    .store{fill:#2b2111;stroke:#d29922} .ext{fill:#0c2d4a;stroke:#4493f8}
+    .proc{fill:#271a3d;stroke:#ab7df8}
+    .zone{stroke:#6e7681} .zonet{fill:#9198a1}
+    .e{stroke:#9198a1} .ah{fill:#9198a1}
+  }
+</style>
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="980" height="520"/>
+<text x="20" y="28" class="h">Google Drive store</text>
+<text x="20" y="46" class="s">detail view · core/src/thread-sync/drive.ts · Drive v3 REST, scope drive.file, a visible folder in My Drive</text>
+
+<rect class="box" x="20" y="66" width="400" height="306" rx="6"/>
+<text x="30" y="86" class="t">put(name, bytes, { ifGeneration })</text>
+<text x="30" y="108" class="s">1. list the name's versions (q: tenonSync=v1, dir, base,</text>
+<text x="30" y="124" class="s">   trashed = false) and find the winner W</text>
+<text x="30" y="142" class="s">2. ifGeneration must be W's file ID (null: no W),</text>
+<text x="30" y="158" class="s">   else conflict, nothing written</text>
+<text x="30" y="176" class="s">3. create a version: parent = W (or -), new writer ID,</text>
+<text x="30" y="192" class="s">   sha256; multipart upload into the folder</text>
+<text x="30" y="210" class="s">4. list again until this writer is visible</text>
+<text x="30" y="226" class="s">   (150, 300, 600 ms), else unavailable</text>
+<text x="30" y="244" class="s">5. winner has this writer: success, generation = its ID;</text>
+<text x="30" y="260" class="s">   remove losers, then the old path; never the winner</text>
+<text x="30" y="278" class="s">6. otherwise: remove own versions, conflict</text>
+<text x="30" y="302" class="s">lost reply: found again by writer ID, never conflict</text>
+<text x="30" y="318" class="s">get: the SHA-256 must match, else unreadable</text>
+<text x="30" y="334" class="s">list: every Tenon version, the winner of each name</text>
+<text x="30" y="350" class="s">limit: exact only if a listing shows every earlier version</text>
+
+<rect class="zone" x="460" y="66" width="500" height="306" rx="10"/>
+<text x="470" y="82" class="zonet">Versions of threads/ses_1/manifest (oldest left)</text>
+
+<rect class="store" x="480" y="100" width="120" height="58" rx="6"/>
+<text x="490" y="118" class="t">v1</text>
+<text x="490" y="134" class="s">parent -</text>
+<text x="490" y="150" class="s">first root</text>
+
+<rect class="store" x="640" y="100" width="120" height="58" rx="6"/>
+<text x="650" y="118" class="t">v2</text>
+<text x="650" y="134" class="s">parent v1</text>
+<text x="650" y="150" class="s">first child</text>
+
+<rect class="store" x="810" y="100" width="130" height="58" rx="6"/>
+<text x="820" y="118" class="t">v3 = winner</text>
+<text x="820" y="134" class="s">parent v2</text>
+<text x="820" y="150" class="s">generation = its ID</text>
+
+<rect class="sub" x="640" y="190" width="120" height="58" rx="6"/>
+<text x="650" y="208" class="t">v2'</text>
+<text x="650" y="224" class="s">parent v1, later</text>
+<text x="650" y="240" class="s">loser: conflict</text>
+
+<rect class="sub" x="810" y="190" width="130" height="58" rx="6"/>
+<text x="820" y="208" class="t">late</text>
+<text x="820" y="224" class="s">parent removed: root</text>
+<text x="820" y="240" class="s">created later: loses</text>
+
+<text x="480" y="284" class="s">Each version: name "Tenon sync - threads - ses_1 - manifest",</text>
+<text x="480" y="300" class="s">private appProperties tenonSync, dir, base, parent, writer,</text>
+<text x="480" y="316" class="s">sha256. Renamed or moved files still count; trashed ones</text>
+<text x="480" y="332" class="s">do not. After v3 succeeds, v2' then v1 and v2 are removed.</text>
+
+<path class="e" d="M600,129 L640,129" marker-end="url(#a)"/>
+<path class="e" d="M760,129 L810,129" marker-end="url(#a)"/>
+<path class="e" d="M560,158 L640,210" marker-end="url(#a)"/>
+
+<rect class="ext" x="20" y="400" width="300" height="100" rx="6"/>
+<text x="30" y="418" class="t">Folder</text>
+<text x="30" y="434" class="s">"Tenon Workbench Threads" by default,</text>
+<text x="30" y="450" class="s">tenonSync=folder-v1, made by the first write</text>
+<text x="30" y="466" class="s">writes: that name, else the oldest</text>
+<text x="30" y="482" class="s">in the bin: the next write makes one</text>
+
+<rect class="proc" x="340" y="400" width="300" height="100" rx="6"/>
+<text x="350" y="418" class="t">Requests</text>
+<text x="350" y="434" class="s">GET /drive/v3/files (spaces=drive, pages)</text>
+<text x="350" y="450" class="s">POST /upload/drive/v3/files (multipart)</text>
+<text x="350" y="466" class="s">GET /drive/v3/files/id?alt=media · DELETE</text>
+<text x="350" y="482" class="s">no PATCH, no PUT, no appDataFolder</text>
+
+<rect class="sub" x="660" y="400" width="300" height="100" rx="6"/>
+<text x="670" y="418" class="t">Errors</text>
+<text x="670" y="434" class="s">401, other 403: unauthorized</text>
+<text x="670" y="450" class="s">rate-limit 403, 429, 5xx: retried 2 s</text>
+<text x="670" y="466" class="s">403 storageQuotaExceeded: unavailable</text>
+<text x="670" y="482" class="s">bad or looping listing: unavailable</text>
+
+<rect class="lblbg" x="604" y="114" width="34" height="13" rx="2"/>
+<text class="lbl" x="620" y="124" text-anchor="middle">child</text>
+<rect class="lblbg" x="764" y="114" width="40" height="13" rx="2"/>
+<text class="lbl" x="784" y="124" text-anchor="middle">child</text>
+</svg>

@@ -13,7 +13,7 @@ Tenon Workbench runs on one computer. The user wants:
 
 1. every feature inventoried and tested, with the gaps closed;
 2. the Device tab working for Android and, as far as code can show, iOS;
-3. a thread started on one computer continued on another, stored in Google Cloud;
+3. a thread started on one computer continued on another, stored in the user's Google Drive;
 4. a phone app for Android and iOS;
 5. a ranked list of further features, then the best of them built.
 
@@ -21,7 +21,7 @@ Before: the server listens on loopback with one generated password, a thread's e
 local `tenon.db`, the Device tab sends Home for every iOS key, and there is no list of what is tested.
 
 After: a feature test matrix says how each feature is tested; a phone paired with the computer can read
-and steer threads; a thread's encrypted event segments sit in the user's own Cloud Storage bucket and a
+and steer threads; a thread's encrypted event segments sit in a folder in the user's own Google Drive and a
 second computer can take the thread over.
 
 ## Decisions already made by the user
@@ -31,14 +31,14 @@ second computer can take the thread over.
 | Mobile scope | A companion to the computer, built with Capacitor around the existing renderer |
 | iOS | Written but unverified: there is no Mac |
 | Android SDK | Installed on this computer |
-| Sync storage | A Cloud Storage bucket in the user's own GCP project, personal use |
+| Sync storage | A folder the user can see in their own Google Drive, personal use, one Google account (changed on 2026-11-27 from a Cloud Storage bucket; see P4b) |
 | Merging | Pull requests, merged only after the user approves |
 
 ## Diagrams
 
 ![Current system: renderer, Electron main and a loopback-only server on one computer; threads stay in the local event log](diagrams/current.svg)
 
-![Proposed system: a paired phone app, and thread sync through an encrypted Cloud Storage bucket to another computer](diagrams/proposed.svg)
+![Proposed system: a paired phone app, and thread sync through an encrypted folder in Google Drive to another computer](diagrams/proposed.svg)
 
 ![Thread sync detail: append, encrypt and upload a segment, then the other computer downloads, replays and takes ownership](diagrams/detail-thread-sync.svg)
 
@@ -58,7 +58,7 @@ starts; this section fixes their outcome, scope and order now.
 | P1 | A feature test matrix and a recorded baseline of every existing suite | `docs/records/feature-test-matrix.md`, `docs/records/test-baseline-2026-11-26.md`, `docs/README.md` link | independent | P2 |
 | P2 | Device input, SDK discovery and boot feedback are correct on both platforms | `tenon/packages/desktop/src/main/device.ts`, `device.test.ts`, `tenon/packages/desktop/src/main/browser.ts` (device tool branch only), `tenon/packages/core/src/harness/browser-tools.ts` (`device_*` descriptions only), `tenon/packages/app/src/pages/session/device-tab.tsx`, new `device-boot.ts` and its test beside it, `tenon/packages/app/src/i18n/*`, the Device tab paragraph of `docs/architecture/README.md` | independent | P1 |
 | P3 | Every `gap` row of the matrix has an automated test or a recorded manual run; bugs found are fixed or filed | new specs under `tenon/packages/app/e2e/`, unit tests beside code, small fixes | P1 | P4 |
-| P4 | Thread sync engine: export, encrypt, upload, download, replay and ownership transfer behind a storage interface with a local-folder store and a Cloud Storage store | new `tenon/packages/core/src/thread-sync.ts` and `src/thread-sync/`, `tenon/packages/core/test/thread-sync/`, `docs/architecture/README.md` (new section), `docs/architecture/uml.md`, `docs/security/threat-model.md` (new section), `docs/diagrams/` (new file) | independent | P3 |
+| P4 | Thread sync engine: export, encrypt, upload, download, replay and ownership transfer behind a storage interface with a local-folder store and a Cloud Storage store (replaced by a Google Drive store in P4b) | new `tenon/packages/core/src/thread-sync.ts` and `src/thread-sync/`, `tenon/packages/core/test/thread-sync/`, `docs/architecture/README.md` (new section), `docs/architecture/uml.md`, `docs/security/threat-model.md` (new section), `docs/diagrams/` (new file) | independent | P3 |
 | P5 | Thread sync in the app: Settings page, per-thread state, "Continue here" | `tenon/packages/app`, `tenon/packages/desktop/src/main` | P4 | P6 |
 | P6 | Remote access: pairing by QR code, per-device tokens that can be revoked, a scope that leaves out terminals and computer use | server auth, `tenon/packages/desktop/src/main`, Settings › Servers | independent | P5 |
 | P7 | Phone layout of the renderer below 600 px | `tenon/packages/app`, `tenon/packages/ui` | P6 | alone |
@@ -247,8 +247,12 @@ its own repairs change.
 
 ### Acceptance criteria (P3a and P3b)
 
-- **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test, at least as many
-  tests run as on the baseline (221) and no more skipped (1).
+- **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test and no more skipped
+  than on the baseline (1). The number of tests run is at least the baseline's 221 less the tests
+  deleted as `feature removed`, each of which is listed in a repair record. A test that fails on the
+  base but is missing from the baseline list (the verifier found one,
+  `remote-session-settings.spec.ts` "auto-accept responds for an unfocused server session") is
+  repaired and recorded like the others.
 - **AC-P3-2** Each of the 66 baseline failures has a row in that part's repair record, a table with the
   header `| Spec | Test | Decision | Evidence | Change |`. `Spec` and `Test` are copied from the
   baseline's failing-test table. `Decision` is `spec drifted` (the app is right and the spec was
@@ -280,7 +284,7 @@ its own repairs change.
 
 A library in `tenon/packages/core` that moves one thread's event log between computers through an
 object store. It has no server route, no setting and no UI; P5 adds those, with the Google sign-in that
-supplies the Cloud Storage token.
+supplies the Cloud Storage token (now the Google Drive token, P4b).
 
 Facts it builds on (verified on the base commit): both thread formats write durable events to the
 `event` table with one sequence per thread (`aggregate_id` is the session ID); `EventV2.replayAll`
@@ -350,7 +354,7 @@ it, for `keyFromPhrase`); the engine's effects fail with it in the error channel
   succeeds. A name is one or more `/`-separated parts of `A-Z a-z 0-9 . _ -`, none of them `.` or `..`;
   anything else is `invalid_name` on every method (for `list`, the prefix may end in `/`) and touches
   nothing. Two `folderStore`s on one directory see each other's writes.
-- **AC-P4-5 Cloud Storage.** `gcsStore` uses the Cloud Storage JSON API at `endpoint` (default
+- **AC-P4-5 Cloud Storage.** (Superseded by P4b; kept as history.) `gcsStore` uses the Cloud Storage JSON API at `endpoint` (default
   `https://storage.googleapis.com`) with `Authorization: Bearer <token>` from `token()` on every request:
   `GET /storage/v1/b/<bucket>/o/<name>?alt=media` (generation from the `x-goog-generation` header, 404 is
   `undefined`), `POST /upload/storage/v1/b/<bucket>/o?uploadType=media&name=<name>` with
@@ -428,6 +432,262 @@ copying `verification.test.ts` and `verification-gcs-fake.ts` into `test/thread-
 Standard checks: `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test:engine`.
 Baseline: on the base commit the acceptance file fails at the import of `../../src/thread-sync`.
 
+Superseded by P4b (2026-11-27): the store is Google Drive, not Cloud Storage. `gcsStore`, its fake and
+its tests are removed. AC-P4-5 no longer applies; its place is taken by AC-P4b-1 to 8. The engine
+cases of `acceptance/p4/acceptance.test.ts` (AC-P4-6 to 8) now run against both `folderStore` and
+`driveStore`, and its AC-P4-5 case is replaced by a pointer to the P4b set.
+
+## P4b: Google Drive store
+
+The user clarified on 2026-11-27 that thread sync stores to Google Drive, not Google Cloud Storage:
+personal use, one Google account, two or more of the user's own computers. A later message the same day
+asked for a folder the user can see in My Drive instead of the hidden application data folder. The
+engine (P4) is unchanged: it already encrypts everything it stores and depends only on the Store
+contract.
+
+Before: `ThreadSync.gcsStore({ bucket, token })` writes objects with `ifGenerationMatch`; the manager
+needs a bucket name. After: `ThreadSync.driveStore({ token, folder? })` keeps the same Store contract on
+top of Google Drive v3 in a folder called "Tenon Workbench Threads" in the user's My Drive; the manager
+needs no setting beyond `enabled` and the computer name.
+
+### What Google Drive gives, and what it does not
+
+Checked on 2026-11-27 against the Drive v3 documentation (files resource, `files.list`, uploads, search
+terms, error handling, custom properties, scopes):
+
+- `files.create` (`POST /upload/drive/v3/files?uploadType=multipart`, metadata part first, then the
+  media, up to 5 MB) gives every file an ID. Names are not unique ("This isn't necessarily unique within a
+  folder"). There is no write precondition like Cloud Storage's `ifGenerationMatch`.
+- `appProperties` are "private to the requesting app": the user cannot see or change them in the Drive
+  web page. A key and value together take at most 124 bytes; an app may set 30 per file. They can be
+  searched with `appProperties has { key='…' and value='…' }`.
+- `files.list` takes `q`, `spaces` (`drive` or `appDataFolder`), `pageSize` up to 1000 and `pageToken`;
+  it includes trashed files unless `q` says `trashed = false`; a reply may set `incompleteSearch`.
+- `createdTime` is set by Drive when the client does not send one; `trashed` is true for a file in the
+  bin, also through a trashed parent folder. `files.delete` removes a file the user owns for good.
+- Errors: 401 `authError`; 403 with reason `rateLimitExceeded` or `userRateLimitExceeded` and 429 and
+  5xx are to be retried with backoff; other 403 reasons (`insufficientFilePermissions`,
+  `appNotAuthorizedToFile`, `storageQuotaExceeded`, …) are not.
+- Scope `https://www.googleapis.com/auth/drive.file` gives per-file access to the files the app created
+  or the user opened with it (`isAppAuthorized`: "created or opened by the requesting app"). The
+  documentation ties this to the user and the app's OAuth client, not to a device, but does not say in
+  so many words that a second installation sees the first one's files. **Assumption, to be confirmed
+  with a real account in P5b:** every computer signs in with the same Tenon OAuth client (one Cloud
+  project) and the same Google account, and then sees every file and folder Tenon made on any of them.
+  A different OAuth client would see none of them. Files the user puts in the folder themselves, or
+  copies of Tenon's files, are not visible to Tenon at all.
+
+### Contract
+
+```ts
+ThreadSync.driveStore(input: {
+  token: () => Promise<string>
+  endpoint?: string
+  folder?: string
+}): ThreadSync.Store
+ThreadSync.DRIVE_FOLDER = "Tenon Workbench Threads"
+```
+
+`endpoint` defaults to `https://www.googleapis.com` (both `/drive/v3` and `/upload/drive/v3` live
+there). `folder` is the name used when the folder is created, default `ThreadSync.DRIVE_FOLDER`.
+
+Layout. One store name (`threads/<sessionID>/manifest`, `threads/<sessionID>/segment-…`) is a set of
+immutable Drive files, its *versions*. Each version carries these `appProperties`:
+
+| Key | Value |
+| --- | --- |
+| `tenonSync` | `v1` (a folder carries `folder-v1`) |
+| `dir` | the name without its last part (`threads/ses_…`), or `.` for a one-part name |
+| `base` | the last part (`manifest`, `segment-…`) |
+| `parent` | the ID of the version this one replaces, or `-` when the name was absent |
+| `writer` | 32 random hex characters chosen by the writing call |
+| `sha256` | lower-case hex SHA-256 of the content |
+
+The Drive file name is `Tenon sync - ` and the name's parts joined by ` - ` (for example
+`Tenon sync - threads - ses_123 - manifest`): readable enough to recognise, and holding nothing the
+store name does not already hold (no title, path or computer name). Tenon never reads the Drive name, so
+renaming a file changes nothing.
+
+The winner rule, applied to the versions of one name that are visible, not trashed and well formed:
+
+1. A *root* is a version whose `parent` is `-` or is not among the visible versions.
+2. Start at the root created first (by `createdTime`, then by file ID).
+3. Move to the child (a version whose `parent` is the current one's ID) created first, until there is
+   none. That last version is the winner; its file ID is the generation.
+
+`put(name, bytes, { ifGeneration })`:
+
+1. List the name's versions and compute the winner `W`. `ifGeneration: null` needs no winner; a string
+   needs `W`'s ID to be that string; otherwise the call fails with `conflict` and writes nothing.
+   Without the option the call is conditional on the current winner and starts again after a lost race,
+   at most five times.
+2. Create a new version with `parent` = `W`'s ID (or `-`) and a fresh `writer`.
+3. List again. If none of the visible versions carries this call's `writer` (the reply was lost, the
+   listing is stale), list again after 150, 300 and 600 ms; still none is `unavailable`.
+4. If the winner carries this call's `writer`, the call succeeds with that file's ID. Otherwise it
+   failed with `conflict`, and it deletes its own versions.
+5. After a success it deletes superseded versions: first every version that is not on the path from the
+   first root to the winner, then the path's versions from the root down, never the winner. It stops at
+   the first failure and never fails the call.
+
+Guarantees, given the freshness assumption below:
+
+- **A write that loses is never reported as a success.** A call succeeds only when, after its own
+  version is visible, the rule picks it.
+- **A reported success stays the winner until a later write is conditioned on it.** Every version
+  created afterwards is created later: one whose parent is on the winning path loses to the earlier
+  child at that point; one whose parent is gone becomes a root created later than the first root.
+- **`conflict` is definite.** It is answered only when the condition failed before writing, or when
+  another version already won; under the same assumption that never changes later, so the engine may
+  remove its segment.
+- **A lost reply does no harm.** The call finds its version by `writer` and decides as above; if the
+  version cannot be found the answer is `unavailable` (the engine treats that as "don't know"). A
+  create retried after a lost reply makes a second version with the same `writer`; the rule picks the
+  earlier, either way the call's own, and cleanup removes the other.
+- **The winner is never deleted** by cleanup, and cleanup removes losers before the path, so a cleanup
+  that stops partway leaves the same winner.
+
+Limits, said plainly:
+
+- **Freshness assumption.** The guarantees hold when a `files.list` made after a `files.create`
+  returned shows every version created before it. Drive documents no such promise. If a listing misses
+  a version that was created earlier, two calls can both report success; the engine then sees a thread
+  whose history differs and reports `diverged`, and each computer keeps its own copy. Writes of one
+  thread come from its owner only, so this needs two computers writing the same thread within a few
+  seconds (a takeover racing a push).
+- **Clock.** The order comes from Drive's `createdTime`, then the file ID. Two creates in the same
+  millisecond are ordered by ID, which is still the same answer for every reader.
+- **Reads can be behind.** `get` and `list` show what the listing showed; a stale listing gives an older
+  winner, and the next conditional write then fails with `conflict` as it should.
+- **Cost.** A write is two listings and one create, plus deletes; `list` reads every Tenon file in the
+  Drive (1000 per page). That suits one person's threads, not thousands of computers.
+- Anyone holding the token can delete versions or roll a name back (see the threat model), as before.
+
+Folder. Tenon looks for folders (`mimeType = 'application/vnd.google-apps.folder'`) carrying
+`tenonSync = folder-v1`, not in the bin. It writes into the one whose name equals `folder`, else the
+first created, then the lowest ID. Reads and listings do not depend on the folder: they find every
+version Tenon made anywhere in My Drive that is not in the bin, so two computers that each created a
+folder never split the data, and a folder or file the user renamed or moved keeps working. `get`,
+`list` and `remove` never create a folder; the first write does, in the root of My Drive. When the
+folder is trashed, everything in it is in the bin, so reads find nothing (an engine `pull` is
+`not_found`) and the next write creates a new folder. Tenon never deletes a folder.
+
+Content. `get` downloads the winner (`GET /drive/v3/files/<id>?alt=media`) and compares its length and
+SHA-256 with the version's `size` and `sha256`; a file whose content the user edited or replaced is
+`unreadable`, and nothing downloaded is trusted without that check and the engine's authenticated
+decryption. A download that answers 404 (the version was superseded and removed meanwhile) lists again,
+at most three times.
+
+Requests. Every request carries `Authorization: Bearer <token()>`. Listings use `spaces=drive`,
+`corpora=user`, `pageSize=1000`, `fields=nextPageToken,incompleteSearch,files(id,name,size,createdTime,appProperties)`
+and follow `nextPageToken`. Tenon never changes a file once made: no `PATCH`, no `PUT`, and no request to
+`appDataFolder`.
+
+### Acceptance criteria
+
+- **AC-P4b-1 Drive requests.** `driveStore` calls only the endpoints above at `endpoint`, with the
+  bearer token from `token()` on every request; files are created with a multipart upload into the
+  chosen folder; listings name `spaces=drive` and `trashed = false`; no request names
+  `appDataFolder`, and no request uses `PATCH` or `PUT`. Drive names are `Tenon sync - <parts>`.
+- **AC-P4b-2 Store contract.** The rules of AC-P4-4 hold for `driveStore`: `get` of a missing name is
+  `undefined`; `put` with `ifGeneration: null` writes only when the name is free, with a generation only
+  when it is the winner, and without the option always (a lost race is retried); a failed condition is
+  `conflict`; every write gives a new generation; `list` returns names under a prefix sorted by name with
+  generation and byte size; `remove` of a missing name succeeds and removes every version; an unsafe name
+  is `invalid_name` on every method and sends nothing. A name whose directory or last part is longer than
+  100 characters is also `invalid_name`.
+- **AC-P4b-3 Folder.** Before the first write no folder is created. The first write creates one folder,
+  named `folder` (default "Tenon Workbench Threads"), in the root of My Drive. Writes go to the folder
+  chosen by the rule above; versions in any Tenon folder, or moved out of it, are read; a renamed folder
+  keeps being used; with the folder in the bin, reads see nothing and the next write creates a new
+  folder. A new store instance (a restart) sees everything an earlier one wrote.
+- **AC-P4b-4 Conditional writes on Drive.** With two writers interleaved so that both pass step 1
+  before either creates, exactly one succeeds, the other gets `conflict`, and `get` returns the winner's
+  bytes. A create whose reply is lost after it landed (one or every attempt) ends in success, never
+  `conflict`. A stale listing once, at step 1 or step 3, never yields a wrong success or a wrong
+  `conflict`. A write that lands late, after other writes and their cleanup, never displaces a reported
+  winner. A create that never lands is `unavailable` and leaves nothing.
+- **AC-P4b-5 Cleanup.** After a run of successful writes to one name with no race, exactly one version
+  of it is visible, and it holds the last bytes. Cleanup never deletes the winner, and a delete that
+  fails does not fail the write.
+- **AC-P4b-6 Files the user can see and touch.** A renamed or moved version is still read. A version
+  whose content was edited or replaced is `unreadable` on `get`, and an engine `pull` of a thread whose
+  manifest or segment was edited is `unreadable`. A trashed version is ignored. Files Tenon did not make
+  are ignored. Drive names and the folder name hold no thread title, path, prompt text or computer name.
+- **AC-P4b-7 Errors.** 401 is `unauthorized`; 403 `rateLimitExceeded` or `userRateLimitExceeded`, 429
+  and 5xx are retried within two seconds per request and then `unavailable`; 403 `storageQuotaExceeded`
+  is `unavailable`; any other 403 is `unauthorized`; a `token()` that fails is `unauthorized` and its
+  time counts inside the limits; a network failure, a request over fifteen seconds, a listing reply that
+  cannot be read, `incompleteSearch: true`, a listing that repeats a page token or runs past 1,000 pages
+  are `unavailable`. A create reply that cannot be read is treated like a lost reply (AC-P4b-4); a
+  create refused with a status that is not retried means nothing was written and answers at once. A
+  download whose bytes do not match the version is `unreadable` (AC-P4b-6). A listing split over pages
+  is read whole.
+- **AC-P4b-8 The engine on Drive.** The P4 engine scenarios hold with `driveStore` on the fake Drive:
+  push and pull across two computers (AC-P4-6), takeover (AC-P4-7), nothing readable stored, in file
+  contents, Drive names or `appProperties` (AC-P4-8), and a lost reply to the manifest write keeping the
+  thread complete (AC-P4-11). With the Tenon folder in the bin, `pull` is `not_found` and the next
+  `push` stores the thread again.
+- **AC-P4b-9 Cloud Storage removed.** `ThreadSync.gcsStore` no longer exists; no source, test or current
+  document mentions Cloud Storage or a bucket for thread sync, except the plan's history, tests that check
+  `gcsStore` is gone, and the sentences that say an old settings file's `bucket` is ignored (AC-P4b-10).
+- **AC-P4b-10 Manager without a bucket.** The settings file holds `enabled`, an optional `driveFolder`,
+  the machine and the folder choices. `status()` answers `driveFolder` (the saved name or
+  `ThreadSync.DRIVE_FOLDER`) and `missing` lists only `key` and `store`. `configure({ driveFolder })`
+  accepts 1 to 100 characters after trimming with no control characters (stored trimmed), else
+  `invalid_name`, and saves nothing on failure. `credentials.store(driveFolder)` is asked for the store. A
+  settings file written before this change, holding `bucket`, loads without error, keeps its machine ID,
+  and drops `bucket` the next time it is saved. The `/api/thread-sync` status and configure bodies follow
+  (`driveFolder` instead of `bucket`), and the generated client is current. The bridge's `sync_token`
+  answers an access token carrying `https://www.googleapis.com/auth/drive.file`.
+- **AC-P4b-11 Documentation.** The "Thread sync" sections of `docs/architecture/README.md` and
+  `docs/security/threat-model.md` describe Drive: the folder, the version layout and winner rule, the
+  guarantees and the freshness limit, and what each party can see and do (Google; the user; anyone the
+  folder is shared with; a holder of the token). `docs/architecture/uml.md`, the diagrams in
+  `docs/diagrams/` and `implementations/mobile-sync-programme/diagrams/` and `docs/deferred-work.md`
+  follow. No source comments.
+
+### Test sets
+
+The fake Drive (`acceptance/p4b/drive-fake.ts`) is a local HTTP server that speaks the parts of Drive v3
+the store uses, checks the bearer token and the query, and can hold a create until released, lose a
+create's reply after it landed, return a stale listing, page listings, repeat a page token, answer
+malformed bodies and given statuses with Drive's error body, and act as the user (rename, move, edit,
+trash, delete, upload a file of their own). It models `drive.file` by listing only files Tenon created.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P4b-1 to 7 | `acceptance/p4b/drive.test.ts` with `drive-fake.ts` | `verification/p4b/verification.test.ts` with its own fake (`verification-drive.ts`): many writers, a late straggler after cleanup, every create reply lost, creates that never land, a 404 between listing and download, a deleted folder, two folders with competing first versions, equal creation times, Unicode folder names |
+| AC-P4b-8 | `acceptance/p4b/drive.test.ts` and `acceptance/p4/acceptance.test.ts` (engine cases over both stores) | `verification/p4b/verification.test.ts` (edited segment, trashed segment, trashed folder) |
+| AC-P4b-9 | `acceptance/p4b/drive.test.ts` (no `gcsStore`) and a search of the tree | diff review |
+| AC-P4b-10 | `acceptance/p4b/drive.test.ts`, the changed P5a tests | `verification/p4b/verification.test.ts` (old settings file, field limits) |
+| AC-P4b-11 | diff review | diff review |
+
+The acceptance files import `effect` and are copied unchanged to `tenon/packages/core/test/thread-sync/`
+(`drive.test.ts` is copied as `drive-acceptance.test.ts`, the fake as `drive-fake.ts`). In this
+single-agent run one author wrote the plan, both sets and the code; the verification set is kept
+outside the repository and is not independent.
+
+Commands, from `tenon/packages/core`: `bun test test/thread-sync`; for the verification set, copy
+`verification.test.ts` and `verification-drive.ts` into `test/thread-sync/`, run the same command and
+delete the copies. Route and contract checks: `bun test` in `tenon/packages/protocol`,
+`bun test test/server/httpapi-thread-sync.test.ts` in `tenon/packages/tenon`, then `bun run test:engine`
+and `bun run check` from the root.
+
+### P5a tests changed by this contract
+
+The P5a acceptance file asserts the bucket. Only the assertions the contract change makes wrong are
+changed, in both `acceptance/p5a/manager.test.ts` and its copy in `core/test/thread-sync/`:
+
+| Test | Was | Now | Criterion |
+| --- | --- | --- | --- |
+| AC-P5a-1 | `bucket: ""` at first, `missing` contains `bucket`, `configure({ bucket: "Not A Bucket" })` is `invalid_name`, configure with `bucket: "my-threads"`, the file holds the bucket | `driveFolder: "Tenon Workbench Threads"` at first, `missing` does not contain `bucket`, `configure({ driveFolder: "   " })` is `invalid_name`, configure with `driveFolder: "My threads"`, the file holds it | AC-P4b-10 replaces the bucket check of AC-P5a-1 |
+| all | `credentials.store(bucket)` gives a folder store per bucket; `ready` configures `bucket: "my-threads"` | `credentials.store(driveFolder)` gives a folder store per Drive folder name; `ready` configures `enabled: true` only | AC-P4b-10 |
+| AC-P5a-2 | `configure({ enabled: true, bucket: "my-threads" })` | `configure({ enabled: true })` | AC-P4b-10 |
+
+AC-P5a-1 now reads: the file holds `enabled`, an optional `driveFolder`, the machine and the folder
+choices, and `configure` validates `driveFolder` as AC-P4b-10 says instead of a bucket name.
+
 ## P5 and P6, split into a core half and an app half
 
 P5 (thread sync in the app) and P6 (remote access for the phone) each have a half that can be built
@@ -438,7 +698,7 @@ the app halves.
 | --- | --- | --- |
 | P5a | A sync manager in the server: settings, the list of stored threads with their local state, push after a thread goes idle, and "continue here" with a local folder | `tenon/packages/core/src/thread-sync/` (new files, plus additive exports in `thread-sync.ts`), `tenon/packages/core/test/thread-sync/`, a new route group in `tenon/packages/protocol/src/groups/` and `tenon/packages/server/src/handlers/` with its lines in `protocol/src/api.ts` and `server/src/handlers.ts`, the generated client, docs |
 | P6a | Device pairing, per-device tokens and a companion scope enforced by the server | `tenon/packages/core/src/remote-access.ts` and `src/remote-access/`, `tenon/packages/core/test/remote-access/`, `tenon/packages/server/src/auth.ts` and `middleware/`, `tenon/packages/tenon/src/server/` (authorization middleware, network guard, a pairing route), their tests, docs |
-| P5b | Google sign-in for Cloud Storage, the key in the system credential store, Settings › Sync, and "Continue here" in the app | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
+| P5b | Google sign-in for Google Drive (Tenon's own OAuth client, scope `drive.file`), the key in the system credential store, Settings › Sync, and "Continue here" in the app | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
 | P6b | The second listener, pairing by QR code and device management in Settings › Servers | `tenon/packages/desktop/src/main`, `tenon/packages/app/src` |
 
 P5a's base is the integration branch with P4 merged. Where both core halves must touch the same
@@ -455,12 +715,12 @@ only its own lines; the generated client is regenerated at integration.
 ThreadSync.manager(input: {
   db: Database.Interface["db"]; events: EventV2.Interface
   settingsFile: string
-  credentials: { key(): Promise<Uint8Array | undefined>; store(bucket: string): Promise<ThreadSync.Store | undefined> }
+  credentials: { key(): Promise<Uint8Array | undefined>; store(driveFolder: string): Promise<ThreadSync.Store | undefined> }
   projects: { resolve(directory: string): Promise<{ id: string; worktree: string }> }
   hostname: string
 }): {
   status(): Effect<Status>
-  configure(change: { enabled?: boolean; bucket?: string; machineName?: string }): Effect<Status, SyncError>
+  configure(change: { enabled?: boolean; driveFolder?: string; machineName?: string }): Effect<Status, SyncError>
   threads(): Effect<Array<StoredThread>, SyncError>
   push(sessionID: string): Effect<{ uploaded: number; head: number }, SyncError>
   pull(sessionID: string): Effect<{ applied: number; head: number }, SyncError>
@@ -468,14 +728,18 @@ ThreadSync.manager(input: {
   settled(sessionID: string): Effect<{ pushed: boolean; reason?: string }>
   remove(sessionID: string): Effect<void, SyncError>
 }
-type Status = { ready: boolean; enabled: boolean; bucket: string; machine: { id: string; name: string }
-  missing: Array<"bucket" | "key" | "store">; lastError: string | null }
+type Status = { ready: boolean; enabled: boolean; driveFolder: string; machine: { id: string; name: string }
+  missing: Array<"key" | "store">; lastError: string | null }
 type StoredThread = { sessionID: string; title: string; directory: string; head: number; updatedAt: number
   owner: { id: string; name: string }; mine: boolean
   local: "absent" | "behind" | "current" | "ahead" | "diverged"; folder: string | null }
 ```
 
-New error code: `not_ready` (sync is off, or the bucket, key or store is missing).
+New error code: `not_ready` (sync is off, or the key or store is missing).
+
+The contract above was changed by P4b on 2026-11-27: `bucket` became the optional `driveFolder` and
+`missing` lost `bucket`. The criteria below keep their original wording where it is history; AC-P4b-10
+says what replaced the bucket rules.
 
 #### Acceptance criteria
 
@@ -678,3 +942,72 @@ an event only points to and child threads are not synced; a pull downloads the w
 holds the database connection while it applies; a macOS path is accepted on Windows; one unreadable
 manifest fails the whole `list`; orphan segments are never cleaned up except by `remove`; a store
 writer without the key can delete objects or roll a thread back.
+
+### P5a sync manager (2026-11-27)
+
+One agent (TOR-1, no subagents, no reviewer panel) implemented P5a on base `2fc3daaf`, branch
+`claude/thread-sync-manager`. The plan and both test sets were written earlier by the plan author.
+
+- Acceptance `core/test/thread-sync/manager.test.ts` (copied unchanged): 4 pass, first run after the
+  code existed (before it, `ThreadSync.manager` did not exist). Verification set, run from an untracked
+  copy and deleted: 6 pass, first run.
+- The implementor's own tests: `manager-edges.test.ts` (settings set aside, field limits, `lastError`,
+  `win32` and `darwin` folder forms, owned continue, bridge calls and that they are not agent tools),
+  `service.test.ts` (a `session.idle` event pushes the thread), `protocol/test/thread-sync.test.ts`
+  (every code's status), `tenon/test/server/httpapi-thread-sync.test.ts` (routes through the app
+  server: 200, 400, 412 with the code in the body).
+- `bun run check` from the root: exit 0. `core` tests: 1565 pass, 4 fail (the three baseline Windows
+  failures and `RepositoryCache` timing out at 5 s, which passes 6 of 6 alone). `tenon` tests: 2973
+  pass, 4 fail (baseline F-1604 and three `tool.shell abort` timing tests that also fail alone; that
+  file imports nothing this phase changed; not checked on the base).
+- Scope notes, each needed by a criterion: the engine gained `compare` (read only) for AC-P5a-3; the
+  app server (`tenon/src/server/routes/instance/httpapi/server.ts`) and `server/src/routes.ts` each add
+  `ThreadSync.node` so the routes and the idle hook exist in the running server (AC-P5a-6);
+  `client/src/contract.ts` and `client/test/promise.test.ts` name the new `threadSync` group. The manager
+  takes an optional `platform` so tests check both path forms. Bridge contract chosen here for P5b:
+  `sync_key` answers `{ key: base64url }`, `sync_token` answers `{ token }`.
+- Left for later: the desktop half of both bridge calls (P5b); a Windows thread cannot be continued on
+  macOS (deferred work); `threads()` downloads every stored thread; only `session.idle` (published by
+  the `tenon` session status) triggers a push.
+
+### P4b Google Drive store (2026-11-27)
+
+One agent (TOR-1, no subagents) wrote the plan, both test sets and the code on base `ed33593a`, branch
+`claude/thread-sync-drive-store`. The verification set was frozen with the plan in a folder outside the
+repository and is not committed; it is the same author's second design, not an independent check. The
+review panel was replaced by a scored self-review in three lenses.
+
+- Baseline, before any product edit: the new acceptance and verification cases all failed for the
+  intended reasons (`ThreadSync.driveStore is not a function`, a status that still had `bucket`); the
+  P4 engine cases on the folder store passed (10 pass, 44 fail).
+- After: `bun test test/thread-sync` in `tenon/packages/core` with the verification copies in place:
+  96 pass, 0 fail across 8 files (P4b acceptance 23, verification 13, P5a acceptance 4, the P4
+  acceptance and the engine and store suites with both stores); P4b acceptance, P4 acceptance and P5a
+  acceptance together 41 pass, and the verification file 13 pass, on their first run after the code. Protocol tests 5 pass; route test 1 pass.
+- `bun run check`: typecheck, lint (warnings only, as on the base), format and `check:generated` pass;
+  its `bun run test` step hung once in `@tenon/desktop` (no output for 25 minutes) and was stopped. The
+  desktop suite alone: 262 pass, 6 skip, 0 fail in 18 s. Then `bun run test` and `bun run build` from
+  the root: both exit 0. The regeneration rewrote six client files with line endings only; they were
+  restored with `git checkout -- tenon/packages/client`.
+- `bun run test:engine`: core 1610 pass, 15 skip, 4 fail: the three Windows baseline failures (F-1201,
+  F-909, F-211) and `Npm.add` › reifies when package cache directory exists, which timed out at 9 s
+  under load and passes alone (5 of 5); `npm.test.ts` touches nothing in this change. The `&&` stops the script there, so `tenon/packages/tenon` was run
+  on its own: 2973 pass, 57 skip, 4 fail: `session HttpApi` › returns v2 public unavailable errors
+  (F-1604, on the baseline) and the three `tool.shell abort` timing tests known to fail on this
+  computer.
+- Tests changed after the freeze, each without changing an assertion: Prettier reformatted the copied
+  acceptance and verification files (checked equal with white space, commas and parentheses removed)
+  and the copies in this folder were updated to match; `acceptance/p4/acceptance.test.ts` types its
+  store list as `Array<"folder" | "drive">` because `describe.each` refuses a readonly tuple
+  (typecheck). The P5a assertion changes are listed above, under P4b.
+- Removed: `core/src/thread-sync/gcs.ts`, `core/test/thread-sync/gcs-fake.ts`,
+  `acceptance/p4/gcs-fake.ts`, the Cloud Storage cases of `store.test.ts`; `engine.test.ts` stores
+  nothing readable in Drive instead, and its flaky-store cases run on both stores.
+- Self-review, round 1 on `70622485`: plan conformance 9 (no completion evidence or record of test
+  changes after the freeze yet), correctness and regressions 10, integrity and scope 9.5 (same record
+  missing). Fixed by this section; round 2: 10, 10, 10.
+- Left unverified: the live Drive API (no credentials exist; two local fakes only); that a second
+  computer signed in through the same OAuth client sees the files under `drive.file` (the documentation
+  implies it, does not say it); how fresh Drive listings are, on which the emulated conditional write
+  depends. `status()` now asks the credentials for a store on every call, also while sync is off, where
+  P5a asked only once a bucket was set.

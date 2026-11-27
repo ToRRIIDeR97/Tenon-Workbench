@@ -12,7 +12,7 @@ const titleA = "Alpha session"
 const titleB = "Beta session"
 const ptyID = "pty_tab_switch"
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
-const PROBE = "original"
+const GREETING = "Terminal connected\r\n"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -20,7 +20,7 @@ for (const mixed of [true, false]) {
   test(`keeps the terminal alive across tabs on ${mixed ? "managed" : "current"} servers`, async ({
     page,
   }, testInfo) => {
-    const connections = await setup(page, mixed)
+    const { connections, creates } = await setup(page, mixed)
 
     await page.goto(sessionHref(sessionA))
     await expectSessionTitle(page, titleA)
@@ -39,36 +39,28 @@ for (const mixed of [true, false]) {
     expect(connection.searchParams.get("ticket")).toBe("e2e-ticket")
     await expect(terminal.locator("canvas").first()).toBeVisible()
     await page.screenshot({ path: testInfo.outputPath("terminal.png"), fullPage: true })
-    await writeProbe(page)
 
     await switchTab(page, titleB)
     await expectSessionTitle(page, titleB)
-    await expect(terminal).toBeVisible()
-    expect(await readProbe(page)).toBe(PROBE)
+    await expect(terminal).toHaveCount(0)
     expect(connections.length).toBe(1)
+    expect(creates.length).toBe(1)
 
     await switchTab(page, titleA)
     await expectSessionTitle(page, titleA)
     await expect(terminal).toBeVisible()
-    expect(await readProbe(page)).toBe(PROBE)
-    expect(connections.length).toBe(1)
+    await expect(page.getByRole("tab", { name: /^Terminal 1/ })).toHaveAttribute("aria-selected", "true")
+    await expect.poll(() => connections.length).toBe(2)
+    const resumed = new URL(connections[1]!)
+    expect(resumed.pathname).toBe(connection.pathname)
+    expect(resumed.searchParams.get(mixed ? "directory" : "location[directory]")).toBe(directory)
+    expect(resumed.searchParams.get("cursor")).toBe(String(GREETING.length))
+    expect(creates.length).toBe(1)
   })
 }
 
-type Probed = HTMLElement & { __e2eProbe?: string }
-
 async function switchTab(page: Page, title: string) {
   await openSidebarThreadByTitle(page, title)
-}
-
-async function writeProbe(page: Page) {
-  await page.locator('[data-component="terminal"]').evaluate((el, probe) => {
-    ;(el as Probed).__e2eProbe = probe
-  }, PROBE)
-}
-
-async function readProbe(page: Page) {
-  return page.locator('[data-component="terminal"]').evaluate((el) => (el as Probed).__e2eProbe)
 }
 
 async function setup(page: Page, mixed = true) {
@@ -101,13 +93,16 @@ async function setup(page: Page, mixed = true) {
     await page.route("**/api/health", (route) => route.fulfill({ json: { healthy: true } }))
     await page.route("**/global/health", (route) => route.fulfill({ json: { healthy: true, version: "dev" } }))
   }
-  await page.route("**/api/pty*", (route) =>
-    route.fulfill({
+  const creates: string[] = []
+  await page.route("**/api/pty*", (route) => {
+    const create = route.request().method() === "POST"
+    if (create) creates.push(route.request().url())
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ location: ptyLocation(), data: ptyInfo() }),
-    }),
-  )
+      body: JSON.stringify({ location: ptyLocation(), data: create ? ptyInfo() : [] }),
+    })
+  })
   await page.route(`**/api/pty/${ptyID}*`, (route) =>
     route.fulfill({
       status: 200,
@@ -133,7 +128,7 @@ async function setup(page: Page, mixed = true) {
   const connections: string[] = []
   await page.routeWebSocket(new RegExp(`/pty/${ptyID}/connect`), (ws) => {
     connections.push(ws.url())
-    ws.send("Terminal connected\r\n")
+    if (connections.length === 1) ws.send(GREETING)
   })
 
   await page.addInitScript(
@@ -150,7 +145,7 @@ async function setup(page: Page, mixed = true) {
     },
     { directory },
   )
-  return connections
+  return { connections, creates }
 }
 
 function session(id: string, title: string, created: number) {
@@ -206,7 +201,7 @@ test("Codex exposes one effort selector and an independent service tier", async 
     }),
   )
   await page.goto(`/${base64Encode(directory)}/session`)
-  const pill = page.locator('[data-action="prompt-model-pill"]')
+  const pill = page.getByRole("button", { name: /^Model: / })
   await expect(pill).toBeEnabled()
   await pill.click()
   await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()

@@ -325,7 +325,21 @@ export function make(input: {
     yield* Effect.forEach(rest, (item) => call(() => input.store.remove(item.name)), { discard: true })
   })
 
-  return { push, pull, takeOver, list, remove }
+  const compare = Effect.fn("ThreadSync.compare")(function* (sessionID: string) {
+    yield* requireThread(sessionID)
+    const local = yield* localEvents(sessionID)
+    if (local.length === 0) return "absent" as const
+    const current = yield* readManifest(sessionID)
+    if (!current) return yield* Effect.fail(syncError("not_found", "This thread is not in the sync store"))
+    const remote = yield* readRemote(current.manifest)
+    if (local.some((event) => differs(event, remote[event.seq]))) return "diverged" as const
+    const latest = local.at(-1)?.seq ?? -1
+    if (latest < current.manifest.head) return "behind" as const
+    if (latest === current.manifest.head) return "current" as const
+    return "ahead" as const
+  })
+
+  return { push, pull, takeOver, list, remove, compare }
 }
 
 function manifestName(sessionID: string) {

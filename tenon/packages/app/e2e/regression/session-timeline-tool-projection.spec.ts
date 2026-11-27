@@ -4,6 +4,8 @@ import {
   partUpdated,
   setupTimeline,
   toolPart,
+  turnStep,
+  turnStepGroup,
   userMessage,
 } from "../performance/timeline-stability/fixture"
 
@@ -21,12 +23,31 @@ test("renders every tool error outcome without leaking hidden tools", async ({ p
   )
   await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
-  await expect(page.locator('[data-kind="tool-error-card"]')).toHaveCount(ordinary.length + 1)
-  await expect(page.getByText(/dismissed/i)).toBeVisible()
-  await expect(page.locator('[data-timeline-part-id="prt_todo_error"]')).toHaveCount(0)
-  for (let index = 0; index < ordinary.length; index++) {
-    await expect(page.locator(`[data-timeline-part-id="prt_error_${index}"]`)).toBeVisible()
+  const summary = page.locator('[data-timeline-row="TurnSteps"] [data-component="turn-steps-summary"]')
+  await expect(summary.locator('[data-slot="turn-steps-failed"]')).toHaveText(`${ordinary.length + 1} steps failed`)
+  await expect(summary.locator('[data-slot="turn-steps-declined"]')).toHaveText("1 declined")
+  for (const name of ["Edited 3 files", "Fetched 2 pages"]) {
+    const group = turnStepGroup(page, name)
+    await group.locator(':scope > [data-slot="turn-steps-row"]').click()
+    await expect(group.locator(':scope > [data-slot="turn-steps-row"]')).toHaveAttribute("aria-expanded", "true")
   }
+  for (let index = 0; index < ordinary.length; index++) {
+    const step = turnStep(page, `prt_error_${index}`)
+    await expect(step.row).toBeVisible()
+    await step.row.click()
+    await expect(step.row).toHaveAttribute("aria-expanded", "true")
+    await expect(step.detail).toHaveText(`${ordinary[index]} failed visibly`)
+  }
+  const dismissed = turnStep(page, "prt_question_dismissed")
+  await expect(dismissed.row.locator('[data-slot="turn-steps-declined"]')).toHaveText("Declined")
+  await dismissed.row.click()
+  await expect(dismissed.detail).toHaveText(/dismissed/i)
+  const failedQuestion = turnStep(page, "prt_question_error")
+  await expect(failedQuestion.row.locator('[data-slot="turn-steps-declined"]')).toHaveCount(0)
+  await failedQuestion.row.click()
+  await expect(failedQuestion.detail).toHaveText("Question transport failed")
+  await expect(page.locator('[data-timeline-part-id="prt_todo_error"]')).toHaveCount(0)
+  await expect(page.getByText("Hidden todo failure")).toHaveCount(0)
 })
 
 test("transitions shell and question through running error outcomes", async ({ page }) => {
@@ -48,7 +69,12 @@ test("transitions shell and question through running error outcomes", async ({ p
   await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toHaveCount(0)
   await timeline.send(partUpdated(toolPart(shellID, "bash", "running", { command: "exit 1" })), 120)
   await timeline.send(partUpdated(toolPart(questionID, "question", "running", questionInput())), 180)
+  const shell = turnStep(page, shellID)
+  await expect(shell.row).toHaveAttribute("data-running", "")
   await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toHaveCount(0)
+  await shell.item.evaluate((element) => {
+    ;(element as HTMLElement).dataset.regressionMarker = "kept"
+  })
   await timeline.send(
     partUpdated(toolPart(shellID, "bash", "error", { command: "exit 1" }, { error: "Command exited 1" })),
     180,
@@ -60,31 +86,20 @@ test("transitions shell and question through running error outcomes", async ({ p
     250,
   )
 
-  await expect(page.locator(`[data-timeline-part-id="${shellID}"] [data-kind="tool-error-card"]`)).toBeVisible()
-  await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toContainText(/dismissed/i)
-})
-
-test("labels all web search provider variants", async ({ page }) => {
-  const parts = [
-    toolPart(
-      "prt_search_parallel",
-      "websearch",
-      "completed",
-      { query: "parallel" },
-      { metadata: { provider: "parallel" } },
-    ),
-    toolPart("prt_search_exa", "websearch", "completed", { query: "exa" }, { metadata: { provider: "exa" } }),
-    toolPart("prt_search_generic", "websearch", "completed", { query: "generic" }),
-  ]
-  await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
-
-  const group = page.locator('[data-timeline-part-ids="prt_search_exa,prt_search_generic,prt_search_parallel"]')
-  await expect(group.getByRole("button", { name: /^Ran 3 tool/ })).toBeVisible()
-  await group.locator('[data-component="context-tool-group-trigger"]').click()
-
-  await expect(page.getByRole("button", { name: /Parallel Web Search/ })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Exa Web Search/ })).toBeVisible()
-  await expect(page.getByRole("button", { name: /^Web Search/ })).toBeVisible()
+  const summary = page.locator('[data-timeline-row="TurnSteps"] [data-component="turn-steps-summary"]')
+  await expect(summary.locator('[data-slot="turn-steps-failed"]')).toHaveText("1 step failed")
+  await expect(shell.row).not.toHaveAttribute("data-running", "")
+  await expect(shell.item).toHaveAttribute("data-regression-marker", "kept")
+  const order = await page
+    .locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]')
+    .evaluateAll((items) => items.map((item) => item.getAttribute("data-timeline-part-id")))
+  expect(order).toEqual([questionID, shellID])
+  await shell.row.click()
+  await expect(shell.detail).toHaveText("Command exited 1")
+  const question = turnStep(page, questionID)
+  await expect(question.row.locator('[data-slot="turn-steps-declined"]')).toHaveText("Declined")
+  await question.row.click()
+  await expect(question.detail).toHaveText(/dismissed/i)
 })
 
 function questionInput() {
