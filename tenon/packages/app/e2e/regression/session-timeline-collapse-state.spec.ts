@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
-import { expandTurnSteps } from "../performance/timeline-stability/fixture"
+import { expandTurnSteps, turnStep } from "../performance/timeline-stability/fixture"
 
 const directory = "C:/OpenCode/TimelineStateRegression"
 const projectID = "proj_timeline_state_regression"
@@ -111,15 +111,15 @@ test.describe("regression: session timeline local row state", () => {
     await expectSessionTitle(page, title)
     await expandTurnSteps(page)
 
-    const wrapper = page.locator(`[data-timeline-part-id="${editPartID}"]`).first()
-    await expectAppVisible(wrapper)
-    await expectExpanded(wrapper, true)
+    const step = turnStep(page, editPartID)
+    await expectAppVisible(step.item)
+    await expect(step.row).toHaveAttribute("aria-expanded", "true")
 
-    await wrapper.evaluate((element) => {
+    await step.item.evaluate((element) => {
       ;(element as HTMLElement).dataset.regressionMarker = "before-stream"
     })
-    await wrapper.locator('[data-slot="collapsible-trigger"]').first().click()
-    await expectExpanded(wrapper, false)
+    await step.row.click()
+    await expect(step.row).toHaveAttribute("aria-expanded", "false")
 
     events.push({
       directory,
@@ -133,7 +133,8 @@ test.describe("regression: session timeline local row state", () => {
 
     expect(await readToolState(page)).toEqual({
       expanded: false,
-      row: "AssistantPart",
+      marker: "before-stream",
+      row: "TurnSteps",
       streamedTextVisible: true,
     })
   })
@@ -148,9 +149,9 @@ test.describe("regression: session timeline local row state", () => {
     await expectSessionTitle(page, title)
     await expandTurnSteps(page)
 
-    const wrapper = page.locator(`[data-timeline-part-id="${editPartID}"]`).first()
+    const wrapper = turnStep(page, editPartID).item
     await expectAppVisible(wrapper)
-    const file = wrapper.locator('[data-component="file"][data-mode="diff"]').first()
+    const file = wrapper.locator('[data-component="file"][data-mode="diff"]')
     await expectAppVisible(file)
     await markDiffProbe(page)
 
@@ -167,7 +168,7 @@ test.describe("regression: session timeline local row state", () => {
     expect(siblingProbe).toEqual({
       fileMarker: "before",
       frameMarker: "before",
-      rowKey: `assistant-part:${userMessageID}:part:${assistantMessageID}:${editPartID}`,
+      rowKey: `turn-steps:${userMessageID}:0`,
       rowMarker: "before",
       shadowRoots: 0,
       toolMarker: "before",
@@ -182,77 +183,17 @@ test.describe("regression: session timeline local row state", () => {
       },
     })
 
-    await expect(wrapper.locator('[data-slot="diff-changes-additions"]').filter({ hasText: "+2" }).first()).toBeVisible(
-      { timeout: 10_000 },
-    )
+    await expect(
+      turnStep(page, editPartID).row.locator('[data-slot="diff-changes-additions"]').filter({ hasText: "+2" }),
+    ).toBeVisible({ timeout: 10_000 })
     expect(await readDiffProbe(page)).toEqual({
       fileMarker: "before",
       frameMarker: "before",
-      rowKey: `assistant-part:${userMessageID}:part:${assistantMessageID}:${editPartID}`,
+      rowKey: `turn-steps:${userMessageID}:0`,
       rowMarker: "before",
       shadowRoots: 0,
       toolMarker: "before",
     })
-  })
-
-  test("keeps a sticky edit header aligned with a multi-hunk diff", async ({ page }) => {
-    const events: EventPayload[] = []
-    const lines = Array.from({ length: 1_000 }, (_, index) => `export const value${index} = ${index}\n`).join("")
-    const after = [100, 300, 500, 700, 900].reduce(
-      (result, index) =>
-        result.replace(`export const value${index} = ${index}`, `export const value${index} = compute(${index})`),
-      lines,
-    )
-    const part = {
-      ...editPart,
-      state: {
-        ...editPart.state,
-        metadata: {
-          ...editPart.state.metadata,
-          filediff: {
-            file: "src/regression.ts",
-            additions: 1,
-            deletions: 1,
-            before: lines,
-            after,
-          },
-        },
-      },
-    }
-    await mockServer(page, events, [userMessage, { ...assistantMessage, parts: [part] }])
-    await configurePage(page)
-
-    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
-    await expectSessionTitle(page, title)
-    await expandTurnSteps(page)
-
-    const wrapper = page.locator(`[data-timeline-part-id="${editPartID}"]`).first()
-    const trigger = wrapper.locator('[data-slot="collapsible-trigger"]').first()
-    const diff = wrapper.locator('[data-component="edit-content"]').first()
-    await expectAppVisible(diff)
-    await expect.poll(() => wrapper.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(500)
-    const samples = await wrapper.evaluate(async (element) => {
-      const root = element.closest<HTMLElement>(".scroll-view__viewport")!
-      element.scrollIntoView({ block: "start" })
-      const result = []
-      for (const offset of [0, 120, 240, 360, 480]) {
-        root.scrollBy(0, offset - (result.at(-1)?.offset ?? 0))
-        await new Promise(requestAnimationFrame)
-        const trigger = element.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!
-        const diff = element.querySelector<HTMLElement>('[data-component="edit-content"]')!
-        result.push({
-          offset,
-          trigger: trigger.getBoundingClientRect().y,
-          diff: diff.getBoundingClientRect().y,
-          bottom: element.getBoundingClientRect().bottom,
-        })
-      }
-      return result
-    })
-
-    expect(samples[0]!.trigger).toBeLessThan(samples[0]!.diff)
-    expect(samples.every((sample) => Math.abs(sample.trigger - samples[0]!.trigger) <= 1)).toBe(true)
-    expect(samples.every((sample) => sample.trigger < sample.bottom)).toBe(true)
   })
 })
 
@@ -271,34 +212,17 @@ async function configurePage(page: Page) {
   })
 }
 
-async function expectExpanded(locator: Locator, expected: boolean) {
-  await expect.poll(() => locator.evaluate(readExpanded)).toBe(expected)
-}
-
 async function readToolState(page: Page) {
-  return page
-    .locator(`[data-timeline-part-id="${editPartID}"]`)
-    .first()
-    .evaluate(
-      (element, textPartID) => ({
-        expanded: (() => {
-          const trigger = element.querySelector('[data-slot="collapsible-trigger"]')
-          const aria = trigger?.getAttribute("aria-expanded")
-          if (aria === "true") return true
-          if (aria === "false") return false
-
-          const root = element.querySelector('[data-component="collapsible"]')
-          if (root?.hasAttribute("data-expanded")) return true
-          if (root?.hasAttribute("data-closed")) return false
-
-          const content = element.querySelector<HTMLElement>('[data-slot="collapsible-content"]')
-          return !!content && content.getBoundingClientRect().height > 0
-        })(),
-        row: element.closest("[data-timeline-row]")?.getAttribute("data-timeline-row"),
-        streamedTextVisible: !!document.querySelector(`[data-timeline-part-id="${textPartID}"]`),
-      }),
-      textPartID,
-    )
+  return turnStep(page, editPartID).item.evaluate(
+    (element, textPartID) => ({
+      expanded:
+        element.querySelector(':scope > [data-slot="turn-steps-row"]')?.getAttribute("aria-expanded") === "true",
+      marker: (element as HTMLElement).dataset.regressionMarker,
+      row: element.closest("[data-timeline-row]")?.getAttribute("data-timeline-row"),
+      streamedTextVisible: !!document.querySelector(`[data-timeline-part-id="${textPartID}"]`),
+    }),
+    textPartID,
+  )
 }
 
 async function installDiffProbe(page: Page) {
@@ -319,44 +243,38 @@ async function installDiffProbe(page: Page) {
 }
 
 async function markDiffProbe(page: Page) {
-  await page
-    .locator(`[data-timeline-part-id="${editPartID}"]`)
-    .first()
-    .evaluate((element) => {
-      const tool = element as HTMLElement
-      const file = tool.querySelector<HTMLElement>('[data-component="file"][data-mode="diff"]')
-      const row = tool.closest<HTMLElement>("[data-timeline-key]")
-      const frame = tool.closest<HTMLElement>("[data-timeline-row]")
-      if (!file) throw new Error("missing edit diff file")
-      if (!row) throw new Error("missing virtual timeline row")
-      if (!frame) throw new Error("missing timeline row frame")
+  await turnStep(page, editPartID).item.evaluate((element) => {
+    const tool = element as HTMLElement
+    const file = tool.querySelector<HTMLElement>('[data-component="file"][data-mode="diff"]')
+    const row = tool.closest<HTMLElement>("[data-timeline-key]")
+    const frame = tool.closest<HTMLElement>("[data-timeline-row]")
+    if (!file) throw new Error("missing edit diff file")
+    if (!row) throw new Error("missing virtual timeline row")
+    if (!frame) throw new Error("missing timeline row frame")
 
-      tool.dataset.timelineProbe = "before"
-      file.dataset.timelineProbe = "before"
-      row.dataset.timelineProbe = "before"
-      frame.dataset.timelineProbe = "before"
-      window.__timelineDiffProbe.reset()
-    })
+    tool.dataset.timelineProbe = "before"
+    file.dataset.timelineProbe = "before"
+    row.dataset.timelineProbe = "before"
+    frame.dataset.timelineProbe = "before"
+    window.__timelineDiffProbe.reset()
+  })
 }
 
 async function readDiffProbe(page: Page) {
-  return page
-    .locator(`[data-timeline-part-id="${editPartID}"]`)
-    .first()
-    .evaluate((element) => {
-      const tool = element as HTMLElement
-      const file = tool.querySelector<HTMLElement>('[data-component="file"][data-mode="diff"]')
-      const row = tool.closest<HTMLElement>("[data-timeline-key]")
-      const frame = tool.closest<HTMLElement>("[data-timeline-row]")
-      return {
-        fileMarker: file?.dataset.timelineProbe,
-        shadowRoots: window.__timelineDiffProbe.shadowRoots(),
-        toolMarker: tool.dataset.timelineProbe,
-        rowMarker: row?.dataset.timelineProbe,
-        rowKey: row?.dataset.timelineKey,
-        frameMarker: frame?.dataset.timelineProbe,
-      }
-    })
+  return turnStep(page, editPartID).item.evaluate((element) => {
+    const tool = element as HTMLElement
+    const file = tool.querySelector<HTMLElement>('[data-component="file"][data-mode="diff"]')
+    const row = tool.closest<HTMLElement>("[data-timeline-key]")
+    const frame = tool.closest<HTMLElement>("[data-timeline-row]")
+    return {
+      fileMarker: file?.dataset.timelineProbe,
+      shadowRoots: window.__timelineDiffProbe.shadowRoots(),
+      toolMarker: tool.dataset.timelineProbe,
+      rowMarker: row?.dataset.timelineProbe,
+      rowKey: row?.dataset.timelineKey,
+      frameMarker: frame?.dataset.timelineProbe,
+    }
+  })
 }
 
 function editPartWithAdditions(additions: number) {
@@ -373,20 +291,6 @@ function editPartWithAdditions(additions: number) {
       },
     },
   }
-}
-
-function readExpanded(element: Element) {
-  const trigger = element.querySelector('[data-slot="collapsible-trigger"]')
-  const aria = trigger?.getAttribute("aria-expanded")
-  if (aria === "true") return true
-  if (aria === "false") return false
-
-  const root = element.querySelector('[data-component="collapsible"]')
-  if (root?.hasAttribute("data-expanded")) return true
-  if (root?.hasAttribute("data-closed")) return false
-
-  const content = element.querySelector<HTMLElement>('[data-slot="collapsible-content"]')
-  return !!content && content.getBoundingClientRect().height > 0
 }
 
 async function mockServer(page: Page, events: EventPayload[], messages = [userMessage, assistantMessage]) {

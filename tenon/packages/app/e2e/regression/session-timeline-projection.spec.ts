@@ -4,6 +4,8 @@ import {
   setupTimeline,
   status,
   toolPart,
+  turnStep,
+  turnStepGroup,
   userMessage,
   userText,
   type PartSeed,
@@ -48,29 +50,24 @@ test.describe("session timeline projection", () => {
     ]
     await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
-    const leading = page.locator(
-      '[data-timeline-part-ids="prt_01_read,prt_02_glob,prt_03_grep,prt_04_list,prt_bash,prt_custom"]',
-    )
-    const web = page.locator('[data-timeline-part-ids="prt_webfetch,prt_websearch"]')
-    await expect(leading.getByRole("button", { name: /^Ran 6 tool/ })).toBeVisible()
-    await expect(web.getByRole("button", { name: /^Ran 2 tool/ })).toBeVisible()
-    for (const id of ["prt_edit", "prt_patch", "prt_question", "prt_skill", "prt_task", "prt_write"]) {
-      await expect(page.locator(`[data-timeline-part-id="${id}"]`).first(), id).toBeVisible()
+    await expect(page.locator('[data-timeline-row="TurnSteps"]')).toHaveCount(1)
+    await expect(page.locator('[data-timeline-row="AssistantPart"]')).toHaveCount(0)
+    const groups = { search: "Searched 3 times", edit: "Edited 2 files", fetch: "Fetched 2 pages" }
+    for (const name of Object.values(groups)) await expect(turnStepGroup(page, name), name).toHaveCount(1)
+    for (const id of ["prt_01_read", "prt_bash", "prt_custom", "prt_question", "prt_skill", "prt_task", "prt_write"]) {
+      await expect(turnStep(page, id).row, id).toBeVisible()
     }
 
-    await leading.getByRole("button", { name: /^Ran 6 tool/ }).click()
-    await web.getByRole("button", { name: /^Ran 2 tool/ }).click()
-    for (const id of [
-      "prt_01_read",
-      "prt_02_glob",
-      "prt_03_grep",
-      "prt_04_list",
-      "prt_bash",
-      "prt_custom",
-      "prt_webfetch",
-      "prt_websearch",
-    ]) {
-      await expect(page.locator(`[data-timeline-part-id="${id}"]`).first(), id).toBeVisible()
+    for (const name of Object.values(groups)) {
+      await turnStepGroup(page, name).locator(':scope > [data-slot="turn-steps-row"]').click()
+    }
+    const members = {
+      [groups.search]: ["prt_02_glob", "prt_03_grep", "prt_04_list"],
+      [groups.edit]: ["prt_edit", "prt_patch"],
+      [groups.fetch]: ["prt_webfetch", "prt_websearch"],
+    }
+    for (const [name, ids] of Object.entries(members)) {
+      for (const id of ids) await expect(turnStepGroup(page, name).locator(turnStep(page, id).row), id).toBeVisible()
     }
     await expect(page.locator('[data-timeline-part-id="prt_todo"]')).toHaveCount(0)
   })
@@ -129,7 +126,7 @@ test.describe("session timeline projection", () => {
     await scroller.evaluate((element) => (element.scrollTop = 0))
 
     await expect(page.locator('[data-timeline-row="TurnDivider"]')).toHaveCount(1)
-    await expect(page.getByText("Session compacted", { exact: true })).toBeVisible()
+    await expect(page.getByText("Thread compacted", { exact: true })).toBeVisible()
     await expect(page.getByText("Visible provider failure")).toBeVisible()
     await scroller.evaluate((element) => (element.scrollTop = element.scrollHeight))
     await expect(page.locator('[data-timeline-row="TurnGap"]')).toBeVisible()

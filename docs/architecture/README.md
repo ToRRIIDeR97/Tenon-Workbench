@@ -3183,10 +3183,11 @@ editor's keydown (`session-ui/src/v2/components/prompt-input/machine.ts`,
 `promptInputV2KeyIntent`), not as global commands, because the global command
 listener runs in capture phase. Settings → Shortcuts lists them read-only.
 
-The session timeline collapses runs of two or more completed tool calls into
-one "Ran N tools" summary row (`session-ui/src/components/part-group.ts`).
-File edits, questions, subagent tasks, errored tools and running tools stay as
-their own rows. Read-only runs keep the "Explored" context group.
+`groupParts` (`session-ui/src/components/part-group.ts`) still groups a turn's
+parts into rows ("Ran N tools" runs, the "Explored" context group), but in a
+thread those tool and reasoning rows are always folded into the turn's Worked
+card (`folded: () => true` in `message-timeline.tsx`), so the thread never
+shows them; only a shell turn (a `!` command) draws its tool part as its own row.
 
 Each run of an assistant turn's tool and reasoning groups gets a `TurnSteps`
 header row (`app/src/pages/session/timeline/rows.ts`). It is inserted before
@@ -3223,7 +3224,8 @@ hides the step rows, and `TurnStepsSummary` renders the header row's `steps`
 in its own body. Consecutive reads, searches, edits, commands or fetches merge
 into one row named by the count phrase ("Read 3 files") with their targets,
 which opens to the individual rows; reasoning and subagents always stand
-alone. An edit row (`editDiffs` in `components/session/step-diff.ts`) shows
+alone. A question the user dismissed counts as a declined step, like a
+declined permission (`isDeclined` in `step-kind.ts`), not a failed one. An edit row (`editDiffs` in `components/session/step-diff.ts`) shows
 the change counts and opens to the diff in the app's file viewer, built from
 `metadata.filediff`, a patch's `metadata.files`, a harness edit's old and new
 text, or a write's content; other tools open to their text output. Settings →

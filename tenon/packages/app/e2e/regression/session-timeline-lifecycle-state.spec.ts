@@ -9,6 +9,7 @@ import {
   shell,
   status,
   textPart,
+  turnStep,
   userMessage,
 } from "../performance/timeline-stability/fixture"
 
@@ -19,7 +20,7 @@ for (const expanded of [false, true]) {
       messages: [userMessage(), assistantMessage([shell(id, "completed", lines(3))])],
       settings: { shellToolPartsExpanded: expanded },
     })
-    const trigger = page.locator(`[data-timeline-part-id="${id}"] [data-slot="collapsible-trigger"]`)
+    const trigger = turnStep(page, id).row
     await expect(trigger).toHaveAttribute("aria-expanded", String(expanded))
     await trigger.click()
     await expect(trigger).toHaveAttribute("aria-expanded", String(!expanded))
@@ -40,13 +41,20 @@ test("shows and expands a running shell command without shimmering it", async ({
     settings: { shellToolPartsExpanded: false },
   })
 
-  const tool = page.locator(`[data-timeline-part-id="${id}"]`)
-  await expect(tool.locator('[data-component="text-shimmer"]')).toHaveAttribute("data-active", "true")
-  await expect(tool.locator('[data-component="shell-submessage"]')).toHaveText(command)
-  await expect(tool.locator('[data-component="shell-submessage"] [data-component="text-shimmer"]')).toHaveCount(0)
-  await tool.locator('[data-slot="collapsible-trigger"]').click()
-  await expect(tool.locator('[data-slot="collapsible-trigger"]')).toHaveAttribute("aria-expanded", "true")
-  await expect(tool.locator('[data-slot="bash-pre"]')).toContainText("still running")
+  const card = page.locator('[data-timeline-row="TurnSteps"]')
+  const step = turnStep(page, id)
+  await expect(card.locator('[data-component="turn-steps-summary"] [data-component="text-shimmer"]')).toHaveAttribute(
+    "data-active",
+    "true",
+  )
+  await expect(step.row).toHaveAttribute("data-running", "")
+  await expect(step.row).toContainText(command)
+  await expect(step.item.locator('[data-component="text-shimmer"]')).toHaveCount(0)
+  await expect(step.row).toHaveAttribute("aria-expanded", "false")
+  await step.row.click()
+  await expect(step.row).toHaveAttribute("aria-expanded", "true")
+  await expect(step.detail).toContainText(`$ ${command}`)
+  await expect(step.detail).toContainText("still running")
 })
 
 test("transitions thinking and hidden reasoning through busy to idle", async ({ page }) => {
