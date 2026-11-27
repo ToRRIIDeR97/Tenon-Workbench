@@ -31,6 +31,7 @@ export const groupNames = {
   "server.skill": "skills",
   "server.github": "github",
   "server.computerUse": "computerUse",
+  "server.threadSync": "threadSync",
   "server.event": "events",
   "server.pty": "ptys",
   "server.question": "questions",

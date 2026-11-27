@@ -65,6 +65,7 @@ import { Ripgrep } from "@tenon/core/ripgrep"
 import { SessionProjector } from "@tenon/core/session/projector"
 import { SessionV2 } from "@tenon/core/session"
 import { HarnessDelegationTasks } from "@tenon/core/harness/delegation-tasks"
+import { ThreadSync } from "@tenon/core/thread-sync"
 import { AgentAppTools } from "@/agents/app-tools"
 import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { SessionExecution } from "@tenon/core/session/execution"
@@ -261,6 +262,7 @@ const app = LayerNode.group([
   ProjectV2.node,
   ProjectCopy.node,
   PtyTicket.node,
+  ThreadSync.node,
 ])
 
 export function createRoutes(

@@ -52,10 +52,17 @@ outside every workspace; the server is not involved. Details are in the
 
 ![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder or Cloud Storage store with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
 
-A library in `core/src/thread-sync/` with no route, setting or UI yet. It reads
-and writes `event`, `event_sequence`, `session` and `project` in `tenon.db`
-and only sealed objects in the store. Details are in the
-[README](README.md#thread-sync) and the
+The engine in `core/src/thread-sync/` reads and writes `event`,
+`event_sequence`, `session` and `project` in `tenon.db` and only sealed
+objects in the store.
+
+![Thread sync manager: clients call /api/thread-sync in the local server; the manager keeps thread-sync.json without secrets, asks the desktop for the key and token over the loopback bridge, pushes a thread on session.idle through the engine, and points a continued thread's session row at a folder on this computer](../diagrams/thread-sync-manager.svg)
+
+The manager (`ThreadSync.node`, one per server) serves `/api/thread-sync`,
+keeps `thread-sync.json` in the config folder, gets the key and Cloud Storage
+token from Electron main over the loopback bridge, pushes on `session.idle`
+and writes the "Continue here" folder into the local `session` row only.
+Details are in the [README](README.md#thread-sync-manager) and the
 [threat model](../security/threat-model.md#thread-sync).
 
 ### Deployment
@@ -297,8 +304,12 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Harness sync (global instructions and skills for six harnesses, Drive sync file, background check, Settings › Instructions, sync part of Settings › Skills) | Subsystem | Component: harness sync, Deployment; text in [README](README.md#harness-sync) and the [threat model](../security/threat-model.md#harness-sync) | `desktop/src/main/harness-sync/`, `desktop/src/main/harness-sync-service.ts`, `desktop/src/main/ipc.ts` (`harness-sync-*`), `desktop/src/preload/index.ts` (`harnessSync`), `app/src/harness-sync/types.ts`, `app/src/components/settings-v2/{instructions,harness-sync-skills,harness-sync-model}.ts*`, `app/src/components/harness-sync-notifier.tsx` |
 | `harness-sync.json` and `<userData>/harness-sync/` (state, backups), or the standalone app's `app.harnesssync.desktop` folder when it is installed | Shared store | Component: harness sync, Deployment | `desktop/src/main/harness-sync/document.ts` (sync file, shared with the standalone Harness Sync app), `state.ts`, `standalone.ts`, `skill-files.ts` (`backUpSkill`) |
 | Harness global instruction files and skills folders | Shared store | Component: harness sync, Deployment | `desktop/src/main/harness-sync/tools.ts` (paths), `apply.ts`, `skills.ts`; read by each harness, written only by harness sync |
-| Thread sync engine (keys, sealed segments and manifest, folder and Cloud Storage stores, push, pull, takeover, list, remove) | Subsystem | Component: thread sync; text in [README](README.md#thread-sync) and the [threat model](../security/threat-model.md#thread-sync) | `core/src/thread-sync.ts`, `core/src/thread-sync/{crypto,engine,error,folder,gcs,local-path,store}.ts`, `core/src/event.ts` (`replayAll`, `claim`) |
+| Thread sync engine (keys, sealed segments and manifest, folder and Cloud Storage stores, push, pull, takeover, list, remove, compare) | Subsystem | Component: thread sync; text in [README](README.md#thread-sync) and the [threat model](../security/threat-model.md#thread-sync) | `core/src/thread-sync.ts`, `core/src/thread-sync/{crypto,engine,error,folder,gcs,local-path,store}.ts`, `core/src/event.ts` (`replayAll`, `claim`) |
 | Thread sync store (`threads/<sessionID>/manifest` and `segment-<first>-<last>-<sha256>` in a folder or a Cloud Storage bucket) | Shared store | Component: thread sync | `core/src/thread-sync/engine.ts` (layout), `folder.ts`, `gcs.ts` |
+| Thread sync manager and `/api/thread-sync` routes (status, configure, stored threads with local state, push, pull, continue, remove; credentials from the desktop bridge) | Subsystem | Component: thread sync; text in [README](README.md#thread-sync-manager) and the [threat model](../security/threat-model.md#thread-sync) | `core/src/thread-sync/{manager,settings,bridge,service}.ts`, `protocol/src/groups/thread-sync.ts`, `server/src/handlers/thread-sync.ts`, `server/src/routes.ts`, `tenon/src/server/routes/instance/httpapi/server.ts` |
+| `thread-sync.json` (on, bucket, machine ID and name, folder per continued thread; no key or token) | Store | Component: thread sync | `core/src/thread-sync/settings.ts`, `service.ts` (`Global.config`) |
+| Push after a turn (`session.idle` → `settled` → push when owned or not stored, `lastError` on store failure) | Critical workflow | Component: thread sync | `core/src/thread-sync/service.ts`, `manager.ts` (`settled`), `tenon/src/session/status.ts` (publishes `session.idle`) |
+| Continue here (takeover, folder recorded on this computer, session row re-pointed after every pull) | Critical workflow | Component: thread sync | `core/src/thread-sync/manager.ts` (`continueHere`, `placeFolder`), `settings.ts` (`withFolder`) |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |

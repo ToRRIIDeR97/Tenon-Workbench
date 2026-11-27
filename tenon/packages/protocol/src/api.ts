@@ -11,6 +11,7 @@ import { CommandGroup } from "./groups/command"
 import { SkillGroup } from "./groups/skill"
 import { GithubGroup } from "./groups/github"
 import { ComputerUseGroup } from "./groups/computer-use"
+import { ThreadSyncGroup } from "./groups/thread-sync"
 import { EventGroup, makeEventGroup } from "./groups/event"
 import type { Definition } from "@tenon/schema/event"
 import { AgentGroup } from "./groups/agent"
@@ -53,6 +54,7 @@ const makeApiFromGroup = <
     .add(SkillGroup.middleware(locationMiddleware))
     .add(GithubGroup.middleware(locationMiddleware))
     .add(ComputerUseGroup.middleware(locationMiddleware))
+    .add(ThreadSyncGroup)
     .add(eventGroup)
     .add(PtyGroup.middleware(locationMiddleware))
     .add(makeQuestionGroup(locationMiddleware, sessionLocationMiddleware))

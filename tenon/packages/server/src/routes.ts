@@ -10,6 +10,7 @@ import { SessionV2 } from "@tenon/core/session"
 import { SessionExecution } from "@tenon/core/session/execution"
 import { LocationServiceMap } from "@tenon/core/location-service-map"
 import { SessionExecutionLocal } from "@tenon/core/session/execution/local"
+import { ThreadSync } from "@tenon/core/thread-sync"
 import { ToolOutputStore } from "@tenon/core/tool-output-store"
 import { HttpRouter, HttpServer } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
@@ -34,6 +35,7 @@ const applicationServices = LayerNode.group([
   Credential.node,
   PtyEnvironment.node,
   LocationServiceMap.node,
+  ThreadSync.node,
 ])
 
 export function createRoutes(password?: string) {

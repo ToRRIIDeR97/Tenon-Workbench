@@ -1392,7 +1392,9 @@ The thread sync engine (`core/src/thread-sync/`, see
 log, which holds prompts, replies, tool calls and file paths, to an object
 store: a folder or a Cloud Storage bucket in the person's own project. The
 store is outside Tenon's trust boundary; only computers holding the sync key
-are trusted. No route, setting or UI calls the engine yet.
+are trusted. The server's sync manager calls the engine through
+`/api/thread-sync`, behind the server's existing authorization; the Settings
+page and the Google sign-in are not built yet (P5b).
 
 - **What is encrypted.** Every object the engine writes is sealed with
   AES-256-GCM (WebCrypto) under the sync key with a fresh random nonce: event
@@ -1436,7 +1438,28 @@ are trusted. No route, setting or UI calls the engine yet.
   (Windows Credential Manager through DPAPI, the macOS Keychain) and show the
   phrase once so the person can enter it on another computer. It must never be
   stored in the bucket, in `tenon.db`, in logs or in the renderer's storage.
-  This is the next phase's job and is not yet built.
+  The desktop side is P5b and is not yet built. The server never stores the
+  key or the Cloud Storage token: the manager asks the desktop main process
+  for them on each operation over the loopback bridge (`POST /sync_key`,
+  `POST /sync_token`, bearer `TENON_BROWSER_TOKEN`, bound to `127.0.0.1`) and
+  holds them only in memory for that call. Both bridge calls are outside the
+  agent tool list (`HarnessBrowserTools.TOOLS`), so an agent's browser-tool
+  proxy refuses them, and `ChildEnv` strips the bridge URL and token from
+  every child process. Without the bridge the server has no key and sync
+  stays `not_ready`.
+- **Settings file.** `thread-sync.json` in the Tenon config folder (mode
+  `0600` on macOS; the user profile's permissions on Windows) holds whether
+  sync is on, the bucket name, this computer's machine ID and name, and the
+  folder chosen for each continued thread (session ID and absolute path). It
+  never holds the key, the phrase or a token; a test reads the file for the
+  key in hex and base64 and the phrase. Anyone who can read the user's
+  config folder learns the bucket and those folder paths.
+- **Routes and the folder choice.** `PUT /api/thread-sync` and
+  `POST …/continue` change only that file and, for "Continue here", the local
+  session row's folder and project; nothing about the folder is written to
+  the event log or the store. `continueHere` accepts only an absolute path in
+  this system's form. The routes are owner routes; the phone companion
+  scope (P6a) must deny them.
 - **Losing the key.** There is no recovery: the stored copies cannot be
   opened, and a new key starts a new store (old manifests then fail as
   `unreadable`). The local threads on each computer are unaffected. A leaked
@@ -1456,7 +1479,9 @@ are trusted. No route, setting or UI calls the engine yet.
   metadata exposure as a bucket.
 - **Known gaps.** Files that events only point to (the tool-output store,
   image blobs) are not synced, so they are not exposed but also not
-  available on the other computer. The verification of the real Cloud Storage
+  available on the other computer. Once sync is on, every thread that goes
+  idle and is not owned by another computer is pushed, not only threads the
+  person picked. The verification of the real Cloud Storage
   API is against a local fake; the live API has not been exercised.
 
 ## Agent-authored SVG in chat
