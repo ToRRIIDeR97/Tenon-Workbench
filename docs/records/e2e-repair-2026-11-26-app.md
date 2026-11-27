@@ -77,6 +77,14 @@ The root `test:engine` script chained the two packages with `&&`, so the second 
 runs `turbo run test --continue --concurrency=1 --filter=@tenon/core --filter=tenon` from `tenon/`, which runs both
 one after the other in any shell and exits non-zero if either fails.
 
+Not a baseline failure, left open: `e2e/regression/home-thread-composer.spec.ts` passes with one worker but, with the
+default ten workers on a cold dev server, one of its tests failed in three of five runs ("sending from Home creates
+the thread and opens it" twice, the other two once): the editor loses focus part-way through the typed text. A
+`MutationObserver` probe under 8x CPU throttling shows the whole page (`[data-component="view-switch-v2"]` inside
+`main`) removed from the DOM and put back once or twice while Home loads, which is what the `<Suspense>` around the
+page in `pages/layout-new.tsx` does when a read under it suspends again; a focused editor that is detached loses focus.
+The suspending read was not identified.
+
 Not a baseline failure, found while checking: `tenon/test/tool/shell.test.ts` (2 tests in "tool.shell abort") fails
 when the suite is started from PowerShell, because the shell tool then runs its commands in PowerShell and the
 test's `bun -e '…'` quoting is a PowerShell parse error. Started from Git Bash all 67 pass. It belongs to neither P3
