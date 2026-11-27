@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import type { EventV2 } from "../../src/event"
 import { ThreadSync } from "../../src/thread-sync"
-import { limitedGcsStore } from "../../src/thread-sync/gcs"
+import { limitedDriveStore } from "../../src/thread-sync/drive"
 import { canHold } from "../../src/thread-sync/local-path"
 import { tmpdir } from "../fixture/tmpdir"
-import { fakeGcs } from "./gcs-fake"
+import { fakeDrive } from "./drive-fake"
 
 const rejected = (promise: Promise<unknown>) =>
   promise.then(
@@ -129,93 +129,46 @@ describe("thread sync folder store", () => {
   })
 })
 
-describe("thread sync Cloud Storage store", () => {
-  test("follows pages, applies a prefix and percent-encodes names", async () => {
-    const gcs = fakeGcs({ pageSize: 2 })
-    try {
-      const store = ThreadSync.gcsStore({
-        bucket: "my-bucket",
-        endpoint: gcs.endpoint,
-        prefix: "tenon/",
-        token: async () => gcs.token,
-      })
-      await Promise.all(
-        ["c", "a", "e", "b", "d"].map((name) => store.put(`threads/${name}/manifest`, new Uint8Array([1]))),
-      )
-      expect((await store.list("threads/")).map((item) => item.name)).toEqual(
-        ["a", "b", "c", "d", "e"].map((name) => `threads/${name}/manifest`),
-      )
-      expect([...gcs.objects.keys()].every((name) => name.startsWith("my-bucket/tenon/threads/"))).toBe(true)
-      expect(gcs.requests.filter((request) => request.search.includes("pageToken")).length).toBeGreaterThan(0)
-      expect(gcs.requests.some((request) => request.path.includes("%2F"))).toBe(false)
-      await store.get("threads/a/manifest")
-      expect(gcs.requests.at(-1)?.path).toBe("/storage/v1/b/my-bucket/o/tenon%2Fthreads%2Fa%2Fmanifest")
-    } finally {
-      await gcs.stop()
-    }
-  })
+describe("thread sync Google Drive store", () => {
+  const quick = { requestTimeoutMs: 150, readBackDelaysMs: [10] }
 
-  test("a success reply that cannot be read is unavailable", async () => {
+  test("a success reply that cannot be read is unavailable on every method", async () => {
     const server = scripted(() => new Response("not json", { status: 200 }))
     try {
-      const store = ThreadSync.gcsStore({ bucket: "b", endpoint: server.endpoint, token: async () => "t" })
+      const store = ThreadSync.driveStore({ endpoint: server.endpoint, token: async () => "t" })
       expect(await rejected(store.list("threads/"))).toBe("unavailable")
       expect(await rejected(store.put("threads/a/manifest", new Uint8Array([1])))).toBe("unavailable")
       expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
+      expect(await rejected(store.remove("threads/a/manifest"))).toBe("unavailable")
     } finally {
       await server.stop()
     }
   })
 
-  test("a listing that repeats a page token or never ends is unavailable", async () => {
-    const repeating = scripted(() => Response.json({ items: [], nextPageToken: "again" }))
-    const counter = { pages: 0 }
-    const endless = scripted(() => {
-      counter.pages += 1
-      return Response.json({ items: [], nextPageToken: `page-${counter.pages}` })
-    })
-    try {
-      const store = (endpoint: string) => ThreadSync.gcsStore({ bucket: "b", endpoint, token: async () => "t" })
-      expect(await rejected(store(repeating.endpoint).list("threads/"))).toBe("unavailable")
-      expect(await rejected(store(endless.endpoint).list("threads/"))).toBe("unavailable")
-      expect(counter.pages).toBe(1_000)
-    } finally {
-      await repeating.stop()
-      await endless.stop()
-    }
-  }, 30_000)
-
   test("the time token() takes counts inside the request limit and the retry budget", async () => {
-    const gcs = fakeGcs()
+    const drive = fakeDrive()
     try {
-      const hung = limitedGcsStore(
-        { bucket: "b", endpoint: gcs.endpoint, token: () => new Promise<string>(() => {}) },
-        { requestTimeoutMs: 150 },
-      )
+      const hung = limitedDriveStore({ endpoint: drive.endpoint, token: () => new Promise<string>(() => {}) }, quick)
       const first = Date.now()
       expect(await rejected(hung.get("threads/a/manifest"))).toBe("unavailable")
       expect(Date.now() - first).toBeLessThan(1_000)
-      const slow = ThreadSync.gcsStore({
-        bucket: "b",
-        endpoint: gcs.endpoint,
-        token: () => new Promise<string>((resolve) => setTimeout(() => resolve(gcs.token), 300)),
+      const slow = ThreadSync.driveStore({
+        endpoint: drive.endpoint,
+        token: () => new Promise<string>((resolve) => setTimeout(() => resolve(drive.token), 300)),
       })
-      gcs.failNext(100)
+      drive.fail(100, { status: 503 })
       const second = Date.now()
       expect(await rejected(slow.get("threads/a/manifest"))).toBe("unavailable")
       expect(Date.now() - second).toBeLessThan(2_800)
     } finally {
-      await gcs.stop()
+      await drive.stop()
     }
   })
 
   test("a request that never answers ends as unavailable", async () => {
     const silent = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Promise<Response>(() => {}) })
     try {
-      const store = limitedGcsStore(
-        { bucket: "b", endpoint: `http://127.0.0.1:${silent.port}`, token: async () => "t" },
-        { requestTimeoutMs: 150 },
-      )
+      const store = limitedDriveStore({ endpoint: `http://127.0.0.1:${silent.port}`, token: async () => "t" }, quick)
       const started = Date.now()
       expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
       expect(Date.now() - started).toBeLessThan(3_000)
@@ -224,25 +177,26 @@ describe("thread sync Cloud Storage store", () => {
     }
   })
 
-  test("maps refusals and outages to error codes", async () => {
-    const gcs = fakeGcs()
+  test("a one-part name keeps its own directory marker and a cycle of parents reads as absent", async () => {
+    const drive = fakeDrive()
     try {
-      const wrong = ThreadSync.gcsStore({ bucket: "b", endpoint: gcs.endpoint, token: async () => "wrong" })
-      expect(await rejected(wrong.get("threads/a/manifest"))).toBe("unauthorized")
-      const store = ThreadSync.gcsStore({ bucket: "b", endpoint: gcs.endpoint, token: async () => gcs.token })
-      gcs.failNext(2)
-      expect((await store.put("threads/a/manifest", new Uint8Array([1]))).generation).toBeString()
-      gcs.failNext(100)
-      const started = Date.now()
-      expect(await rejected(store.get("threads/a/manifest"))).toBe("unavailable")
-      expect(Date.now() - started).toBeLessThan(2_500)
-      gcs.failNext(0)
-      expect(await rejected(store.put("threads/../x", new Uint8Array([1])))).toBe("invalid_name")
-      const offline = ThreadSync.gcsStore({ bucket: "b", endpoint: "http://127.0.0.1:9", token: async () => "t" })
-      expect(await rejected(offline.list("threads/"))).toBe("unavailable")
-      await store.remove("threads/missing")
+      const store = ThreadSync.driveStore({ endpoint: drive.endpoint, token: async () => drive.token })
+      const written = await store.put("solo", new Uint8Array([7]), { ifGeneration: null })
+      expect(drive.versions("solo")[0].appProperties.dir).toBe(".")
+      expect(await store.list("solo")).toEqual([{ name: "solo", generation: written.generation, size: 1 }])
+      const [version] = drive.versions("solo")
+      const other = drive.user.upload("x", "root", new Uint8Array([7]))
+      drive.files.set(other.id, {
+        ...other,
+        byApp: true,
+        appProperties: { ...version.appProperties, parent: version.id },
+      })
+      version.appProperties = { ...version.appProperties, parent: other.id }
+      expect(await store.get("solo")).toBeUndefined()
+      expect((await store.put("solo", new Uint8Array([8]), { ifGeneration: null })).generation).toBeString()
+      expect([...(await store.get("solo"))!.bytes]).toEqual([8])
     } finally {
-      await gcs.stop()
+      await drive.stop()
     }
-  }, 30_000)
+  })
 })

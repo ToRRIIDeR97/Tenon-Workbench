@@ -21,7 +21,7 @@ import { ThreadSync } from "../../src/thread-sync"
 import { decrypt, encrypt, manifestContext } from "../../src/thread-sync/crypto"
 import { tmpdir } from "../fixture/tmpdir"
 import { testEffect } from "../lib/effect"
-import { fakeGcs } from "./gcs-fake"
+import { fakeDrive } from "./drive-fake"
 
 const projects = Layer.succeed(
   ProjectV2.Service,
@@ -225,24 +225,33 @@ describe("thread sync engine", () => {
     }),
   )
 
-  it.live("stores nothing readable in Cloud Storage", () =>
+  it.live("stores nothing readable in Google Drive", () =>
     Effect.gen(function* () {
       const tmp = yield* temporary
-      const gcs = fakeGcs()
-      yield* Effect.addFinalizer(() => Effect.promise(() => gcs.stop()))
-      const store = ThreadSync.gcsStore({ bucket: "b", endpoint: gcs.endpoint, token: async () => gcs.token })
+      const drive = fakeDrive()
+      yield* Effect.addFinalizer(() => Effect.promise(() => drive.stop()))
+      const store = ThreadSync.driveStore({ endpoint: drive.endpoint, token: async () => drive.token })
       yield* Effect.gen(function* () {
         const sync = yield* engine({ store, key: ThreadSync.generateKey().key, machine: desk })
         const id = yield* start("a confidential prompt")
         yield* sync.push(id)
         expect((yield* sync.list())[0]).toMatchObject({ sessionID: id, owner: desk, directory: location.directory })
       }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
-      const stored = [...gcs.objects.values()].map((object) => Buffer.from(object.bytes))
+      const files = [...drive.files.values()]
+      const stored = files.map((file) =>
+        Buffer.concat([
+          Buffer.from(file.bytes),
+          Buffer.from(file.name),
+          Buffer.from(JSON.stringify(file.appProperties)),
+        ]),
+      )
       for (const secret of ["a confidential prompt", desk.id, desk.name, "secret-project-folder", "A secret title"])
         expect(stored.filter((bytes) => bytes.includes(secret))).toEqual([])
-      expect([...gcs.objects.keys()].every((name) => /^b\/threads\/ses_[A-Za-z0-9]+\/[a-z0-9-]+$/.test(name))).toBe(
-        true,
-      )
+      expect(
+        files
+          .filter((file) => file.appProperties.tenonSync === "v1")
+          .every((file) => /^Tenon sync - threads - ses_[A-Za-z0-9]+ - [a-z0-9-]+$/.test(file.name)),
+      ).toBe(true)
     }),
   )
 
@@ -372,152 +381,163 @@ describe("thread sync engine", () => {
   )
 })
 
-describe("thread sync engine on a flaky or rolled-back store", () => {
-  const pushThenPull = (input: {
-    faults: Parameters<typeof flaky>[1]
-    first: "pushed" | "unavailable" | "conflict"
-    objectsAfterFailure: { manifest: boolean; segments: number }
-    second: { uploaded: number; head: number }
-  }) =>
-    Effect.gen(function* () {
-      const tmp = yield* temporary
-      const key = ThreadSync.generateKey().key
-      const real = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
-      const faulty = flaky(real, input.faults)
-      const sessionID = yield* Effect.gen(function* () {
-        const id = yield* start("over a flaky network")
-        const sync = yield* engine({ store: faulty, key, machine: desk })
-        if (input.first === "pushed") expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
-        if (input.first !== "pushed") expect(yield* code(sync.push(id))).toBe(input.first)
-        const stored = yield* Effect.promise(() => real.list(`threads/${id}/`))
-        expect(stored.some((item) => item.name.endsWith("/manifest"))).toBe(input.objectsAfterFailure.manifest)
-        expect(stored.filter((item) => item.name.includes("/segment-"))).toHaveLength(
-          input.objectsAfterFailure.segments,
-        )
-        expect(yield* sync.push(id)).toEqual(input.second)
-        return id
-      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
-      yield* Effect.gen(function* () {
-        const sync = yield* engine({ store: real, key, machine: laptop })
-        expect(yield* sync.pull(sessionID)).toEqual({ applied: 3, head: 2 })
-        expect((yield* local(sessionID)).events).toHaveLength(3)
-      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
-    })
+const backend = (kind: "folder" | "drive", directory: string) =>
+  kind === "folder"
+    ? Effect.succeed(ThreadSync.folderStore(path.join(directory, "store")))
+    : Effect.acquireRelease(
+        Effect.sync(() => fakeDrive()),
+        (drive) => Effect.promise(() => drive.stop()),
+      ).pipe(Effect.map((drive) => ThreadSync.driveStore({ endpoint: drive.endpoint, token: async () => drive.token })))
 
-  it.live("a lost reply after the manifest landed keeps the thread complete", () =>
-    pushThenPull({
-      faults: { loseReply: 1 },
-      first: "pushed",
-      objectsAfterFailure: { manifest: true, segments: 1 },
-      second: { uploaded: 0, head: 2 },
-    }),
-  )
-
-  it.live("a lost reply whose re-read also fails leaves the segment in place", () =>
-    pushThenPull({
-      faults: { loseReply: 1, failReadAfter: 1 },
-      first: "unavailable",
-      objectsAfterFailure: { manifest: true, segments: 1 },
-      second: { uploaded: 0, head: 2 },
-    }),
-  )
-
-  it.live("a manifest write the store refused with conflict removes its segment", () =>
-    pushThenPull({
-      faults: { failPut: 1, failCode: "conflict" },
-      first: "conflict",
-      objectsAfterFailure: { manifest: false, segments: 0 },
-      second: { uploaded: 3, head: 2 },
-    }),
-  )
-
-  it.live("an unavailable manifest write leaves its segment, whatever the re-read shows", () =>
-    pushThenPull({
-      faults: { failPut: 1 },
-      first: "unavailable",
-      objectsAfterFailure: { manifest: false, segments: 1 },
-      second: { uploaded: 3, head: 2 },
-    }),
-  )
-
-  it.live("a manifest write that lands after the re-read keeps the thread complete", () =>
-    pushThenPull({
-      faults: { failPut: 1, landAfterRead: true },
-      first: "unavailable",
-      objectsAfterFailure: { manifest: true, segments: 1 },
-      second: { uploaded: 0, head: 2 },
-    }),
-  )
-
-  it.live("a failed write whose re-read fails leaves a harmless orphan", () =>
-    pushThenPull({
-      faults: { failPut: 1, failReadAfter: 1 },
-      first: "unavailable",
-      objectsAfterFailure: { manifest: false, segments: 1 },
-      second: { uploaded: 3, head: 2 },
-    }),
-  )
-
-  it.live("a lost reply followed by another computer's takeover leaves that computer as owner", () =>
-    Effect.gen(function* () {
-      const tmp = yield* temporary
-      const key = ThreadSync.generateKey().key
-      const real = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
-      const onLaptop = computer(path.join(tmp.path, "laptop.sqlite"))
-      const hook = { armed: true }
-      const store: ThreadSync.Store = {
-        get: (name) => real.get(name),
-        list: (prefix) => real.list(prefix),
-        remove: (name) => real.remove(name),
-        put: async (name, bytes, options) => {
-          const written = await real.put(name, bytes, options)
-          if (!name.endsWith("/manifest") || !hook.armed) return written
-          hook.armed = false
-          await Effect.runPromise(
-            Effect.gen(function* () {
-              const sync = yield* engine({ store: real, key, machine: laptop })
-              yield* sync.takeOver(name.split("/")[1])
-            }).pipe(Effect.provide(onLaptop)),
+describe.each<"folder" | "drive">(["folder", "drive"])(
+  "thread sync engine on a flaky or rolled-back %s store",
+  (kind) => {
+    const pushThenPull = (input: {
+      faults: Parameters<typeof flaky>[1]
+      first: "pushed" | "unavailable" | "conflict"
+      objectsAfterFailure: { manifest: boolean; segments: number }
+      second: { uploaded: number; head: number }
+    }) =>
+      Effect.gen(function* () {
+        const tmp = yield* temporary
+        const key = ThreadSync.generateKey().key
+        const real = yield* backend(kind, tmp.path)
+        const faulty = flaky(real, input.faults)
+        const sessionID = yield* Effect.gen(function* () {
+          const id = yield* start("over a flaky network")
+          const sync = yield* engine({ store: faulty, key, machine: desk })
+          if (input.first === "pushed") expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
+          if (input.first !== "pushed") expect(yield* code(sync.push(id))).toBe(input.first)
+          const stored = yield* Effect.promise(() => real.list(`threads/${id}/`))
+          expect(stored.some((item) => item.name.endsWith("/manifest"))).toBe(input.objectsAfterFailure.manifest)
+          expect(stored.filter((item) => item.name.includes("/segment-"))).toHaveLength(
+            input.objectsAfterFailure.segments,
           )
-          throw new ThreadSync.SyncError({ code: "unavailable", message: "The reply was lost" })
-        },
-      }
-      yield* Effect.gen(function* () {
-        const id = yield* start("taken over mid-push")
-        const sync = yield* engine({ store, key, machine: desk })
-        expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
-        expect((yield* local(id)).owner).toBe(laptop.id)
-        expect(yield* code(sync.push(id))).toBe("not_owner")
-      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
-    }),
-  )
+          expect(yield* sync.push(id)).toEqual(input.second)
+          return id
+        }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+        yield* Effect.gen(function* () {
+          const sync = yield* engine({ store: real, key, machine: laptop })
+          expect(yield* sync.pull(sessionID)).toEqual({ applied: 3, head: 2 })
+          expect((yield* local(sessionID)).events).toHaveLength(3)
+        }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+      })
 
-  it.live("an older manifest put back changes nothing on a computer that is ahead", () =>
-    Effect.gen(function* () {
-      const tmp = yield* temporary
-      const key = ThreadSync.generateKey().key
-      const store = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
-      const sessionID = yield* Effect.gen(function* () {
-        const id = yield* start("before the rollback")
-        yield* (yield* engine({ store, key, machine: desk })).push(id)
-        return id
-      }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
-      const name = `threads/${sessionID}/manifest`
-      const old = yield* Effect.promise(() => store.get(name))
-      yield* Effect.gen(function* () {
-        const sync = yield* engine({ store, key, machine: laptop })
-        yield* sync.takeOver(sessionID)
-        yield* say(sessionID, "after the takeover")
-        expect(yield* sync.push(sessionID)).toEqual({ uploaded: 2, head: 4 })
-        yield* Effect.promise(() => store.put(name, old!.bytes))
-        const before = yield* local(sessionID)
-        expect(before.owner).toBe(laptop.id)
-        expect(yield* sync.pull(sessionID)).toEqual({ applied: 0, head: 2 })
-        expect(yield* local(sessionID)).toEqual(before)
-      }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
-    }),
-  )
-})
+    it.live("a lost reply after the manifest landed keeps the thread complete", () =>
+      pushThenPull({
+        faults: { loseReply: 1 },
+        first: "pushed",
+        objectsAfterFailure: { manifest: true, segments: 1 },
+        second: { uploaded: 0, head: 2 },
+      }),
+    )
+
+    it.live("a lost reply whose re-read also fails leaves the segment in place", () =>
+      pushThenPull({
+        faults: { loseReply: 1, failReadAfter: 1 },
+        first: "unavailable",
+        objectsAfterFailure: { manifest: true, segments: 1 },
+        second: { uploaded: 0, head: 2 },
+      }),
+    )
+
+    it.live("a manifest write the store refused with conflict removes its segment", () =>
+      pushThenPull({
+        faults: { failPut: 1, failCode: "conflict" },
+        first: "conflict",
+        objectsAfterFailure: { manifest: false, segments: 0 },
+        second: { uploaded: 3, head: 2 },
+      }),
+    )
+
+    it.live("an unavailable manifest write leaves its segment, whatever the re-read shows", () =>
+      pushThenPull({
+        faults: { failPut: 1 },
+        first: "unavailable",
+        objectsAfterFailure: { manifest: false, segments: 1 },
+        second: { uploaded: 3, head: 2 },
+      }),
+    )
+
+    it.live("a manifest write that lands after the re-read keeps the thread complete", () =>
+      pushThenPull({
+        faults: { failPut: 1, landAfterRead: true },
+        first: "unavailable",
+        objectsAfterFailure: { manifest: true, segments: 1 },
+        second: { uploaded: 0, head: 2 },
+      }),
+    )
+
+    it.live("a failed write whose re-read fails leaves a harmless orphan", () =>
+      pushThenPull({
+        faults: { failPut: 1, failReadAfter: 1 },
+        first: "unavailable",
+        objectsAfterFailure: { manifest: false, segments: 1 },
+        second: { uploaded: 3, head: 2 },
+      }),
+    )
+
+    it.live("a lost reply followed by another computer's takeover leaves that computer as owner", () =>
+      Effect.gen(function* () {
+        const tmp = yield* temporary
+        const key = ThreadSync.generateKey().key
+        const real = yield* backend(kind, tmp.path)
+        const onLaptop = computer(path.join(tmp.path, "laptop.sqlite"))
+        const hook = { armed: true }
+        const store: ThreadSync.Store = {
+          get: (name) => real.get(name),
+          list: (prefix) => real.list(prefix),
+          remove: (name) => real.remove(name),
+          put: async (name, bytes, options) => {
+            const written = await real.put(name, bytes, options)
+            if (!name.endsWith("/manifest") || !hook.armed) return written
+            hook.armed = false
+            await Effect.runPromise(
+              Effect.gen(function* () {
+                const sync = yield* engine({ store: real, key, machine: laptop })
+                yield* sync.takeOver(name.split("/")[1])
+              }).pipe(Effect.provide(onLaptop)),
+            )
+            throw new ThreadSync.SyncError({ code: "unavailable", message: "The reply was lost" })
+          },
+        }
+        yield* Effect.gen(function* () {
+          const id = yield* start("taken over mid-push")
+          const sync = yield* engine({ store, key, machine: desk })
+          expect(yield* sync.push(id)).toEqual({ uploaded: 3, head: 2 })
+          expect((yield* local(id)).owner).toBe(laptop.id)
+          expect(yield* code(sync.push(id))).toBe("not_owner")
+        }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+      }),
+    )
+
+    it.live("an older manifest put back changes nothing on a computer that is ahead", () =>
+      Effect.gen(function* () {
+        const tmp = yield* temporary
+        const key = ThreadSync.generateKey().key
+        const store = yield* backend(kind, tmp.path)
+        const sessionID = yield* Effect.gen(function* () {
+          const id = yield* start("before the rollback")
+          yield* (yield* engine({ store, key, machine: desk })).push(id)
+          return id
+        }).pipe(Effect.provide(computer(path.join(tmp.path, "desk.sqlite"))))
+        const name = `threads/${sessionID}/manifest`
+        const old = yield* Effect.promise(() => store.get(name))
+        yield* Effect.gen(function* () {
+          const sync = yield* engine({ store, key, machine: laptop })
+          yield* sync.takeOver(sessionID)
+          yield* say(sessionID, "after the takeover")
+          expect(yield* sync.push(sessionID)).toEqual({ uploaded: 2, head: 4 })
+          yield* Effect.promise(() => store.put(name, old!.bytes))
+          const before = yield* local(sessionID)
+          expect(before.owner).toBe(laptop.id)
+          expect(yield* sync.pull(sessionID)).toEqual({ applied: 0, head: 2 })
+          expect(yield* local(sessionID)).toEqual(before)
+        }).pipe(Effect.provide(computer(path.join(tmp.path, "laptop.sqlite"))))
+      }),
+    )
+  },
+)
 
 const flaky = (
   store: ThreadSync.Store,
