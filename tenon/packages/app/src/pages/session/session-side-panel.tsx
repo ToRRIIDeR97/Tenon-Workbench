@@ -27,7 +27,7 @@ const fileBrowserTabPanelID = "session-side-panel-file-browser-tabpanel"
 import { SessionContextTab, SortableTabV2 } from "@/components/session"
 import { OpenInAppV2 } from "@/components/session/open-in-app-v2"
 import { SessionTabClose } from "@/components/session/session-tab-close"
-import { AgentsTab, useThreadSubagents } from "@/components/session/subagent-tab"
+import { BackgroundTasksTab, useThreadTasks } from "@/components/session/background-tasks-tab"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -207,7 +207,7 @@ export function SessionSidePanel(props: {
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
   const section = tabState.section
-  const subagents = useThreadSubagents(() => section() === "agents")
+  const tasks = useThreadTasks(() => section() === "agents")
   createEffect(() => {
     const migrated = migrateAgentTabs(tabs().all(), tabs().active())
     if (!migrated) return
@@ -224,7 +224,7 @@ export function SessionSidePanel(props: {
         ? language.t("session.review.filesChanged", { count: props.reviewCount() })
         : language.t("secondBrain.environment.changes")
     if (value === "documents") return language.t("secondBrain.documents.title")
-    if (value === "agents") return language.t("secondBrain.agents.title")
+    if (value === "agents") return language.t("secondBrain.backgroundTasks.title")
     if (value === "browser") return language.t("secondBrain.browser.title")
     if (value === "device") return language.t("secondBrain.device.title")
     if (value === "canvas") return language.t("secondBrain.canvas.title")
@@ -394,8 +394,8 @@ export function SessionSidePanel(props: {
     <Show when={activeTab() === AGENTS_TAB}>
       <TabsV2.Content value={AGENTS_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
         <div class="relative flex-1 min-h-0 overflow-hidden">
-          <AgentsTab
-            groups={subagents()}
+          <BackgroundTasksTab
+            tasks={tasks()}
             selected={selectedAgent(sessionKey())}
             onSelect={(partID) => selectAgent(sessionKey(), partID)}
             harnessName={props.harnessName}

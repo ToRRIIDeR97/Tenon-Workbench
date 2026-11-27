@@ -43,15 +43,7 @@ export interface SubagentGroup {
   readonly items: ThreadSubagent[]
 }
 
-export type SubagentFilter = "all" | "running" | "failed"
-
 export const subagentFailed = (part: ToolPart) => part.state.status === "error"
-
-export function matchesFilter(part: ToolPart, filter: SubagentFilter) {
-  if (filter === "running") return subagentRunning(part)
-  if (filter === "failed") return subagentFailed(part)
-  return true
-}
 
 export function threadSubagents(
   messages: readonly Message[],
@@ -87,15 +79,6 @@ export function subagentCounts(groups: readonly SubagentGroup[]) {
     running: all.filter((item) => subagentRunning(item.part)).length,
     failed: all.filter((item) => subagentFailed(item.part)).length,
   }
-}
-
-export function findSubagent(groups: readonly SubagentGroup[], partID: string | undefined) {
-  if (!partID) return undefined
-  for (const group of groups) {
-    const found = group.items.find((item) => item.part.id === partID)
-    if (found) return found
-  }
-  return undefined
 }
 
 export function childTranscript(

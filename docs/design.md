@@ -94,7 +94,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
   hover `overlay-hover`, the open section the accent container), with badges
   at each button's top right; Documents (the thread's written and linked
-  documents, each opening in the Files viewer) follows Files; Context (the
+  documents, each opening in the Files viewer) follows Files; Background tasks
+  (below) follows Documents, its badge counting what is running; Context (the
   usage ring) is the last section,
   after Canvas, which is always there (it opens on the canvas's empty state
   before the agent has drawn). The Terminal button sits apart at the rail's
@@ -227,14 +228,35 @@ Use `[font-weight:N]` when a weight must differ from the role.
   Subagents cards replace "Taking the most room": per subagent its own context
   (used of its window, or "≈N estimated" from its transcript when the agent
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
-  its usage with Open in Agents and Show in thread. The Environment window's
+  its usage with Open in Agents (the Background tasks section) and Show in thread. The Environment window's
   Running section becomes "Subagents · N running · M done" listing only the
   subagents still at work (breathing dot, small bar, chevron; "None running
   now" when all have finished), then **All subagents**. A row or that link
-  opens the side panel's Agents tab and closes the window. Its Connectors
+  opens the side panel's Background tasks section and closes the window. Its Connectors
   section starts collapsed to "Connectors · N on" with a chevron; open, it
   lists each server on or off and ends with Manage MCP servers. The choice is
   remembered.
+- **Background tasks** (`background-tasks-tab.tsx`, the side panel section that
+  was Agents): one list of the thread's subagent runs and shell commands, including the
+  long-running ones an agent starts in a terminal tab (`terminal_start`). On
+  top, All / Agents / Commands filter pills with counts (the accent container
+  marks the chosen one). Then **Running** (newest first; "Nothing running in
+  the background." when empty) and **Finished** (latest ended first), each a
+  caption with its count over one 16px layer-01 card of rows. A row has the
+  kind's step icon (subagent or shell prompt), the title (a command in
+  monospace), while running the breathing dot and the elapsed time, and a
+  12px status line: the subagent's current step or the command's last output
+  line, then "Done · 48s · exit 0", "Failed · …" (critical text) or
+  "Stopped · …". Kinds differ by icon and typeface, never colour. A running
+  row ends with a Stop icon button. A row opens its detail (`ViewSwitch`) with
+  a Background tasks back link: a command shows its output in a monospace
+  layer-01 box that follows the end while it runs, with Copy output and Stop;
+  a subagent shows its prompt, steps and result. Stop is honest about its
+  reach: a built-in subagent whose own session has started stops alone ("Stop"), and
+  so does a command in a terminal tab (Stop closes that terminal; its detail
+  says the output is in the terminal and offers Show terminal); any other
+  command, or an external harness's subagent, can only end the whole turn, so
+  the button reads "Stop turn". New rows enter with the standard enter motion.
 - **Composer: light tab** (`session-ui` `prompt-input`, both the thread and
   the new-thread composer). At most 560px wide, centred in its column (the
   docks that attach to it share that width); empty, it is about 130px tall.
@@ -250,7 +272,7 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Composer row:** the 44px controls row has no fill or border of its own;
   its controls ghost as elsewhere at 30px (Send is 30px too), and it ends
   with the context ring. There is no Tasks button: running subagents show on the
-  thread rail's Agents button, as a count badge.
+  thread rail's Background tasks button, as a count badge (with running commands).
 - **Model pill** (`model-pill.tsx`): leads with the logo of the harness that
   runs the model (the Tenon mark for the built-in loop), never the model
   maker's. When the model offers reasoning levels the pill always shows one,

@@ -347,8 +347,8 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   reads "Thinking" with the topic it's on, which slides in as the topic
   changes. The
   side panel shows one section at a time, picked from a rail of icons at its
-  right edge: **Changes** (with the changed-file count), **Files**, **Agents**
-  (with how many are running), **Browser** and **Device** (desktop app only),
+  right edge: **Changes** (with the changed-file count), **Files**, **Background tasks**
+  (with how many subagents and commands are running), **Browser** and **Device** (desktop app only),
   **Canvas** (once the thread has opened one) and, at the bottom, **Details**
   (a ring of context use). The rail stays when the panel is hidden; a section's
   icon opens the panel on it, and the open section's icon hides the panel. Only

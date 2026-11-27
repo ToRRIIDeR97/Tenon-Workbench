@@ -1,5 +1,6 @@
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
 import type { IconProps } from "@tenon/ui/icon"
+import stripAnsi from "strip-ansi"
 
 export type StepKind =
   | "read"
@@ -167,6 +168,10 @@ const STOPPED = "Tool execution interrupted"
 
 export function isStopped(part: ToolPart) {
   return part.state.status === "error" && part.state.error === STOPPED
+}
+
+export function plainOutput(value: string) {
+  return stripAnsi(value).replace(/\r\n?/g, "\n")
 }
 
 export function subagentName(input: Record<string, unknown> | undefined): { name?: string; tag?: string } {
