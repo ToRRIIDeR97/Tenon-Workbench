@@ -213,9 +213,11 @@ standalone app can keep running on other computers.
 
 `@tenon/core/thread-sync` (`core/src/thread-sync.ts` and `thread-sync/`) moves
 one thread's event log between computers through an object store, sealed on
-the computer before it leaves. It is a library only: no route, setting or UI
-uses it yet; the Settings page, per-thread state and "Continue here" come
-later, with the Google sign-in that supplies the Cloud Storage token.
+the computer before it leaves. The engine below does the moving; the
+[manager](#thread-sync-manager) puts it in the server with settings, routes,
+a push after each turn and "Continue here". The Settings page, the Google
+sign-in that supplies the Cloud Storage token and the key in the system
+credential store come in the app half (P5b).
 
 ![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder or Cloud Storage store with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
 
@@ -311,10 +313,13 @@ later, with the Google sign-in that supplies the Cloud Storage token.
 - **List and remove.** `list` opens every `threads/*/manifest`, newest
   `updatedAt` (the last push that uploaded events) first. `remove` deletes
   the stored copy only, manifest first, and is `not_owner` for others.
+- **Compare.** `compare(sessionID)` reads the stored thread and this
+  computer's log and answers `absent`, `behind`, `current`, `ahead` or
+  `diverged` without changing either.
 - **Errors.** `ThreadSync.SyncError` has a `code`: `invalid_key`,
   `invalid_segment`, `unreadable`, `invalid_name`, `conflict`,
   `unauthorized`, `unavailable`, `not_found`, `not_owner`, `diverged`,
-  `foreign_path`, `unsupported`. Store
+  `foreign_path`, `unsupported`, and the manager's `not_ready`. Store
   and segment functions reject with it, `keyFromPhrase` throws it, and engine
   effects fail with it in the error channel.
 - **Known limits.**
@@ -327,14 +332,91 @@ later, with the Google sign-in that supplies the Cloud Storage token.
   - `folderStore` on Windows (and on case-insensitive macOS volumes) maps
     names that differ only in case to one file. The engine's names are
     case-stable, so only other writers to the folder can collide.
-  - A thread whose folder this system cannot hold is `foreign_path`; mapping
-    it to a local folder is the next phase's job.
+  - A thread whose folder this system cannot hold is `foreign_path`, also
+    for "Continue here": a thread started on Windows cannot be continued on
+    macOS yet ([deferred work](../deferred-work.md)).
   - Someone who can write to the store without the key can delete objects or
     put back an older genuine manifest, handing the lock back to a previous
     owner; two computers can then continue from the same point, which the
     engine reports later as `diverged`, and each keeps its own copy.
 
   Tests: `core/test/thread-sync/`.
+
+### Thread sync manager
+
+`ThreadSync.manager` (`core/src/thread-sync/manager.ts`) is what the server
+uses. `ThreadSync.node` (`thread-sync/service.ts`) builds one per server from
+the database, the event bus, `ProjectV2` and the Tenon config folder; both
+`@tenon/server`'s routes and the app server (`tenon/src/server/routes/instance/httpapi/server.ts`)
+include it.
+
+![Thread sync manager: clients call /api/thread-sync in the local server; the manager keeps thread-sync.json without secrets, asks the desktop for the key and token over the loopback bridge, pushes a thread on session.idle through the engine, and points a continued thread's session row at a folder on this computer](../diagrams/thread-sync-manager.svg)
+
+- **Settings file.** `thread-sync.json` in the Tenon config folder
+  (`Global.config`), created on first use and written through a temporary
+  file and a rename (`thread-sync/settings.ts`, mode `0600`). It holds
+  `enabled`, `bucket`, `machine` (`id`: the hostname, a dash and six random
+  hex characters, made once; `name`: the hostname until changed) and
+  `folders` (session ID to the folder chosen on this computer). It never
+  holds the key or a token. A file that cannot be parsed is renamed to
+  `thread-sync.json.broken-<ms>` and defaults are used, so the computer gets
+  a new machine ID once.
+- **Status and configure.** `status()` never fails; `missing` lists `bucket`,
+  `key` and `store` (no store while there is no bucket), and `ready` is true
+  only when sync is on and nothing is missing. `configure` checks the bucket
+  (3 to 63 of `a-z 0-9 - _ .`, starting and ending with a letter or digit)
+  and the computer name (1 to 64 characters after trimming) before saving
+  anything, else `invalid_name`.
+- **Not ready.** `threads`, `push`, `pull`, `continueHere` and `remove` fail
+  with `not_ready` until sync is on and the key and store are present, before
+  any store or database access.
+- **Stored threads.** `threads()` is the engine's `list` with `mine` (this
+  machine owns it), `local` from `compare` and `folder` (the choice on this
+  computer, or `null`). It downloads every stored thread to compare it.
+- **Push after a turn.** The service follows `session.idle` (published by
+  `SessionStatus.set` when a thread goes idle) and calls `settled`. It pushes
+  when this computer owns the thread or it is not stored yet; otherwise it
+  answers `{ pushed: false, reason }` with the error code or `up_to_date`.
+  Store failures (any code except `not_ready`, `not_owner`, `not_found` and
+  `invalid_name`) become `status().lastError`; the next successful push
+  clears it. `settled` never fails. Operations on one thread run one at a
+  time (`KeyedMutex`).
+- **Continue here.** `continueHere(sessionID, { directory })` needs an
+  absolute folder in this system's form (`canHold`), resolves its project
+  first (`ProjectV2.resolve` in the server), takes the thread over (pulling
+  first; only records the folder when this computer already owns it), saves
+  the choice in `folders`, then sets the local session row's `directory` and
+  `project_id` and inserts the project row if it is new. The choice is
+  re-applied after every pull, including one that applies nothing, because
+  replayed session updates rewrite the row. It is never written to the event
+  log, so other computers keep their own folder; the stored manifest's
+  `directory` stays the folder of the computer that last pushed. A
+  `continueHere` that fails records no folder (a takeover that succeeded
+  before a failed settings save stays).
+- **Credentials.** In the server, `bridgeCredentials` asks the desktop main
+  process over the existing loopback bridge (`TENON_BROWSER_URL` with its
+  bearer `TENON_BROWSER_TOKEN`): `POST /sync_key` answers
+  `{ text: "{\"key\":\"<base64url of 32 bytes>\"}" }` and `POST /sync_token`
+  `{ text: "{\"token\":\"<Cloud Storage access token>\"}" }`, or `{}` when
+  there is none. The store is `gcsStore`, which asks for a token on every
+  request. Both calls are outside `HarnessBrowserTools.TOOLS`, so an agent
+  cannot call them. Without the bridge (a plain `tenon serve`), the status is
+  `missing: ["key", "store"]` once a bucket is set. The desktop half of both
+  calls is P5b.
+- **Routes.** `server.threadSync` (`protocol/src/groups/thread-sync.ts`,
+  handlers in `server/src/handlers/thread-sync.ts`): `GET /api/thread-sync`
+  (status), `PUT /api/thread-sync` (configure), `GET /api/thread-sync/threads`,
+  `POST /api/thread-sync/threads/:sessionID/push`, `…/pull`, `…/continue`
+  (body `{ directory }`) and `DELETE /api/thread-sync/threads/:sessionID`. A
+  `SyncError` answers `{ _tag, code, message }` with 400 (`invalid_name`), 404
+  (`not_found`), 409 (`conflict`, `not_owner`, `diverged`), 412
+  (`not_ready`), 422 (`unreadable`, `unsupported`, `foreign_path`,
+  `invalid_key`, `invalid_segment`) or 502 (`unavailable`, `unauthorized`).
+  The generated client exposes them as `threadSync`.
+
+  Tests: `core/test/thread-sync/manager.test.ts` (acceptance),
+  `manager-edges.test.ts`, `service.test.ts`, `protocol/test/thread-sync.test.ts`
+  and `tenon/test/server/httpapi-thread-sync.test.ts`.
 
 ## Product entry points and persistence
 
