@@ -1389,10 +1389,11 @@ workspace, and those files become instructions for every harness.
 
 The thread sync engine (`core/src/thread-sync/`, see
 [architecture](../architecture/README.md#thread-sync)) copies a thread's event
-log, which holds prompts, replies, tool calls and file paths, to an object
-store: a folder or a Cloud Storage bucket in the person's own project. The
-store is outside Tenon's trust boundary; only computers holding the sync key
-are trusted. The server's sync manager calls the engine through
+log, which holds prompts, replies, tool calls and file paths, to a store: a
+local folder, or a folder the person can see in their own Google Drive
+(personal use, one Google account, their own computers). The store is
+outside Tenon's trust boundary; only computers holding the sync key are
+trusted. The server's sync manager calls the engine through
 `/api/thread-sync`, behind the server's existing authorization; the Settings
 page and the Google sign-in are not built yet (P5b).
 
@@ -1402,15 +1403,53 @@ page and the Google sign-in are not built yet (P5b).
   thread's title, directory and project worktree, and the segment list.
   Nothing readable about the thread is stored; tests search every stored
   byte for the prompt text, title, directory, machine ID and machine name.
-- **What a bucket reader still learns.** Object names are
+- **What a reader of the store still learns.** Store names are
   `threads/<sessionID>/manifest` and
-  `threads/<sessionID>/segment-<first>-<last>-<sha256>`, so anyone who can
-  list the bucket sees session IDs (which embed a creation time), how many
-  events each push carried, object sizes, write times and generations, the
-  number of threads and pushes, and which threads change together. A push
+  `threads/<sessionID>/segment-<first>-<last>-<sha256>`; in Google Drive the
+  file names are those parts joined (`Tenon sync - threads - <sessionID> -
+  manifest`) and the private `appProperties` repeat them with the parent
+  file ID, a random writer ID and the content's SHA-256. So anyone who can
+  list the store sees session IDs (which embed a creation time), how many
+  events each push carried, file sizes, creation times, the number of
+  threads and pushes, and which threads change together. Neither names nor
+  properties hold a title, a path, prompt text or a computer name. A push
   whose manifest write failed without a definite refusal leaves its sealed
-  segment behind, so the count can include such unlisted segments. Bucket
-  access logs add the client IP addresses.
+  segment behind, so the count can include such unlisted segments.
+- **Who can see and do what in Google Drive.** The token's scope is
+  `https://www.googleapis.com/auth/drive.file`: Tenon sees only the files and
+  folders it made, never the rest of the person's Drive, and other apps
+  cannot read Tenon's `appProperties`.
+  - *Google* stores the folder, so it sees what any reader sees (above) plus
+    the account, the times and the client IP addresses of every request. It
+    never sees the key, so it cannot read a thread.
+  - *The person* sees the "Tenon Workbench Threads" folder and its files in
+    the Drive web page and apps, and can rename, move, download, edit,
+    replace, trash, delete or share them. Renaming or moving changes
+    nothing (Tenon finds its files by their private properties wherever they
+    are in My Drive). Editing or replacing a file's content makes it
+    `unreadable`: the store checks the SHA-256 it recorded, and the engine's
+    authenticated decryption checks again, so changed content is never
+    trusted. Trashing or deleting a file is like deleting it from the store:
+    a missing segment makes that thread `unreadable`, a missing manifest
+    makes it `not_found`; trashing the whole folder makes every thread
+    `not_found` until the next push writes a new folder. Restoring from the
+    bin brings the files back. Files the person adds to the folder are not
+    Tenon's and are invisible to it.
+  - *Anyone the folder or a file is shared with* sees the names, sizes and
+    times and can download the ciphertext, which they cannot open without
+    the key. With edit access they can also trash, move or replace the
+    content of files. Replaced content, even an older genuine ciphertext,
+    fails the recorded SHA-256 and is `unreadable`; writing a new version
+    with the right properties needs Tenon's OAuth client and the person's
+    token, because `appProperties` are private to it. So they can break or
+    hide threads, not read, forge or roll them back. Sharing the folder is
+    never needed and the app should say so.
+  - *A holder of the Drive token* acts as Tenon: they can list, read
+    ciphertext, delete every version, and write versions, so they can roll a
+    thread back by writing an older genuine manifest as the new winner (see
+    Integrity) or make it unreadable. They cannot read or forge content
+    without the key. The token lives only in memory in the server for one
+    call; its lifetime and refresh are the desktop's job (P5b).
 - **Integrity.** Authenticated encryption plus additional data bind each
   segment to its session ID and to the hash of the segment before it, and the
   manifest to its session ID, and the manifest lists every segment's hash. A
@@ -1427,7 +1466,16 @@ page and the Google sign-in are not built yet (P5b).
 - **Ownership is cooperative, not a security control.** Every holder of the
   key can take a thread over. Conditional writes (`ifGeneration` on every
   engine `put`) stop two honest computers from interleaving history; they
-  do not stop a key holder. A local log that differs from the stored one is
+  do not stop a key holder. Google Drive has no write precondition, so
+  `driveStore` emulates one: immutable versions linked by parent IDs, a
+  deterministic winner (the first-created child at each step from the
+  first-created root) and a read-back after every write
+  ([architecture](../architecture/README.md#google-drive-store)). It is exact
+  only if a Drive listing made after a create shows every earlier version;
+  Drive does not promise that. If a listing is stale, two computers writing
+  the same thread within seconds can both be told they succeeded. Nothing is
+  forged or silently merged: the engine sees history that differs and
+  reports `diverged`, and each computer keeps its own copy. A local log that differs from the stored one is
   refused as `diverged` before anything local changes. Stored events this
   version cannot apply (an unknown type, data that fails its schema, a
   replay that fails partway) are refused as `unsupported`: they are checked
@@ -1437,9 +1485,9 @@ page and the Google sign-in are not built yet (P5b).
   is expected to keep it in the operating system's credential store
   (Windows Credential Manager through DPAPI, the macOS Keychain) and show the
   phrase once so the person can enter it on another computer. It must never be
-  stored in the bucket, in `tenon.db`, in logs or in the renderer's storage.
+  stored in Google Drive, in `tenon.db`, in logs or in the renderer's storage.
   The desktop side is P5b and is not yet built. The server never stores the
-  key or the Cloud Storage token: the manager asks the desktop main process
+  key or the Google Drive token: the manager asks the desktop main process
   for them on each operation over the loopback bridge (`POST /sync_key`,
   `POST /sync_token`, bearer `TENON_BROWSER_TOKEN`, bound to `127.0.0.1`) and
   holds them only in memory for that call. Both bridge calls are outside the
@@ -1449,11 +1497,13 @@ page and the Google sign-in are not built yet (P5b).
   stays `not_ready`.
 - **Settings file.** `thread-sync.json` in the Tenon config folder (mode
   `0600` on macOS; the user profile's permissions on Windows) holds whether
-  sync is on, the bucket name, this computer's machine ID and name, and the
-  folder chosen for each continued thread (session ID and absolute path). It
-  never holds the key, the phrase or a token; a test reads the file for the
-  key in hex and base64 and the phrase. Anyone who can read the user's
-  config folder learns the bucket and those folder paths.
+  sync is on, the Google Drive folder's name if one was chosen, this
+  computer's machine ID and name, and the folder chosen for each continued
+  thread (session ID and absolute path). It never holds the key, the phrase
+  or a token; a test reads the file for the key in hex and base64 and the
+  phrase. Anyone who can read the user's config folder learns those folder
+  paths. A file written before Drive may still hold a bucket name until the
+  next save drops it.
 - **Routes and the folder choice.** `PUT /api/thread-sync` and
   `POST …/continue` change only that file and, for "Continue here", the local
   session row's folder and project; nothing about the folder is written to
@@ -1465,24 +1515,28 @@ page and the Google sign-in are not built yet (P5b).
   `unreadable`). The local threads on each computer are unaffected. A leaked
   key exposes every stored thread; rotating it means removing the stored
   copies and pushing again under a new key.
-- **Cloud Storage access.** `gcsStore` sends the bearer token from its
+- **Google Drive access.** `driveStore` sends the bearer token from its
   `token()` callback only to the configured endpoint (by default
-  `https://storage.googleapis.com`, HTTPS) and never logs it; the endpoint
-  is a parameter for tests and must stay HTTPS in the app. 401 and 403 are
-  `unauthorized`. The token should be scoped to the one bucket
-  (`devstorage.read_write` or a narrower IAM role) by the sign-in that
-  supplies it.
+  `https://www.googleapis.com`, HTTPS) and never logs it; the endpoint is a
+  parameter for tests and must stay HTTPS in the app. It never asks for more
+  than `drive.file`, never uses `appDataFolder`, and never changes a file it
+  made: every write is a new file, so a bug cannot overwrite the person's
+  other files. 401 is `unauthorized`; a 403 other than a rate limit or a full
+  Drive is `unauthorized`. Every computer must use the same Tenon OAuth
+  client; one signed in through another client sees none of the files. The
+  OAuth client is Tenon's own (AGENTS.md: no borrowed client IDs).
 - **Folder store.** Names are validated before any file access (parts of
   `A-Z a-z 0-9 . _ -`, never `.` or `..`, no `\` or `:`), so no name can
   leave the folder. Files get the user's default permissions on Windows and
-  macOS; a synced folder (Drive, OneDrive, Dropbox) carries the same
-  metadata exposure as a bucket.
+  macOS; a folder that another program syncs (OneDrive, Dropbox) carries the
+  same metadata exposure as the Drive store.
 - **Known gaps.** Files that events only point to (the tool-output store,
   image blobs) are not synced, so they are not exposed but also not
   available on the other computer. Once sync is on, every thread that goes
   idle and is not owned by another computer is pushed, not only threads the
-  person picked. The verification of the real Cloud Storage
-  API is against a local fake; the live API has not been exercised.
+  person picked. `driveStore` is verified against two local fakes of the
+  Drive v3 API; the live API has not been exercised (no credentials exist
+  yet), and the freshness of Drive listings is an assumption.
 
 ## Agent-authored SVG in chat
 

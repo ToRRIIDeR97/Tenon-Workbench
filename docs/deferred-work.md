@@ -85,6 +85,14 @@ external_directory approval before edit approval.
 - `thread-sync/manager.ts`: `threads()` downloads and opens every stored
   thread to report its local state; cache the comparison by manifest
   generation once lists grow.
+- `thread-sync/drive.ts`: run the store against the live Google Drive API
+  once P5b has a sign-in. Confirm that a second computer signed in through
+  the same Tenon OAuth client sees the files under `drive.file`, and measure
+  how soon a `files.list` shows a file another client just created: the
+  emulated conditional write is exact only if it shows it at once.
+- `thread-sync/drive.ts`: `list` reads every Tenon file in the Drive and
+  each write lists the name twice; if that grows slow, keep a start page token
+  from the Drive changes feed instead of listing again.
 
 ## Upstream engine (`tenon/packages/tenon/src`)
 
