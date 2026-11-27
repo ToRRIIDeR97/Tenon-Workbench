@@ -10,6 +10,7 @@ import { usePrompt } from "@/context/prompt"
 import type { ImageAttachmentPart } from "@/context/prompt-state"
 import { createBlobReference } from "@/utils/draft-store"
 import { uuid } from "@/utils/uuid"
+import { browserCovered, watchBrowserCover } from "./browser-cover"
 import { browserStage } from "./browser-stage"
 
 type Picked = NonNullable<Awaited<ReturnType<NonNullable<ReturnType<typeof usePlatform>["browser"]>["pick"]>>>
@@ -57,11 +58,11 @@ export function SessionBrowserTab() {
     if (!browser || !stageEl) return
     const resize = new ResizeObserver(place)
     resize.observe(stageEl)
-    const dialogs = new MutationObserver(() => {
-      setCovered(!!document.querySelector('[role="dialog"], [data-component="dialog-stack"] [data-expanded]'))
+    setCovered(browserCovered(document))
+    const unwatchCover = watchBrowserCover(document, () => {
+      setCovered(browserCovered(document))
       place()
     })
-    dialogs.observe(document.body, { childList: true, subtree: true })
     window.addEventListener("resize", place)
     const offState = browser.onState((state) => {
       const shown = stage()
@@ -75,7 +76,7 @@ export function SessionBrowserTab() {
     place()
     onCleanup(() => {
       resize.disconnect()
-      dialogs.disconnect()
+      unwatchCover()
       window.removeEventListener("resize", place)
       offState()
       offAgent()

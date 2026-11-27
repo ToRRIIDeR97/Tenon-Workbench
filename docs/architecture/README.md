@@ -3784,8 +3784,11 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   screenshot (draw, capture a region, add notes) and send it to the composer.
   The view hides while annotating or while a dialog is open, and until a page
   has committed: a fresh tab, a first load, and a failed one show the tab's own
-  state instead of a blank view. Main reports a failed main-frame load
-  (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
+  state instead of a blank view. A dialog counts as open when it is not
+  `inert`, so the closed Command Centre card, which stays mounted, does not
+  hide the page (`browserCovered` in
+  `app/src/pages/session/browser-cover.ts`). Main reports a failed main-frame
+  load (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
   rejected certificate as `error` in `browser-state`
   (`desktop/src/main/browser-failure.ts`); the tab shows it with the address
   and Retry (`browserStage` in `app/src/pages/session/browser-stage.ts`).
