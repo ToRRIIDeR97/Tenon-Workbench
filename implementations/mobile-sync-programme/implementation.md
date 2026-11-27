@@ -64,6 +64,42 @@ starts; this section fixes their outcome, scope and order now.
 | P7 | Phone layout of the renderer below 600 px | `tenon/packages/app`, `tenon/packages/ui` | P6 | alone |
 | P8 | Capacitor shell: Android build verified on an emulator, iOS project written and unverified | new `tenon/packages/mobile` | P7 | alone |
 | P9 | Ranked feature backlog, then the features the user picks | set per feature | P3 | set per feature |
+| P0 | The app e2e suite passes five default-worker runs in a row (first-wave time-outs investigated) | `tenon/packages/app/e2e/**`, `docs/records/` | independent | alone |
+
+From 2026-11-27 one agent runs the remaining phases with the TOR-1 loop and no subagents, in this order,
+each on its own local branch stacked on the previous one: P0 `claude/e2e-first-wave-timeouts`, P5b
+`claude/thread-sync-desktop`, P6b `claude/remote-access-desktop`, P7 `claude/phone-layout`, P8
+`claude/mobile-shell`, P3c `claude/feature-gap-tests`, P3d `claude/manual-feature-checks`, P9
+`claude/feature-backlog`. The review panel is replaced by a scored self-review in three lenses (plan
+conformance, correctness and regressions, integrity and scope); one author wrote the plan, both test sets
+and the code. Verification sets are kept outside the repository
+(`C:\Users\sense\.tor-verification\tenon-mobile-sync\frozen\<phase>\`).
+
+## P0: first-wave e2e time-outs
+
+Reported: with ten Playwright workers the first test each worker starts (dictation-web AC-2.4,
+agent-writes AC-6.1, live-canvas-board AC-24, live-canvas-follow AC-9..11, live-document AC-18..19,
+live-tracked-edits AC-25, notes-f AC-4.1) often timed out after 10 s waiting for the first page; with one
+worker everything passed.
+
+### Acceptance criteria
+
+- **AC-P0-1 Measured.** Five default-worker runs of `bun run test:e2e` on the base, with the machine
+  otherwise idle, are recorded per run (passed, failed, which tests, wall time) in
+  `docs/records/e2e-first-wave-2026-11-27.md`.
+- **AC-P0-2 Cause.** The record names the cause of the first-wave time-outs with an experiment that turns
+  them on and off, or says the cause was not found and what was tried.
+- **AC-P0-3 Fixed at the right layer.** Every test that failed in the measured runs is either fixed where the
+  fault is (the app, the fixture or the test's own synchronisation) with a stress run that fails before and
+  passes after, or recorded as unexplained with its failure rate. No `.skip`, `.fixme`, `.only`, raised
+  time-out, retry or fixed sleep.
+- **AC-P0-4 Five clean runs.** Five default-worker runs of the full `bun run test:e2e` in a row end with no
+  failed test; if not, the record lists every failure and the phase says so.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P0-1, 2, 4 | the five full default-worker runs (`PLAYWRIGHT_PORT=3105 PLAYWRIGHT_SERVER_PORT=4105 bun run test:e2e` in `tenon/packages/app`) | the same runs read back from their logs |
+| AC-P0-3 | each changed spec with `--repeat-each=20` or more at the default workers, before and after | the cold-cache experiment: the acceptance specs with and without the Markdown worker's `optimizeDeps.include`, `node_modules/.vite` deleted first |
 
 Each phase is one pull request. Nothing is merged without the user's approval.
 
@@ -1011,3 +1047,26 @@ review panel was replaced by a scored self-review in three lenses.
   implies it, does not say it); how fresh Drive listings are, on which the emulated conditional write
   depends. `status()` now asks the credentials for a store on every call, also while sync is off, where
   P5a asked only once a bucket was set.
+### P0 first-wave e2e time-outs (2026-11-27)
+
+One agent (TOR-1, no subagents) on branch `claude/e2e-first-wave-timeouts` from `9538b1f6`. The plan section
+was written after the five base runs, because the investigation had to start by measuring; it was frozen
+before any spec changed.
+
+- Base, five default-worker runs: 1 clean of 5; none of the seven first-wave tests failed. Failures:
+  `thread-menu-rename` (3 runs), `terminal-composer-focus`, `session-timeline-transport` heartbeat,
+  `review-line-comment` hover (1 each). Record: `docs/records/e2e-first-wave-2026-11-27.md`.
+- Cause of the reported time-outs (AC-P0-2): Vite re-optimizing the Markdown worker's dependencies on a
+  cold cache and reloading every open page. Already fixed by P3b's `optimizeDeps.include`; the
+  experiment with the cache deleted gave 5 failures of 92 acceptance tests without it and 0 with it.
+- Fixed (AC-P0-3), both in the tests' own synchronisation, each with a stress run before and after:
+  `thread-menu-rename` polls the recorded `PATCH` (9 of 40 failed before, 0 of 40 after);
+  `session-timeline-transport` heartbeat waits for the rendered paragraph before its snapshot (2 of 40, then
+  0 of 40). No time-out, retry, skip or sleep was added.
+- After, five default-worker runs (AC-P0-4): 4 clean of 5. Run 4 failed `home-page-stable` (eightfold CPU
+  throttling, composer not visible within 10 s under ten workers). **AC-P0-4 is not met**; the record says
+  why the remaining load-sensitive and unexplained tests were left.
+- Self-review, round 1: plan conformance 9 (plan written after measuring; said here), correctness and
+  regressions 10 (both changes keep their assertions; stress before and after), integrity and scope 9
+  (AC-P0-4 missed, must be said in the report, not hidden). Round 2 after this section: 10, 10, 10 for what
+  was done; AC-P0-4 stays open.
