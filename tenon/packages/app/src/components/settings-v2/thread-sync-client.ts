@@ -11,7 +11,7 @@ export type ThreadSyncServerStatus = {
   lastError: string | null
 }
 
-type Client = { server: ServerConnection.Any; fetch?: typeof globalThis.fetch }
+export type OwnerClient = { server: ServerConnection.Any; fetch?: typeof globalThis.fetch }
 
 export class ThreadSyncRequestError extends Error {
   constructor(
@@ -24,12 +24,12 @@ export class ThreadSyncRequestError extends Error {
 }
 
 export const threadSyncApi = {
-  status: (client: Client) => call<ThreadSyncServerStatus>(client, "GET", "/api/thread-sync"),
-  configure: (client: Client, change: { enabled?: boolean; driveFolder?: string; machineName?: string }) =>
-    call<ThreadSyncServerStatus>(client, "PUT", "/api/thread-sync", change),
-  threads: (client: Client) => call<StoredThread[]>(client, "GET", "/api/thread-sync/threads"),
-  continueHere: (client: Client, sessionID: string, directory: string) =>
-    call<{ applied: number; head: number }>(
+  status: (client: OwnerClient) => ownerRequest<ThreadSyncServerStatus>(client, "GET", "/api/thread-sync"),
+  configure: (client: OwnerClient, change: { enabled?: boolean; driveFolder?: string; machineName?: string }) =>
+    ownerRequest<ThreadSyncServerStatus>(client, "PUT", "/api/thread-sync", change),
+  threads: (client: OwnerClient) => ownerRequest<StoredThread[]>(client, "GET", "/api/thread-sync/threads"),
+  continueHere: (client: OwnerClient, sessionID: string, directory: string) =>
+    ownerRequest<{ applied: number; head: number }>(
       client,
       "POST",
       `/api/thread-sync/threads/${encodeURIComponent(sessionID)}/continue`,
@@ -37,7 +37,7 @@ export const threadSyncApi = {
     ),
 }
 
-async function call<T>(client: Client, method: string, path: string, body?: unknown): Promise<T> {
+export async function ownerRequest<T>(client: OwnerClient, method: string, path: string, body?: unknown): Promise<T> {
   const headers = new Headers({ Accept: "application/json" })
   if (body !== undefined) headers.set("Content-Type", "application/json")
   if (client.server.http.password)

@@ -14,7 +14,7 @@ import { basename, isAbsolute, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
-import type { GoogleCalendarPlatform, ThreadSyncPlatform } from "@tenon/app"
+import type { GoogleCalendarPlatform, RemoteAccessPlatform, ThreadSyncPlatform } from "@tenon/app"
 import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
 
 import type { FatalRendererError, ServerReadyData, StartupMilestone, TitlebarTheme } from "../preload/types"
@@ -122,6 +122,7 @@ type Deps = {
   mail: MailService
   harnessSync: HarnessSyncService
   threadSync: ThreadSyncPlatform
+  remoteAccess: RemoteAccessPlatform
 }
 
 const settle = (work: () => Promise<unknown>) =>
@@ -220,6 +221,14 @@ export function registerIpcHandlers(deps: Deps) {
     deps.threadSync.enterPhrase(typeof phrase === "string" ? phrase : ""),
   )
   trustedHandle("thread-sync-forget-key", () => deps.threadSync.forgetKey())
+  trustedHandle("remote-access-status", () => deps.remoteAccess.status())
+  trustedHandle("remote-access-configure", (_event, input: { enabled?: unknown; address?: unknown; port?: unknown }) =>
+    deps.remoteAccess.configure({
+      enabled: input?.enabled === true,
+      address: typeof input?.address === "string" ? input.address : "",
+      port: typeof input?.port === "number" ? input.port : Number.NaN,
+    }),
+  )
   trustedHandle("dictation-start", (event, options: { language?: unknown } | undefined) =>
     deps.dictation.start(
       (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),

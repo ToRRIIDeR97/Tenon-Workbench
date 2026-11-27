@@ -280,6 +280,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   `settings-v2-section` with its title, `settings-v2-list` cards of
   `settings-v2-row`s, the Harnesses folding group, the Built-in harness
   segmented control). No nested panes, custom cards or tiles inside Settings.
+- **QR codes** (Settings › Servers › Phone access): dark modules
+  (`--v2-grey-1000`) on a light tile (`--v2-grey-50`) with a four-module quiet
+  zone and 8px corners in both themes, so a phone camera reads them; 168px
+  square beside the code written out in groups of four.
 - **Exits:** anything that animates in also animates out. The Reply pill fades
   where it was (except when it grows into the reply card), and hand-rolled
   popups such as the folder picker's suggestions use the menu exit.

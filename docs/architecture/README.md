@@ -213,10 +213,9 @@ standalone app can keep running on other computers.
 
 `@tenon/core/remote-access` (`core/src/remote-access.ts` and
 `remote-access/`) lets a phone pair with this computer and call its server
-with its own revocable token, held to a companion scope. This is the server
-half: the server still listens on loopback only and nothing in the desktop or
-app calls these routes yet; the second listener, the QR code and Settings ›
-Servers come later. Security detail and the full scope table are in the
+with its own revocable token, held to a companion scope. The server listens on
+loopback only; phones reach it through the desktop's second listener (below).
+Security detail and the full scope table are in the
 [threat model](../security/threat-model.md#remote-access).
 
 ![Pairing sequence: the owner makes a code, the phone trades it for a token, then uses the token in a header and a ticket for event streams](../diagrams/remote-pairing.svg)
@@ -265,6 +264,28 @@ Servers come later. Security detail and the full scope table are in the
   behaviour, raw-socket path tricks) and `remote-access-app.test.ts` (the real
   server: pairing, revoking, an open stream ending after revocation, stream
   tickets, 403 on every denied route, the 429 limit).
+- **Second listener** (`desktop/src/main/remote-access/`). `createRemoteAccess`
+  (`controller.ts`) keeps `{ enabled, address, port }` in the `tenon.remote-access`
+  store, offers `lanAddresses(os.networkInterfaces())` (`addresses.ts`:
+  non-internal, IPv4 first, no link-local IPv6) and starts
+  `startRemoteListener` (`listener.ts`) once the server is ready, pointed at the
+  loopback server's URL. The listener is a reverse proxy that forwards only
+  bearer requests, `POST /remote/pair` and ticketed `GET`s, streams bodies both
+  ways, refuses `Basic`, `auth_token` and socket upgrades, and answers CORS for
+  the Capacitor origins. IPC `remote-access-status` and
+  `remote-access-configure` only call the controller.
+- **Settings › Servers › Phone access** (`app/src/components/settings-v2/phone-access.tsx`,
+  `remote-access-model.ts`): the switch, address and port, the plain-HTTP and
+  firewall warning, Pair a phone (the code from `POST /api/remote/pairing-code`
+  as text and as a QR code of `tenon://pair?server=…&code=…`, drawn as SVG from
+  `qrcode-generator`) and the paired devices with last seen and Revoke, through
+  the owner's password. Windows asks through Defender Firewall and macOS
+  through its application firewall the first time the listener binds a LAN
+  address. Tests: `desktop/src/main/remote-access/{acceptance,controller}.test.ts`,
+  `listener.node-test.ts` (raw sockets under Node, the runtime Electron
+  uses), `app/src/components/settings-v2/remote-access-{model,qr}.test.ts`.
+
+![Second listener: a phone on the LAN calls the desktop's listener with its device token; the listener forwards bearer requests, pairing and ticketed streams to the loopback server and refuses passwords and sockets; the server authenticates the device and applies the companion scope](../diagrams/remote-listener.svg)
 
 ## Thread sync
 

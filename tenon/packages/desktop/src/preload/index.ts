@@ -69,6 +69,10 @@ const api: ElectronAPI = {
     discardConflict: (input) => ipcRenderer.invoke("google-calendar-discard-conflict", input),
     disconnect: (input) => ipcRenderer.invoke("google-calendar-disconnect", input),
   },
+  remoteAccess: {
+    status: () => ipcRenderer.invoke("remote-access-status"),
+    configure: (input) => ipcRenderer.invoke("remote-access-configure", input),
+  },
   threadSync: {
     status: () => ipcRenderer.invoke("thread-sync-status"),
     setClient: (input) => ipcRenderer.invoke("thread-sync-set-client", input),

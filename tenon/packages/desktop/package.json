@@ -11,7 +11,7 @@
     "email": "ToRRIIDeR97@users.noreply.github.com"
   },
   "scripts": {
-    "test": "bun test --only-failures && node --experimental-strip-types --test src/main/draft-store.node-test.ts",
+    "test": "bun test --only-failures && node --experimental-strip-types --test src/main/draft-store.node-test.ts src/main/remote-access/listener.node-test.ts",
     "typecheck": "tsgo -b",
     "predev": "bun ./scripts/predev.ts",
     "dev": "electron-vite dev",

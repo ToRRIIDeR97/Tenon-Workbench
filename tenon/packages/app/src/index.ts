@@ -27,6 +27,8 @@ export {
   type MailImapInput,
   type MailPlatform,
   type Platform,
+  type RemoteAccessPlatform,
+  type RemoteAccessStatus,
   type ThreadSyncDesktopStatus,
   type ThreadSyncPlatform,
   PlatformProvider,

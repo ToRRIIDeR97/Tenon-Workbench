@@ -1576,11 +1576,11 @@ main process signs in to Google Drive and keeps the key (Settings › Sync).
 A phone can be paired with this computer and then talk to its server with its
 own revocable token, limited to a companion scope that the server enforces
 (`core/src/remote-access.ts`, `core/src/remote-access/`, see
-[architecture](../architecture/README.md#remote-access)). This is the server
-half only: the server still listens on loopback, the bind guard still refuses
-a wider address without `TENON_SERVER_PASSWORD`, and no window or phone app
-uses these routes yet. A later phase adds the second listener, the QR code and
-device management in Settings.
+[architecture](../architecture/README.md#remote-access)). The server itself
+still listens on loopback only and the bind guard still refuses a wider
+address without `TENON_SERVER_PASSWORD`. Phones reach it through a second
+listener in the desktop app, off by default (below), and are paired and
+managed in Settings › Servers › Phone access.
 
 ![Pairing sequence: the owner makes a code, the phone trades it for a token, then uses the token in a header and a ticket for event streams](../diagrams/remote-pairing.svg)
 
@@ -1685,7 +1685,34 @@ device management in Settings.
   workspace is forwarded there with that workspace's configured credentials,
   as the owner's would be, so the same reach extends to its threads. The
   owner revokes it with `DELETE /api/remote/devices/:id`.
-- **Transport.** The link will be plain HTTP on a network the user trusts (a
+- **The second listener** (`desktop/src/main/remote-access/`). Off by default;
+  while off nothing but the loopback server listens. The owner turns it on in
+  Settings › Servers › Phone access and picks one of this computer's
+  non-internal addresses (never `0.0.0.0`, `::`, loopback or link-local IPv6)
+  and a port from 1024 to 65535 (default 47100); the choice is kept in the
+  `tenon.remote-access` desktop store and re-applied at start only if the
+  address still exists. It is a reverse proxy in Electron main to the
+  loopback server and forwards only device requests: a non-empty
+  `Authorization: Bearer` with no `auth_token` query, `POST /remote/pair`, or a
+  `GET` with a `ticket` query. Anything else, including any `Basic`
+  credential and the password in `auth_token`, is 401 without reaching the
+  server, so the owner's password is useless on the network. Socket upgrades
+  (terminal sockets) are 403. The method, raw path and query are forwarded as
+  received, so the server's raw-path checks and the companion scope apply
+  unchanged; hop-by-hop headers are dropped and no `X-Forwarded-*` header is
+  added (the server's pairing limiter therefore sees every phone as one
+  loopback caller, sharing the ten-a-minute budget). Preflights and responses
+  for the Capacitor origins (`capacitor://localhost`, `https://localhost`,
+  `http://localhost`) carry CORS headers for that origin; no other origin gets
+  any, and the server's own CORS headers are not passed on. The page warns that
+  the link is plain HTTP for a home network or VPN, that a paired phone can
+  read and steer every thread, and that Windows Defender Firewall (Windows) or
+  the application firewall (macOS) may ask to let Tenon accept connections;
+  allowing it only on private networks is the safe answer. Pairing codes
+  appear in the page as text and as a QR code of
+  `tenon://pair?server=<url>&code=<code>`; anyone who can see the screen
+  within the five minutes can pair, as with typing the code.
+- **Transport.** The link is plain HTTP on a network the user trusts (a
   local network or a VPN) until a later phase adds a relay. Anyone who can
   watch that network can read the token, the tickets and every thread the
   phone reads, and can replay the token until it is revoked.

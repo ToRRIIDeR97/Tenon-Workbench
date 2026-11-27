@@ -1032,6 +1032,93 @@ Unverified: the live Google sign-in and Drive; that a second computer signed in 
 sees the first one's files under `drive.file`; Drive listing freshness; anything on macOS (Keychain through
 `safeStorage` is the same API, untested here).
 
+### P6b: remote access in the desktop app
+
+One agent (TOR-1, no subagents) wrote this section, both test sets and the code; the review panel is a
+scored self-review in three lenses.
+
+Before: the server listens on loopback only; P6a's pairing, device tokens and companion scope exist in the
+server but nothing outside this computer can reach it, and no page makes a pairing code or lists devices.
+
+After: the owner can turn on a second listener for paired devices on one LAN or VPN address of this
+computer. It is a small reverse proxy in Electron main that forwards only device requests to the local
+server, where P6a's middleware authenticates them and enforces the companion scope. Settings › Servers
+gains Phone access: the switch, the address and port, a plain-HTTP warning, Pair a phone (QR code, the
+code and the address) and the paired devices with last seen and Revoke.
+
+#### Contract
+
+`tenon/packages/desktop/src/main/remote-access/`:
+
+```ts
+lanAddresses(interfaces: Record<string, Array<{ address: string; family: string | number; internal: boolean }> | undefined>):
+  Array<{ address: string; name: string }>
+validateRemoteConfig(input: { enabled: boolean; address: string; port: number }, offered: Array<{ address: string; name: string }>):
+  { enabled: boolean; address: string; port: number }     // throws remote_address_invalid / remote_port_invalid
+startRemoteListener(input: { host: string; port: number; target: () => string }): Promise<{ url: string; stop(): Promise<void> }>
+createRemoteAccess(input: { store; interfaces: () => …; listen?: typeof startRemoteListener-like; target?: () => string }): {
+  start(): Promise<void>
+  status(): Promise<RemoteAccessStatus>
+  configure(input: { enabled: boolean; address: string; port: number }): Promise<RemoteAccessStatus>
+  stop(): Promise<void>
+}
+type RemoteAccessStatus = { enabled: boolean; address: string; port: number; addresses: Array<{ address: string; name: string }>
+  running: boolean; url: string | null; error: string | null }
+```
+
+App: `tenon/packages/app/src/components/settings-v2/remote-access-model.ts` exports
+`pairingLink({ url, code })`, `parsePairingLink(link)` and `deviceRows(devices, now)`.
+
+#### Acceptance criteria
+
+- **AC-P6b-1 Off by default.** No second listener until the owner turns Phone access on; the loopback
+  server, its password and the bind guard are unchanged whether it is on or off. The choice (on, address,
+  port) is saved in the desktop store `tenon.remote-access` and applied at the next start; a saved address
+  the computer no longer has is not bound (`remote_address_gone`).
+- **AC-P6b-2 Address and port.** Offered addresses are this computer's non-internal interface addresses,
+  IPv4 before IPv6, never link-local IPv6 (`fe80::`) or loopback. Only an offered address can be chosen
+  (never `0.0.0.0`, `::` or loopback; else `remote_address_invalid`) and a port is an integer from 1024 to
+  65535 (default 47100; else `remote_port_invalid`). A refused choice saves nothing. A bind failure is
+  reported in `status().error` (for example `EADDRINUSE`) and leaves the listener off.
+- **AC-P6b-3 Device requests only.** The listener forwards a request to the local server unchanged (method,
+  raw path and query as received, headers except hop-by-hop ones and `Host`, body streamed, response
+  streamed so event streams arrive as they are written) only when it carries `Authorization: Bearer
+  <non-empty>` and no `auth_token` query, or is `POST /remote/pair`, or is a `GET` with a `ticket` query (the
+  event streams). Anything else, including any `Basic` credential and the server password in `auth_token`,
+  answers 401 without reaching the server. Socket upgrades (terminal sockets) answer 403. An unreachable
+  server answers 502. It adds no `X-Forwarded-*` header. The server's P6a middleware does everything else:
+  it authenticates the token and applies the companion scope to the raw path.
+- **AC-P6b-4 CORS for the phone app.** Requests and preflights from `capacitor://localhost`,
+  `https://localhost` and `http://localhost` (the Capacitor web views) get
+  `Access-Control-Allow-Origin` with that origin, the methods and the request headers they ask for;
+  preflights are answered by the listener (204) and not forwarded; other origins get no CORS headers.
+- **AC-P6b-5 Settings › Servers, Phone access.** A section built from the standard Settings parts: the
+  switch (off by default), the address (a select of the offered addresses) and the port, the URL while
+  running, the last error, and a warning that the link is plain HTTP for a home network or VPN you trust
+  and that a paired phone can read and steer every thread. Pair a phone asks the server for a code
+  (`POST /api/remote/pairing-code` with the owner's password) and shows a QR code of
+  `tenon://pair?server=<url>&code=<code>`, the code in groups and the address, until it expires.
+  Paired devices (`GET /api/remote/devices`) show name, paired and last seen ("Never" when null), newest
+  first, each with Revoke (`DELETE /api/remote/devices/:id`). All text through i18n; no colour coding.
+- **AC-P6b-6 Thin IPC.** `remote-access-status` and `remote-access-configure` only call the controller.
+  The listener starts after the server is ready and stops on quit. Windows: the first bind on a LAN
+  address makes Windows Defender Firewall ask whether to allow Electron on private or public networks; the
+  page says so. macOS: the application firewall may ask to accept incoming connections. Paths and shells
+  play no part.
+- **AC-P6b-7 Documentation.** The threat model's Remote access section gains the second listener (what it
+  forwards and refuses, CORS, the warnings, firewall prompts) and loses "this is the server half only";
+  the architecture section, `docs/architecture/uml.md`, a diagram and the feature matrix follow. No
+  source comments.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P6b-1, 2 | `acceptance/p6b/controller.test.ts`, `acceptance.test.ts` (addresses, settings) | `verification/p6b/listener-verification.test.ts` (addresses) |
+| AC-P6b-3, 4 | `acceptance/p6b/acceptance.test.ts` (copied with `controller.test.ts` to `tenon/packages/desktop/src/main/remote-access/`) | `verification/p6b/listener-verification.test.ts`: raw sockets, scheme case, bearer with `auth_token`, ticket on POST, raw path, hop-by-hop headers, 3 MB body, streamed events |
+| AC-P6b-5 | `acceptance/p6b/pairing-model.test.ts` (copied as `app/src/components/settings-v2/remote-access-model.test.ts`) and the page in the desktop app | screenshots; a real pairing against the running app over the LAN address with the device token |
+| AC-P6b-6, 7 | diff review, `bun run check` | diff review |
+
+Baseline on 3a965e13 (P5b tip): see completion evidence.
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
@@ -1256,3 +1343,42 @@ with that draft moved out of the tree, so the recorded failures are the real bas
 
 Left unverified, and what the user must supply: see the P5b section above (a Google Cloud OAuth client of
 type Desktop app; `docs/records/thread-sync-manual-test.md`). Nothing ran on macOS.
+
+`bun run check` on `3a965e13` (separate worktree): exit 0.
+
+### P6b remote access in the desktop app (2026-11-27)
+
+One agent (TOR-1, no subagents) on `claude/remote-access-desktop` from `3a965e13`. Plan section and both
+sets written and frozen (`frozen\p6b\`) before any product code.
+
+- Baseline on `3a965e13`: the three desktop files and the app model test fail at their imports, 0 pass.
+- After: desktop `bun test src/main/remote-access` (acceptance and controller) 11 pass; the verification
+  copy 7 of 8 under Bun; `listener.node-test.ts` 2 pass under Node; app `remote-access-model.test.ts` 2 pass
+  and `remote-access-qr.test.ts` 1 pass. Package suites: desktop 287 pass, 6 skip, 0 fail plus the Node
+  tests (7 pass); app unit 1510 pass, browser 61 pass. Typecheck of app and desktop clean.
+- Tests changed after the freeze, with the reason: Bun's `node:http` neither raises `upgrade` nor keeps a
+  `..` segment in a client request path (it answered an empty close and sent `/api//config`), while Node,
+  which Electron main runs on, answers 403 and forwards `/api//session/../config` as received (probe run
+  under both). The acceptance case "socket upgrades are refused" moved unchanged in its assertions from
+  `acceptance.test.ts` to `listener.node-test.ts`, run by the desktop `test` script under Node; the
+  verification case on the raw path fails under Bun for the same reason and its Node twin in
+  `listener.node-test.ts` passes. AC-P6b-3 is about the shipped runtime, so the contract did not change.
+- The real desktop app (`TENON_TEST_ONBOARDING=1 bun run dev:desktop`), driven over CDP: Phone access was
+  off; turned on, it listened at `http://192.168.10.136:47100` (the Wi-Fi address); Pair a phone showed the
+  QR code and `G8E3-6SX8`; a script standing in for the phone paired over the LAN address (200, a token),
+  then `GET /api/health` and `/api/session` answered 200, `/api/pty` 403 (companion scope), no credential
+  and the password 401, and a Capacitor preflight 204 with its origin. The device listed as "Seen just
+  now"; a used code was refused (`bad_code`); a second pairing's token answered 200, then 401 after Revoke
+  in the page; turned off, the port refused connections. Screenshots `evidence/p6b-*.png`; the first shows
+  two layout faults it found (the section touching the server card, the address select empty), fixed
+  before the others. Windows Defender Firewall was not touched: requests came from this computer.
+- Scope notes: a new dependency, `qrcode-generator@1.4.4` (MIT, no dependencies) in `@tenon/app`, draws the
+  QR code; `thread-sync-client.ts` now exports its request helper (`ownerRequest`) for the remote routes.
+- Base failure seen: the same F-708 matrix row as in P5b.
+- Self-review, round 1: plan conformance 9 (the plan said the listener "answers 403" to upgrades without
+  naming the runtime; recorded above), correctness and regressions 9 (two layout faults seen live; Bun
+  versus Node difference found by the frozen tests), integrity and scope 9.5 (the new dependency needs
+  stating in the report). After the fixes and this record: 10, 10, 10.
+
+Left unverified: a real phone (P8), a second machine on the LAN, the firewall prompts on Windows and macOS,
+macOS as a whole, IPv6 addresses in practice.

@@ -247,6 +247,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     googleCalendar: window.api.googleCalendar,
     threadSync: window.api.threadSync,
+    remoteAccess: window.api.remoteAccess,
     desktopWidget: window.api.widget,
     dictation: window.api.dictation,
     mail: window.api.mail,
