@@ -287,6 +287,48 @@ Security detail and the full scope table are in the
 
 ![Second listener: a phone on the LAN calls the desktop's listener with its device token; the listener forwards bearer requests, pairing and ticketed streams to the loopback server and refuses passwords and sockets; the server authenticates the device and applies the companion scope](../diagrams/remote-listener.svg)
 
+### Mobile companion
+
+`tenon/packages/mobile` (`@tenon/mobile`) is the phone app: the same renderer
+(`@tenon/app`, built with the app's Vite plugin into `dist/`) in a Capacitor 6
+shell, `dev.tenon.companion`, for Android and iOS
+([README](../../tenon/packages/mobile/README.md)).
+
+![Mobile companion: the Capacitor app pairs with the desktop's second listener, keeps the device token in the phone's secure store, and runs the renderer against the computer with a bearer token on every request](../diagrams/mobile-companion.svg)
+
+- **Pairing screen** (`src/pairing-screen.tsx`, logic in `src/companion.ts`):
+  address and code typed in, a `tenon://pair?…` link pasted, or the QR code
+  scanned with the camera where the web view has `BarcodeDetector` (Android's
+  Chromium web view does). `normalizeServer` adds `http://` and port 47100 to a
+  bare address; `pairDevice` posts `{ code, name }` to `/remote/pair`.
+- **Session** (`companionSession` over `src/secure-store.ts`): one JSON entry
+  (URL, device ID, name, token) in the native `SecureStore` plugin, an Android
+  Keystore AES-GCM key sealing app-private preferences
+  (`android/…/SecureStorePlugin.java`) or the iOS Keychain, this device only
+  (`ios/App/App/SecureStorePlugin.swift`, registered by
+  `TenonViewController.swift`). In a browser (development only) it falls back
+  to `sessionStorage`.
+- **Connected** (`src/entry.tsx`): `bearerFetch` replaces `fetch` so every
+  request to the paired origin carries `Authorization: Bearer <token>` (never
+  `/remote/pair`; an `auth_token` query is dropped); `AppInterface` runs with
+  that computer as its only server. On first connection the folders of the
+  computer's recent threads (`GET /api/session`, allowed for devices; `/path`
+  and `/project` are not) seed the renderer's workspace list. The platform's
+  `companion` field adds Settings › Servers › This phone with Sign out.
+- **Transport.** Android serves the app from `http://localhost`
+  (`androidScheme: "http"`, `cleartext: true`), which the listener's CORS list
+  allows; the listener drops that `Origin` before forwarding, since the server
+  only accepts its own renderer's origin. The web view must have the APIs the
+  renderer uses (Chromium 124 on the API 35 emulator; `URL.parse`, from 126, is
+  not used in phone-facing code).
+- **Platforms.** Android was built (`gradlew assembleDebug`, JDK 17, SDK 35) and
+  run on the `tenon_api35` emulator. iOS was generated and edited by hand and
+  never built (no Mac): local networking and camera use are declared in
+  `Info.plist`; whether WebKit allows plain-HTTP `fetch` from
+  `capacitor://localhost` is the first thing to check on a Mac.
+- **Tests.** `mobile/src/companion.test.ts`, `session.test.ts`,
+  `workspaces.test.ts`; `desktop/src/main/remote-access/listener-origin.test.ts`.
+
 ## Thread sync
 
 `@tenon/core/thread-sync` (`core/src/thread-sync.ts` and `thread-sync/`) moves

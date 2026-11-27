@@ -85,6 +85,9 @@
   [UML views](docs/architecture/uml.md) hold the detailed diagrams and a
   coverage index of subsystems, stores, and workflows.
 - `docs/release-operations.md` describes the active Electron candidate workflow.
+- `tenon/packages/mobile` is the phone companion (Capacitor around the renderer);
+  its README has the Android and iOS build steps. Its `android/` and `ios/`
+  folders are generated native projects, kept out of Prettier and oxlint.
 
 ## Required checks
 

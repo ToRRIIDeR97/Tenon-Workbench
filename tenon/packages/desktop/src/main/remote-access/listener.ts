@@ -71,7 +71,12 @@ function handle(request: IncomingMessage, response: ServerResponse, target: stri
       port: destination.port,
       method: request.method,
       path: request.url,
-      headers: { ...forwardable(request.headers), host: destination.host },
+      headers: {
+        ...Object.fromEntries(
+          Object.entries(forwardable(request.headers)).filter(([name]) => !(origin && name === "origin")),
+        ),
+        host: destination.host,
+      },
     },
     (answer) => {
       const headers = Object.fromEntries(

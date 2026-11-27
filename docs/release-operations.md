@@ -395,6 +395,26 @@ Migration authors: foreign keys are off while migrations run, so
 `ON DELETE CASCADE` does not fire. Delete child rows explicitly, or the foreign
 key check fails the migration.
 
+## Phone app (Android debug build)
+
+The companion app in `tenon/packages/mobile` is built locally only and never
+published to Google Play or the App Store. An Android debug APK:
+
+```sh
+cd tenon/packages/mobile
+bun run build
+node scripts/cap.cjs sync android
+cd android && gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+It needs JDK 17 (`JAVA_HOME`) and the Android SDK with platform 35
+(`ANDROID_HOME`, or `android/local.properties`, which is not committed). The
+debug APK is signed with the SDK's debug key and allows plain HTTP; it is a
+development build, not a release. iOS builds need a Mac; see the package
+README. Thread sync's Drive client ID is not bundled: each user enters their
+own in Settings › Sync.
+
 ## Release limits
 
 Automatic updates are disabled. Before enabling them, configure the fork's

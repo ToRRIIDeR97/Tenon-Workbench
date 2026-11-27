@@ -320,6 +320,12 @@ The phone reaches the loopback server only through the desktop's second
 listener, which the owner turns on in Settings › Servers › Phone access; it
 forwards device requests and refuses the password and sockets.
 
+![Mobile companion: the Capacitor app pairs with the desktop's second listener, keeps the device token in the phone's secure store, and runs the renderer against the computer with a bearer token on every request](../diagrams/mobile-companion.svg)
+
+The phone app (`tenon/packages/mobile`) pairs, keeps the token in the
+platform's secure store and runs the same renderer with a bearer token on every
+request ([README](README.md#mobile-companion)).
+
 ## Coverage index
 
 | Subject | Kind | Views | Source |
@@ -348,6 +354,8 @@ forwards device requests and refuses the password and sockets.
 | `remote-devices.json` (device IDs, names, token SHA-256, paired and last-seen times) | Shared store | Sequence: pairing a phone | `core/src/remote-access/file.ts`, `core/src/remote-access/service.ts` (path in the data folder) |
 | Second listener for paired phones (reverse proxy on a chosen LAN or VPN address, off by default; Settings › Servers › Phone access with QR pairing and device revoke) | Subsystem | Sequence: pairing a phone; [README](README.md#remote-access), [diagram](../diagrams/remote-listener.svg) | `desktop/src/main/remote-access/{addresses,listener,controller}.ts`, `app/src/components/settings-v2/{phone-access.tsx,remote-access-model.ts}` |
 | `tenon.remote-access` desktop store (on, address, port) | Store | Sequence: pairing a phone | `desktop/src/main/remote-access/controller.ts` |
+| Mobile companion (Capacitor shell, pairing screen, secure token store, bearer fetch, Android and iOS projects) | Subsystem | Sequence: pairing a phone; [README](README.md#mobile-companion), [diagram](../diagrams/mobile-companion.svg) | `mobile/src/{entry.tsx,companion.ts,pairing-screen.tsx,secure-store.ts}`, `mobile/android/app/src/main/java/dev/tenon/companion/`, `mobile/ios/App/App/` |
+| Phone secure store (one JSON entry: computer URL, device ID, name, token) | Store | Sequence: pairing a phone | `mobile/android/…/SecureStorePlugin.java` (Keystore), `mobile/ios/App/App/SecureStorePlugin.swift` (Keychain) |
 | Pairing a phone and calling with a device token | Critical workflow | Sequence: pairing a phone | `tenon/src/server/routes/instance/httpapi/handlers/remote.ts` (`POST /remote/pair`), `server/src/handlers/remote.ts`, `server/src/middleware/remote-device.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |

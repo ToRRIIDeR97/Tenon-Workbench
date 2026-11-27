@@ -313,6 +313,8 @@ type PlatformBase = {
 
   remoteAccess?: RemoteAccessPlatform
 
+  companion?: { url: string; name: string; signOut(): Promise<void> }
+
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
   chooseVaultFolder?(): Promise<
     | { folder: string; restartRequired: boolean; previous?: string }

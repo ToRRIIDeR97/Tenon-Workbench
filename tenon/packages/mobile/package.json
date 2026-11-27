@@ -1,0 +1,31 @@
+{
+  "name": "@tenon/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsgo -b",
+    "test": "bun test src",
+    "build": "vite build",
+    "dev": "vite",
+    "sync": "cap sync",
+    "android:build": "vite build && cap sync android && cd android && gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.1",
+    "@capacitor/core": "6.2.1",
+    "@capacitor/ios": "6.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.1",
+    "@solidjs/router": "0.15.4",
+    "@tenon/app": "workspace:*",
+    "@tenon/ui": "workspace:*",
+    "@types/bun": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

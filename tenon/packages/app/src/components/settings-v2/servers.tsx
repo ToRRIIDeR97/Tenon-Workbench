@@ -1,4 +1,5 @@
 import { Tag } from "@tenon/ui/v2/badge-v2"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
@@ -15,6 +16,7 @@ import { ServerConnection, serverName } from "@/context/server"
 import { useServerManagementController } from "../dialog-select-server"
 import { DialogServerV2 } from "./dialog-server-v2"
 import { PhoneAccessSettings } from "./phone-access"
+import { SettingsRowV2 } from "./parts/row"
 import { SettingsListV2 } from "./parts/list"
 import { AddServerMenu, isWslServer, useFilteredWslServers, WslServerSettings } from "@/wsl/settings"
 import "./settings-v2.css"
@@ -142,6 +144,28 @@ export const SettingsServersV2: Component = () => {
           </SettingsListV2>
         </Show>
         <Show when={platform.remoteAccess}>{(remote) => <PhoneAccessSettings remote={remote()} />}</Show>
+        <Show when={platform.companion}>
+          {(companion) => (
+            <div class="settings-v2-section pt-8" data-component="companion-settings">
+              <h4 class="settings-v2-section-title">{language.t("secondBrain.companion.settings.title")}</h4>
+              <SettingsListV2>
+                <SettingsRowV2
+                  title={language.t("secondBrain.companion.settings.paired", { url: companion().url })}
+                  description={companion().name}
+                >
+                  <ButtonV2
+                    size="small"
+                    variant="neutral"
+                    data-action="companion-sign-out"
+                    onClick={() => void companion().signOut()}
+                  >
+                    {language.t("secondBrain.companion.settings.signOut")}
+                  </ButtonV2>
+                </SettingsRowV2>
+              </SettingsListV2>
+            </div>
+          )}
+        </Show>
       </div>
     </>
   )

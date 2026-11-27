@@ -18,7 +18,7 @@ export function pairingLink(input: { url: string; code: string }) {
 export function parsePairingLink(link: string) {
   if (!link.startsWith(PAIR_PREFIX)) return undefined
   const params = new URLSearchParams(link.slice(PAIR_PREFIX.length))
-  const url = URL.parse(params.get("server") ?? "")
+  const url = parseURL(params.get("server") ?? "")
   const code = params.get("code")
   if (!url || (url.protocol !== "http:" && url.protocol !== "https:") || !code) return undefined
   return { url: url.origin, code }
@@ -59,4 +59,12 @@ function seenLabel(lastSeenAt: number | null, now: number): SeenLabel {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return { key: "secondBrain.settings.remote.seen.hours", hours }
   return { key: "secondBrain.settings.remote.seen.days", days: Math.floor(hours / 24) }
+}
+
+function parseURL(value: string) {
+  try {
+    return new URL(value)
+  } catch {
+    return undefined
+  }
 }

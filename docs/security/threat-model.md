@@ -1712,6 +1712,21 @@ managed in Settings › Servers › Phone access.
   appear in the page as text and as a QR code of
   `tenon://pair?server=<url>&code=<code>`; anyone who can see the screen
   within the five minutes can pair, as with typing the code.
+- **The phone app** (`tenon/packages/mobile`). The device token is kept in
+  the phone's secure storage: on Android an AES-GCM key in the Android Keystore
+  seals it in the app's private preferences (a backup or a rooted phone gets
+  only ciphertext without that key); on iOS a Keychain item available after
+  first unlock on this device only (written, never run). The app sends it only
+  to the origin it paired with, never with `/remote/pair`, and drops any
+  `auth_token` query. Sign out deletes the token on the phone; it stays valid
+  on the computer until revoked there, so the page says to revoke too. The
+  Android app is served from `http://localhost` and allows cleartext traffic
+  because the link is plain HTTP; the listener drops that `Origin` before
+  forwarding (the server accepts only its own renderer's origin) and answers
+  CORS for it itself, which is safe because device requests carry a bearer
+  token, not a cookie. The first connection reads the folders of the
+  computer's recent threads to seed the phone's workspace list; it stores them
+  in the web view's local storage, so the phone holds those paths.
 - **Transport.** The link is plain HTTP on a network the user trusts (a
   local network or a VPN) until a later phase adds a relay. Anyone who can
   watch that network can read the token, the tickets and every thread the
