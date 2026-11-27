@@ -139,7 +139,11 @@ export function summarizeTurn(
     : { counts, failed, declined, running, durationMs }
 }
 
-const DECLINED = [/The user rejected permission to use this specific tool call/i, /The user declined this tool call/i]
+const DECLINED = [
+  /The user rejected permission to use this specific tool call/i,
+  /The user declined this tool call/i,
+  /The user dismissed this question/i,
+]
 
 export function isDeclined(part: ToolPart) {
   const state = part.state

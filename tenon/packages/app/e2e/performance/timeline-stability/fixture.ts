@@ -282,6 +282,20 @@ export function validateTimelineMessages(input: readonly TimelineMessage[]): Tim
   return messages
 }
 
+export function turnStep(page: Page, partID: string) {
+  const item = page.locator(`[data-slot="turn-steps-item"][data-timeline-part-id="${partID}"]`)
+  return {
+    item,
+    row: item.locator(':scope > [data-slot="turn-steps-row"]'),
+    detail: item.locator(':scope > [data-slot="turn-steps-reveal"] [data-slot="turn-steps-detail"]'),
+  }
+}
+
+export function turnStepGroup(page: Page, name: string | RegExp) {
+  const row = page.locator('[data-slot="turn-steps-rows"] > [data-slot="turn-steps-item"]:not([data-timeline-part-id])')
+  return row.filter({ has: page.locator(':scope > [data-slot="turn-steps-row"]', { hasText: name }) })
+}
+
 export async function expandTurnSteps(page: Page) {
   await expect(page.locator("[data-timeline-row]").first()).toBeVisible()
   const closed = page.locator('[data-component="turn-steps-summary"][data-state="closed"]')

@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test"
-import { assistantMessage, setupTimeline, toolPart, userMessage } from "../performance/timeline-stability/fixture"
+import {
+  assistantMessage,
+  setupTimeline,
+  toolPart,
+  turnStep,
+  userMessage,
+} from "../performance/timeline-stability/fixture"
 
 test("renders completed write content", async ({ page }) => {
   const id = "prt_file_projection_write"
@@ -13,7 +19,13 @@ test("renders completed write content", async ({ page }) => {
     settings: { editToolPartsExpanded: true },
   })
 
-  await expect(page.locator(`[data-timeline-part-id="${id}"] [data-component="write-content"]`)).toBeVisible()
+  const step = turnStep(page, id)
+  await expect(step.row).toHaveAttribute("aria-expanded", "true")
+  await expect(step.row).toContainText("src/write.ts")
+  const diff = step.detail.locator('[data-slot="turn-steps-diff"] [data-component="file"][data-mode="diff"]')
+  await expect(diff).toHaveCount(1)
+  await expect(diff).toBeVisible()
+  await expect(diff).toContainText("export const written = true")
 })
 
 test("renders a completed single-file patch", async ({ page }) => {
@@ -48,5 +60,10 @@ test("renders a completed single-file patch", async ({ page }) => {
     settings: { editToolPartsExpanded: true },
   })
 
-  await expect(page.locator(`[data-timeline-part-id="${id}"] [data-component="apply-patch-file-diff"]`)).toBeVisible()
+  const step = turnStep(page, id)
+  await expect(step.row).toHaveAttribute("aria-expanded", "true")
+  const diff = step.detail.locator('[data-slot="turn-steps-diff"] [data-component="file"][data-mode="diff"]')
+  await expect(diff).toHaveCount(1)
+  await expect(diff).toBeVisible()
+  await expect(diff).toContainText("export const value = 2")
 })
