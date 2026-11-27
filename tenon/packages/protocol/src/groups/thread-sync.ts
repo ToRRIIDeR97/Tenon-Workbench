@@ -90,9 +90,9 @@ export function threadSyncFailure(error: { code: ThreadSyncCode; message: string
 export const ThreadSyncStatus = Schema.Struct({
   ready: Schema.Boolean,
   enabled: Schema.Boolean,
-  bucket: Schema.String,
+  driveFolder: Schema.String,
   machine: Schema.Struct({ id: Schema.String, name: Schema.String }),
-  missing: Schema.Array(Schema.Literals(["bucket", "key", "store"])),
+  missing: Schema.Array(Schema.Literals(["key", "store"])),
   lastError: Schema.NullOr(Schema.String),
 }).annotate({ identifier: "ThreadSync.Status" })
 
@@ -122,7 +122,8 @@ export const ThreadSyncGroup = HttpApiGroup.make("server.threadSync")
       OpenApi.annotations({
         identifier: "v2.threadSync.status",
         summary: "Thread sync status",
-        description: "Whether thread sync is on, its bucket, this computer's name, and what is still missing.",
+        description:
+          "Whether thread sync is on, the name of its Google Drive folder, this computer's name, and what is still missing.",
       }),
     ),
   )
@@ -130,7 +131,7 @@ export const ThreadSyncGroup = HttpApiGroup.make("server.threadSync")
     HttpApiEndpoint.put("threadSync.configure", root, {
       payload: Schema.Struct({
         enabled: Schema.optional(Schema.Boolean),
-        bucket: Schema.optional(Schema.String),
+        driveFolder: Schema.optional(Schema.String),
         machineName: Schema.optional(Schema.String),
       }),
       success: ThreadSyncStatus,

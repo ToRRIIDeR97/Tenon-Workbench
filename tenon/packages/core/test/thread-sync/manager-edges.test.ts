@@ -62,7 +62,8 @@ const managerAt = (root: string, options: { platform?: NodeJS.Platform; store?: 
       hostname: "desk",
       credentials: {
         key: async () => key,
-        store: async (bucket) => options.store?.() ?? ThreadSync.folderStore(path.join(root, "buckets", bucket)),
+        store: async (driveFolder) =>
+          options.store?.() ?? ThreadSync.folderStore(path.join(root, "drives", driveFolder)),
       },
       projects: { resolve: async (directory) => ({ id: "prj_desk", worktree: directory }) },
       ...(options.platform && { platform: options.platform }),
@@ -95,14 +96,19 @@ describe("thread sync manager edges", () => {
       const tmp = yield* scratch
       yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "thread-sync.json"), "{ not json"))
       const first = yield* (yield* managerAt(tmp.path)).status()
-      expect(first).toMatchObject({ ready: false, enabled: false, bucket: "", lastError: null })
-      expect(first.missing).toEqual(["bucket", "store"])
+      expect(first).toMatchObject({
+        ready: false,
+        enabled: false,
+        driveFolder: "Tenon Workbench Threads",
+        lastError: null,
+      })
+      expect(first.missing).toEqual([])
       const names = yield* Effect.promise(() => fs.readdir(tmp.path))
       expect(names.filter((name) => name.startsWith("thread-sync.json.broken-"))).toHaveLength(1)
       expect(names.filter((name) => name.endsWith(".tmp"))).toEqual([])
       const second = yield* (yield* managerAt(tmp.path)).status()
       expect(second.machine).toEqual(first.machine)
-      expect(yield* readSettings(tmp.path)).toEqual({ enabled: false, bucket: "", machine: first.machine, folders: {} })
+      expect(yield* readSettings(tmp.path)).toEqual({ enabled: false, machine: first.machine, folders: {} })
     }).pipe(Effect.provide(computer(":memory:"))),
   )
 
@@ -110,18 +116,18 @@ describe("thread sync manager edges", () => {
     Effect.gen(function* () {
       const tmp = yield* scratch
       const sync = yield* managerAt(tmp.path)
-      const rejected = ["ab", "a".repeat(64), "-bucket", "bucket-", "Bucket", "my bucket", "my/bucket", ""]
-      const codes = yield* Effect.forEach(rejected, (bucket) => code(sync.configure({ bucket })))
+      const rejected = ["", "   ", "x".repeat(101), "nul\u0000here", "line\nbreak", "del\u007fhere"]
+      const codes = yield* Effect.forEach(rejected, (driveFolder) => code(sync.configure({ driveFolder })))
       expect(codes).toEqual(rejected.map(() => "invalid_name"))
-      expect(yield* code(sync.configure({ enabled: true, bucket: "ok-bucket", machineName: "   " }))).toBe(
+      expect(yield* code(sync.configure({ enabled: true, driveFolder: "Fine name", machineName: "   " }))).toBe(
         "invalid_name",
       )
       expect(yield* code(sync.configure({ machineName: "x".repeat(65) }))).toBe("invalid_name")
-      expect(yield* sync.status()).toMatchObject({ enabled: false, bucket: "" })
-      const accepted = yield* sync.configure({ bucket: "a.b", machineName: "y".repeat(64) })
-      expect(accepted).toMatchObject({ bucket: "a.b", enabled: false, ready: false, missing: [] })
+      expect(yield* sync.status()).toMatchObject({ enabled: false, driveFolder: "Tenon Workbench Threads" })
+      const accepted = yield* sync.configure({ driveFolder: " a ", machineName: "y".repeat(64) })
+      expect(accepted).toMatchObject({ driveFolder: "a", enabled: false, ready: false, missing: [] })
       expect(accepted.machine.name).toBe("y".repeat(64))
-      expect((yield* sync.configure({ bucket: "a".repeat(63) })).bucket).toBe("a".repeat(63))
+      expect((yield* sync.configure({ driveFolder: "é".repeat(100) })).driveFolder).toBe("é".repeat(100))
     }).pipe(Effect.provide(computer(":memory:"))),
   )
 
@@ -129,9 +135,9 @@ describe("thread sync manager edges", () => {
     Effect.gen(function* () {
       const tmp = yield* scratch
       const mode = { failing: true }
-      const healthy = ThreadSync.folderStore(path.join(tmp.path, "bucket"))
+      const healthy = ThreadSync.folderStore(path.join(tmp.path, "store"))
       const sync = yield* managerAt(tmp.path, { store: () => (mode.failing ? failing : healthy) })
-      yield* sync.configure({ enabled: true, bucket: "my-threads" })
+      yield* sync.configure({ enabled: true })
       const id = yield* start("/desk/repo", "hello")
       expect(yield* sync.settled(id)).toEqual({ pushed: false, reason: "unavailable" })
       expect((yield* sync.status()).lastError).toBe("down")
@@ -151,7 +157,7 @@ describe("thread sync manager edges", () => {
       const tmp = yield* scratch
       const id = yield* start("/desk/repo", "hello")
       const windows = yield* managerAt(tmp.path, { platform: "win32" })
-      yield* windows.configure({ enabled: true, bucket: "my-threads" })
+      yield* windows.configure({ enabled: true })
       const mac = yield* managerAt(tmp.path, { platform: "darwin" })
       expect(yield* code(windows.continueHere(id, { directory: "repo" }))).toBe("invalid_name")
       expect(yield* code(windows.continueHere(id, { directory: "" }))).toBe("invalid_name")
@@ -166,7 +172,7 @@ describe("thread sync manager edges", () => {
     Effect.gen(function* () {
       const tmp = yield* scratch
       const sync = yield* managerAt(tmp.path)
-      yield* sync.configure({ enabled: true, bucket: "my-threads" })
+      yield* sync.configure({ enabled: true })
       const id = yield* start("/desk/repo", "hello")
       yield* sync.settled(id)
       const here = process.platform === "win32" ? "C:\\work\\other" : "/work/other"
@@ -182,7 +188,7 @@ describe("thread sync bridge", () => {
     Effect.promise(async () => {
       const credentials = ThreadSync.bridgeCredentials({})
       expect(await credentials.key()).toBeUndefined()
-      expect(await credentials.store("my-threads")).toBeUndefined()
+      expect(await credentials.store(ThreadSync.DRIVE_FOLDER)).toBeUndefined()
     }),
   )
 
@@ -213,13 +219,13 @@ describe("thread sync bridge", () => {
         TENON_BROWSER_TOKEN: "bridge-token",
       })
       expect(Array.from((yield* Effect.promise(() => credentials.key())) ?? [])).toEqual(Array.from(key))
-      expect(yield* Effect.promise(() => credentials.store("my-threads"))).toBeDefined()
+      expect(yield* Effect.promise(() => credentials.store(ThreadSync.DRIVE_FOLDER))).toBeDefined()
       expect(seen).toEqual([
         { route: "/sync_key", authorization: "Bearer bridge-token" },
         { route: "/sync_token", authorization: "Bearer bridge-token" },
       ])
       answers["/sync_token"] = JSON.stringify({})
-      expect(yield* Effect.promise(() => credentials.store("my-threads"))).toBeUndefined()
+      expect(yield* Effect.promise(() => credentials.store(ThreadSync.DRIVE_FOLDER))).toBeUndefined()
       expect(HarnessBrowserTools.isTool("sync_key")).toBe(false)
       expect(HarnessBrowserTools.isTool("sync_token")).toBe(false)
     }),

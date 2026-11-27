@@ -212,14 +212,15 @@ standalone app can keep running on other computers.
 ## Thread sync
 
 `@tenon/core/thread-sync` (`core/src/thread-sync.ts` and `thread-sync/`) moves
-one thread's event log between computers through an object store, sealed on
-the computer before it leaves. The engine below does the moving; the
+one thread's event log between computers through a store, sealed on the
+computer before it leaves. For one person's own computers the store is a
+folder in their Google Drive. The engine below does the moving; the
 [manager](#thread-sync-manager) puts it in the server with settings, routes,
 a push after each turn and "Continue here". The Settings page, the Google
-sign-in that supplies the Cloud Storage token and the key in the system
-credential store come in the app half (P5b).
+sign-in that supplies the Drive token and the key in the system credential
+store come in the app half (P5b).
 
-![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder or Cloud Storage store with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
+![Thread sync engine: the owning computer's engine reads a thread's event log, seals new events and writes a segment and an encrypted manifest to a folder store or a Google Drive folder with conditional writes; another computer's engine opens them, checks its own log, replays the missing events and can take the thread over](../diagrams/thread-sync.svg)
 
 - **Key.** `generateKey` makes 32 random bytes; the phrase is the key and a
   4-byte SHA-256 check as hex groups (`xxxx-xxxx-…`, 18 groups), so a mistyped
@@ -245,19 +246,8 @@ credential store come in the app half (P5b).
   the bytes, writes through a temporary file and rename under a per-name lock
   file in `<folder>/~tenon/` (`~` is outside the name alphabet, so it never
   collides), and works the same on Windows and macOS because paths are built
-  from the validated parts with `path.join`. `gcsStore` calls the Cloud
-  Storage JSON API with `Authorization: Bearer` from `token()` on every
-  request, percent-encodes names (slashes too), maps 412 to `conflict`, 401
-  and 403 to `unauthorized`, retries network failures, 429 and 5xx up to
-  four times with backoff within a two-second budget per call (retry requests
-  are aborted at its end), then reports `unavailable`; no single request
-  waits longer than 15 seconds (`AbortSignal.timeout`, set lower in tests
-  through `limitedGcsStore`); the time `token()` takes counts inside both
-  limits. A success reply it cannot parse is `unavailable` on every method,
-  so a listing never comes back empty because its body was malformed. It
-  follows `nextPageToken` and stops with `unavailable` when a token repeats
-  or the listing runs past 1,000 pages, and with `prefix` stores objects
-  under it and returns names without it.
+  from the validated parts with `path.join`. `driveStore` is described
+  [below](#google-drive-store).
 - **Push.** Only the manifest's owner pushes (`not_owner` otherwise); the
   first push makes this machine the owner. It seals the local events after
   the stored head into one segment, writes it with `ifGeneration: null`, then
@@ -339,8 +329,102 @@ credential store come in the app half (P5b).
     put back an older genuine manifest, handing the lock back to a previous
     owner; two computers can then continue from the same point, which the
     engine reports later as `diverged`, and each keeps its own copy.
+  - Google Drive's conditional write is emulated; its limit is in
+    [Google Drive store](#google-drive-store).
 
   Tests: `core/test/thread-sync/`.
+
+### Google Drive store
+
+`ThreadSync.driveStore({ token, endpoint?, folder? })`
+(`core/src/thread-sync/drive.ts`) keeps the `Store` contract on the Drive v3
+REST API with plain `fetch` and `Authorization: Bearer` from `token()` on
+every request. The token needs only `https://www.googleapis.com/auth/drive.file`,
+which lets Tenon see the files and folders it made and nothing else in the
+person's Drive. Every computer signs in with the same Tenon OAuth client and
+the same Google account; the documentation ties `drive.file` access to the
+user and the app, not to a device, which is what lets a second computer see
+the first one's files (to be confirmed with a real account in P5b). Cloud
+Storage was the first plan and is gone: the person uses their own Drive.
+
+![Google Drive store: each store name is a chain of immutable Drive file versions linked by parent IDs in appProperties; a write lists the versions, checks the condition against the winner, creates a child version, lists again and succeeds only if its version is the winner, then removes superseded versions](../diagrams/thread-sync-drive.svg)
+
+- **Folder.** A folder in My Drive, by default "Tenon Workbench Threads"
+  (`ThreadSync.DRIVE_FOLDER`; the manager's optional `driveFolder` setting
+  names it), marked with the private property `tenonSync = folder-v1`. It is
+  made by the first write, never by a read, in the root of My Drive. Writes go
+  to the marked folder with that name, else the first created, then the
+  lowest ID. Reads do not depend on the folder: they find every Tenon file
+  anywhere in My Drive that is not in the bin, so a renamed or moved folder or
+  file keeps working and two computers that each made a folder never split
+  the data. A folder in the bin hides everything in it (Drive reports its
+  files as trashed); the next write makes a new folder. Tenon never deletes a
+  folder.
+- **Versions.** Drive names are not unique and Drive has no write
+  precondition, so one store name is a set of immutable files ("versions"),
+  each created with a multipart upload and never changed. Their private
+  `appProperties` carry `tenonSync = v1`, `dir` (the name without its last
+  part, `.` for none), `base` (the last part), `parent` (the version this one
+  replaces, `-` for none), `writer` (32 random hex characters per call) and
+  `sha256` of the content. A property's key and value take at most 124
+  bytes, so `dir` and `base` are at most 100 characters each (`invalid_name`
+  otherwise). The visible name is `Tenon sync - threads - <sessionID> - manifest`
+  (or `- segment-…`): recognisable, with no title, path or computer name, and
+  never read back.
+- **Winner.** Of the versions that are visible and not in the bin, a root has
+  no visible parent. The winner is found from the root created first (Drive's
+  `createdTime`, then file ID) by following, at each step, the child created
+  first. Its file ID is the generation.
+- **Write.** `put` lists the name's versions, checks `ifGeneration` against
+  the winner (`conflict` before writing anything), creates a version whose
+  `parent` is the winner, and lists again. If its `writer` is not visible yet
+  it lists again after 150, 300 and 600 ms, then answers `unavailable`. It
+  succeeds only if the winner carries its `writer`; otherwise it deletes its
+  own versions and answers `conflict`. A lost or unreadable reply to the
+  create is not an error by itself: the call finds its version by `writer`.
+  A create retried after a lost reply makes a second copy with the same
+  `writer`; the earlier one wins either way. `put` without `ifGeneration` is
+  conditional on the current winner and starts again after a lost race, up
+  to five times.
+- **Cleanup.** After a successful write the store deletes the superseded
+  versions: first those off the path from the first root to the winner, then
+  the path from the root down, never the winner. It stops at the first
+  failure and never fails the write. `remove` deletes every version the same
+  way, the winner last.
+- **Guarantees, and their limit.** Assuming a listing made after a create
+  returned shows every version created before it, a write that lost is never
+  reported as a success, a reported success stays the winner until a write
+  conditioned on it replaces it, `conflict` is definite (so the engine may
+  remove its segment), a write that lands late loses, and cleanup never
+  removes the winner. Drive does not document that freshness. If a listing
+  misses an earlier version, two writes of one thread can both succeed; that
+  needs two computers writing the same thread within seconds (a takeover
+  racing a push), and the engine then reports `diverged` and each computer
+  keeps its copy. `get` and `list` can be behind for the same reason; the
+  next conditional write then fails with `conflict`.
+- **Reading.** `get` downloads the winner (`alt=media`) and compares its
+  SHA-256 with the version's `sha256`: a file whose content was edited or
+  replaced in Drive is `unreadable`. A 404 on the download (the version was
+  superseded and removed) lists again, at most three times. `list` reads
+  every Tenon version once (`pageSize=1000`) and answers each name's winner.
+- **Requests and errors.** Listings use `spaces=drive`, `corpora=user`, a
+  `q` with the property marker and `trashed = false`, and follow
+  `nextPageToken`. 401 is `unauthorized`; 403 `rateLimitExceeded` or
+  `userRateLimitExceeded`, 429, 5xx and network failures are retried up to
+  four times with backoff within two seconds per request, then
+  `unavailable`; 403 `storageQuotaExceeded` is `unavailable`; any other 403
+  is `unauthorized`. No request waits longer than 15 seconds
+  (`limitedDriveStore` sets it lower in tests); the time `token()` takes
+  counts inside both limits. A listing that cannot be parsed, says
+  `incompleteSearch`, repeats a page token or runs past 1,000 pages is
+  `unavailable`. No request uses `PATCH`, `PUT` or `appDataFolder`.
+- **Cost.** A write is two listings and one create, plus deletes; `list`
+  reads every Tenon file in the Drive. That suits one person's threads.
+
+  Tests: `core/test/thread-sync/drive-acceptance.test.ts` with the fake Drive
+  in `drive-fake.ts` (holds, lost replies, stale listings, paging, malformed
+  bodies, the person's own edits), `store.test.ts`, and the engine cases of
+  `acceptance.test.ts` and `engine.test.ts`, which run on both stores.
 
 ### Thread sync manager
 
@@ -355,18 +439,21 @@ include it.
 - **Settings file.** `thread-sync.json` in the Tenon config folder
   (`Global.config`), created on first use and written through a temporary
   file and a rename (`thread-sync/settings.ts`, mode `0600`). It holds
-  `enabled`, `bucket`, `machine` (`id`: the hostname, a dash and six random
-  hex characters, made once; `name`: the hostname until changed) and
-  `folders` (session ID to the folder chosen on this computer). It never
-  holds the key or a token. A file that cannot be parsed is renamed to
-  `thread-sync.json.broken-<ms>` and defaults are used, so the computer gets
-  a new machine ID once.
-- **Status and configure.** `status()` never fails; `missing` lists `bucket`,
-  `key` and `store` (no store while there is no bucket), and `ready` is true
-  only when sync is on and nothing is missing. `configure` checks the bucket
-  (3 to 63 of `a-z 0-9 - _ .`, starting and ending with a letter or digit)
-  and the computer name (1 to 64 characters after trimming) before saving
-  anything, else `invalid_name`.
+  `enabled`, an optional `driveFolder` (the Google Drive folder's name),
+  `machine` (`id`: the hostname, a dash and six random hex characters, made
+  once; `name`: the hostname until changed) and `folders` (session ID to the
+  folder chosen on this computer). It never holds the key or a token. A file
+  that cannot be parsed is renamed to `thread-sync.json.broken-<ms>` and
+  defaults are used, so the computer gets a new machine ID once. A file from
+  before Drive, which holds a `bucket`, loads as it is; `bucket` is ignored
+  and dropped at the next save.
+- **Status and configure.** `status()` never fails; `driveFolder` is the
+  saved name or `ThreadSync.DRIVE_FOLDER`, `missing` lists `key` and `store`,
+  and `ready` is true only when sync is on and nothing is missing. Nothing
+  else needs setting. `configure` checks the Drive folder name (1 to 100
+  characters after trimming, no control characters) and the computer name
+  (1 to 64 characters after trimming) before saving anything, else
+  `invalid_name`.
 - **Not ready.** `threads`, `push`, `pull`, `continueHere` and `remove` fail
   with `not_ready` until sync is on and the key and store are present, before
   any store or database access.
@@ -397,12 +484,13 @@ include it.
   process over the existing loopback bridge (`TENON_BROWSER_URL` with its
   bearer `TENON_BROWSER_TOKEN`): `POST /sync_key` answers
   `{ text: "{\"key\":\"<base64url of 32 bytes>\"}" }` and `POST /sync_token`
-  `{ text: "{\"token\":\"<Cloud Storage access token>\"}" }`, or `{}` when
-  there is none. The store is `gcsStore`, which asks for a token on every
-  request. Both calls are outside `HarnessBrowserTools.TOOLS`, so an agent
-  cannot call them. Without the bridge (a plain `tenon serve`), the status is
-  `missing: ["key", "store"]` once a bucket is set. The desktop half of both
-  calls is P5b.
+  `{ text: "{\"token\":\"<Google access token>\"}" }`, or `{}` when there is
+  none. The token must carry `https://www.googleapis.com/auth/drive.file`.
+  The store is `driveStore` with the `driveFolder` name, which asks for a
+  token on every request. Both calls are outside `HarnessBrowserTools.TOOLS`,
+  so an agent cannot call them. Without the bridge (a plain `tenon serve`),
+  the status is `missing: ["key", "store"]`. The desktop half of both calls
+  is P5b.
 - **Routes.** `server.threadSync` (`protocol/src/groups/thread-sync.ts`,
   handlers in `server/src/handlers/thread-sync.ts`): `GET /api/thread-sync`
   (status), `PUT /api/thread-sync` (configure), `GET /api/thread-sync/threads`,

@@ -40,7 +40,7 @@ const server = (root: string) => {
   const key = ThreadSync.generateKey().key
   const credentials: ThreadSync.Credentials = {
     key: async () => key,
-    store: async (bucket) => ThreadSync.folderStore(path.join(root, "buckets", bucket)),
+    store: async (driveFolder) => ThreadSync.folderStore(path.join(root, "drives", driveFolder)),
   }
   return Layer.fresh(
     AppNodeBuilder.build(
@@ -79,7 +79,7 @@ describe("thread sync service", () => {
         })
         yield* session.prompt({ sessionID: created.id, prompt: Prompt.make({ text: "hello" }), resume: false })
         yield* SessionInput.promoteSteers(db, events, created.id, Number.MAX_SAFE_INTEGER)
-        yield* sync.configure({ enabled: true, bucket: "my-threads" })
+        yield* sync.configure({ enabled: true, driveFolder: "My threads" })
         yield* events.publish(SessionStatusEvent.Idle, { sessionID: created.id })
         const listed = yield* sync
           .threads()
@@ -90,7 +90,7 @@ describe("thread sync service", () => {
         expect(listed[0]).toMatchObject({ sessionID: created.id, head: 2, mine: true, local: "current" })
         expect((yield* sync.status()).machine.id).toMatch(/^desk-[0-9a-f]{6}$/)
         const stored = yield* Effect.promise(() => Bun.file(path.join(tmp.path, ThreadSync.SETTINGS_FILE)).json())
-        expect(stored).toMatchObject({ enabled: true, bucket: "my-threads" })
+        expect(stored).toMatchObject({ enabled: true, driveFolder: "My threads" })
       }).pipe(Effect.provide(server(tmp.path)))
     }),
   )

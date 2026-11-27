@@ -3,13 +3,14 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import timers from "node:timers/promises"
 import { Option, Schema } from "effect"
+import { DRIVE_FOLDER } from "./drive"
 
 const MACHINE_NAME_MAX = 64
-const BUCKET = /^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/
+const DRIVE_FOLDER_MAX = 100
 
 export const Settings = Schema.Struct({
   enabled: Schema.Boolean,
-  bucket: Schema.String,
+  driveFolder: Schema.optional(Schema.String),
   machine: Schema.Struct({ id: Schema.String, name: Schema.String }),
   folders: Schema.Record(Schema.String, Schema.String),
 })
@@ -36,8 +37,13 @@ export async function saveSettings(file: string, settings: Settings) {
   await replace(temporary, file, 0)
 }
 
-export function isBucket(bucket: unknown): bucket is string {
-  return typeof bucket === "string" && BUCKET.test(bucket)
+export function isDriveFolder(name: string) {
+  const length = Array.from(name).length
+  return name === name.trim() && length >= 1 && length <= DRIVE_FOLDER_MAX && !/\p{Cc}/u.test(name)
+}
+
+export function driveFolderOf(settings: Settings) {
+  return settings.driveFolder ?? DRIVE_FOLDER
 }
 
 export function isMachineName(name: string) {
@@ -63,7 +69,6 @@ function defaults(hostname: string): Settings {
   const host = hostname.trim() || "computer"
   return {
     enabled: false,
-    bucket: "",
     machine: {
       id: `${host}-${randomBytes(3).toString("hex")}`,
       name: Array.from(host).slice(0, MACHINE_NAME_MAX).join(""),

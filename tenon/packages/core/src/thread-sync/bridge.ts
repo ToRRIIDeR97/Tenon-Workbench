@@ -1,6 +1,6 @@
 import { Option, Schema } from "effect"
+import { driveStore } from "./drive"
 import { syncError } from "./error"
-import { gcsStore } from "./gcs"
 import type { Credentials } from "./manager"
 
 const BRIDGE_TIMEOUT_MS = 5_000
@@ -29,7 +29,7 @@ export function bridgeCredentials(env: Readonly<Record<string, string | undefine
 
   const accessToken = async () => {
     const answer = await ask("sync_token").catch(() => {
-      throw syncError("unavailable", "Tenon Workbench could not be asked for a Cloud Storage token")
+      throw syncError("unavailable", "Tenon Workbench could not be asked for a Google Drive token")
     })
     if (!answer?.token) throw syncError("unauthorized", "Sign in to Google again to sync threads")
     return answer.token
@@ -41,10 +41,10 @@ export function bridgeCredentials(env: Readonly<Record<string, string | undefine
       if (!answer?.key) return undefined
       return Uint8Array.from(Buffer.from(answer.key, "base64url"))
     },
-    async store(bucket) {
+    async store(driveFolder) {
       const answer = await ask("sync_token")
       if (!answer?.token) return undefined
-      return gcsStore({ bucket, token: accessToken })
+      return driveStore({ token: accessToken, folder: driveFolder })
     },
   }
 }

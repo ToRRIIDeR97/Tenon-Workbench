@@ -13,17 +13,25 @@ import { make } from "./engine"
 import { syncError } from "./error"
 import type { SyncError } from "./error"
 import { canHold } from "./local-path"
-import { folderOf, isBucket, isMachineName, loadSettings, saveSettings, withFolder } from "./settings"
+import {
+  driveFolderOf,
+  folderOf,
+  isDriveFolder,
+  isMachineName,
+  loadSettings,
+  saveSettings,
+  withFolder,
+} from "./settings"
 import type { Settings } from "./settings"
 import type { Store } from "./store"
 
-export type Missing = "bucket" | "key" | "store"
+export type Missing = "key" | "store"
 export type LocalState = "absent" | "behind" | "current" | "ahead" | "diverged"
 
 export type Status = {
   ready: boolean
   enabled: boolean
-  bucket: string
+  driveFolder: string
   machine: { id: string; name: string }
   missing: Missing[]
   lastError: string | null
@@ -43,7 +51,7 @@ export type StoredThread = {
 
 export type Credentials = {
   key(): Promise<Uint8Array | undefined>
-  store(bucket: string): Promise<Store | undefined>
+  store(driveFolder: string): Promise<Store | undefined>
 }
 
 export type Projects = {
@@ -86,12 +94,8 @@ export function manager(input: {
         (found) => (found && isKey(found) ? found : undefined),
         () => undefined,
       )
-      const store = current.bucket ? await input.credentials.store(current.bucket).catch(() => undefined) : undefined
-      const missing: Missing[] = [
-        ...(current.bucket ? [] : ["bucket" as const]),
-        ...(key ? [] : ["key" as const]),
-        ...(store ? [] : ["store" as const]),
-      ]
+      const store = await input.credentials.store(driveFolderOf(current)).catch(() => undefined)
+      const missing: Missing[] = [...(key ? [] : ["key" as const]), ...(store ? [] : ["store" as const])]
       return { key, store, missing }
     })
 
@@ -102,7 +106,7 @@ export function manager(input: {
       return {
         ready: current.enabled && found.missing.length === 0,
         enabled: current.enabled,
-        bucket: current.bucket,
+        driveFolder: driveFolderOf(current),
         machine: { id: current.machine.id, name: current.machine.name },
         missing: found.missing,
         lastError: state.lastError,
@@ -166,11 +170,12 @@ export function manager(input: {
       yield* writeFolder(sessionID, folder, yield* resolveProject(folder))
     })
 
-  const configure = (change: { enabled?: boolean; bucket?: string; machineName?: string }) =>
+  const configure = (change: { enabled?: boolean; driveFolder?: string; machineName?: string }) =>
     Effect.gen(function* () {
-      if (change.bucket !== undefined && !isBucket(change.bucket))
+      const driveFolder = typeof change.driveFolder === "string" ? change.driveFolder.trim() : change.driveFolder
+      if (driveFolder !== undefined && !isDriveFolder(driveFolder))
         return yield* Effect.fail(
-          syncError("invalid_name", "A bucket name is 3 to 63 lower-case letters, digits, dots, dashes or underscores"),
+          syncError("invalid_name", "A Google Drive folder name is 1 to 100 characters with no control characters"),
         )
       const name = change.machineName?.trim()
       if (name !== undefined && !isMachineName(name))
@@ -178,7 +183,7 @@ export function manager(input: {
       yield* update((current) => ({
         ...current,
         enabled: change.enabled ?? current.enabled,
-        bucket: change.bucket ?? current.bucket,
+        driveFolder: driveFolder ?? current.driveFolder,
         machine: { id: current.machine.id, name: name ?? current.machine.name },
       }))
       return yield* status()

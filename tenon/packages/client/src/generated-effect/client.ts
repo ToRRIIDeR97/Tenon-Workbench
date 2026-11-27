@@ -850,12 +850,12 @@ const Endpoint16_0 = (raw: RawClient["server.threadSync"]) => () =>
 type Endpoint16_1Request = Parameters<RawClient["server.threadSync"]["threadSync.configure"]>[0]
 type Endpoint16_1Input = {
   readonly enabled?: Endpoint16_1Request["payload"]["enabled"]
-  readonly bucket?: Endpoint16_1Request["payload"]["bucket"]
+  readonly driveFolder?: Endpoint16_1Request["payload"]["driveFolder"]
   readonly machineName?: Endpoint16_1Request["payload"]["machineName"]
 }
 const Endpoint16_1 = (raw: RawClient["server.threadSync"]) => (input?: Endpoint16_1Input) =>
   raw["threadSync.configure"]({
-    payload: { enabled: input?.["enabled"], bucket: input?.["bucket"], machineName: input?.["machineName"] },
+    payload: { enabled: input?.["enabled"], driveFolder: input?.["driveFolder"], machineName: input?.["machineName"] },
   }).pipe(Effect.mapError(mapClientError))
 
 const Endpoint16_2 = (raw: RawClient["server.threadSync"]) => () =>
