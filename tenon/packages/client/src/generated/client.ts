@@ -172,11 +172,11 @@ import type {
   ProjectCopiesRemoveOutput,
   ProjectCopiesRefreshInput,
   ProjectCopiesRefreshOutput,
-  ServerRemotePairingCodeOutput,
-  ServerRemoteDevicesOutput,
-  ServerRemoteRevokeInput,
-  ServerRemoteRevokeOutput,
-  ServerRemoteStreamTicketOutput,
+  RemotePairingCodeOutput,
+  RemoteDevicesOutput,
+  RemoteRevokeInput,
+  RemoteRevokeOutput,
+  RemoteStreamTicketOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -1434,9 +1434,9 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
     },
-    "server.remote": {
+    remote: {
       pairingCode: (requestOptions?: RequestOptions) =>
-        request<ServerRemotePairingCodeOutput>(
+        request<RemotePairingCodeOutput>(
           {
             method: "POST",
             path: `/api/remote/pairing-code`,
@@ -1447,7 +1447,7 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
       devices: (requestOptions?: RequestOptions) =>
-        request<ServerRemoteDevicesOutput>(
+        request<RemoteDevicesOutput>(
           {
             method: "GET",
             path: `/api/remote/devices`,
@@ -1457,8 +1457,8 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      revoke: (input: ServerRemoteRevokeInput, requestOptions?: RequestOptions) =>
-        request<ServerRemoteRevokeOutput>(
+      revoke: (input: RemoteRevokeInput, requestOptions?: RequestOptions) =>
+        request<RemoteRevokeOutput>(
           {
             method: "DELETE",
             path: `/api/remote/devices/${encodeURIComponent(input.id)}`,
@@ -1469,7 +1469,7 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
       streamTicket: (requestOptions?: RequestOptions) =>
-        request<ServerRemoteStreamTicketOutput>(
+        request<RemoteStreamTicketOutput>(
           {
             method: "POST",
             path: `/api/remote/stream-ticket`,

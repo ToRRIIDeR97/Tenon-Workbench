@@ -4293,9 +4293,9 @@ export type ProjectCopiesRefreshInput = {
 
 export type ProjectCopiesRefreshOutput = void
 
-export type ServerRemotePairingCodeOutput = { readonly code: string; readonly expiresAt: number }
+export type RemotePairingCodeOutput = { readonly code: string; readonly expiresAt: number }
 
-export type ServerRemoteDevicesOutput = {
+export type RemoteDevicesOutput = {
   readonly devices: ReadonlyArray<{
     readonly id: string
     readonly name: string
@@ -4304,8 +4304,8 @@ export type ServerRemoteDevicesOutput = {
   }>
 }
 
-export type ServerRemoteRevokeInput = { readonly id: { readonly id: string }["id"] }
+export type RemoteRevokeInput = { readonly id: { readonly id: string }["id"] }
 
-export type ServerRemoteRevokeOutput = { readonly removed: boolean }
+export type RemoteRevokeOutput = { readonly removed: boolean }
 
-export type ServerRemoteStreamTicketOutput = { readonly ticket: string; readonly expiresAt: number }
+export type RemoteStreamTicketOutput = { readonly ticket: string; readonly expiresAt: number }

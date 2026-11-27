@@ -1060,7 +1060,7 @@ const adaptClient = (raw: RawClient) => ({
   questions: adaptGroup18(raw["server.question"]),
   references: adaptGroup19(raw["server.reference"]),
   projectCopies: adaptGroup20(raw["server.projectCopy"]),
-  "server.remote": adaptGroup21(raw["server.remote"]),
+  remote: adaptGroup21(raw["server.remote"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>
