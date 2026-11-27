@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { ThreadSyncCode, threadSyncFailure } from "../src/groups/thread-sync"
 
-const expected = {
+const expected: Record<ThreadSyncCode, number> = {
   invalid_name: 400,
   not_found: 404,
   conflict: 409,
@@ -15,22 +15,18 @@ const expected = {
   foreign_path: 422,
   unavailable: 502,
   unauthorized: 502,
-} as const
+}
 
-const statusOf = (failure: object) =>
+const statusOf = (failure: object): unknown =>
   (failure.constructor as unknown as { ast?: { annotations?: Record<string, unknown> } }).ast?.annotations
     ?.httpApiStatus
 
 describe("thread sync errors", () => {
   test("every code has a status and keeps its code and message", () => {
-    expect(Object.keys(expected).sort()).toEqual([...ThreadSyncCode.literals].sort())
-    Object.entries(expected).forEach(([code, status]) => {
-      const failure = threadSyncFailure({ code: code as keyof typeof expected, message: `about ${code}` })
-      expect({ code: failure.code, message: failure.message, status: statusOf(failure) }).toEqual({
-        code,
-        message: `about ${code}`,
-        status,
-      })
+    const answered = ThreadSyncCode.literals.map((code) => {
+      const failure = threadSyncFailure({ code, message: `about ${code}` })
+      return [failure.code, failure.message, statusOf(failure)]
     })
+    expect(answered).toEqual(ThreadSyncCode.literals.map((code) => [code, `about ${code}`, expected[code]]))
   })
 })
