@@ -205,6 +205,21 @@ export type ThreadSyncPlatform = {
   forgetKey(): Promise<ThreadSyncDesktopStatus>
 }
 
+export type RemoteAccessStatus = {
+  enabled: boolean
+  address: string
+  port: number
+  addresses: Array<{ address: string; name: string }>
+  running: boolean
+  url: string | null
+  error: string | null
+}
+
+export type RemoteAccessPlatform = {
+  status(): Promise<RemoteAccessStatus>
+  configure(input: { enabled: boolean; address: string; port: number }): Promise<RemoteAccessStatus>
+}
+
 type PlatformBase = {
   version?: string
 
@@ -295,6 +310,8 @@ type PlatformBase = {
   harnessSync?: HarnessSyncPlatform
 
   threadSync?: ThreadSyncPlatform
+
+  remoteAccess?: RemoteAccessPlatform
 
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
   chooseVaultFolder?(): Promise<

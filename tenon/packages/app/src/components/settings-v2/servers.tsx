@@ -10,9 +10,11 @@ import { createStore } from "solid-js/store"
 import { ServerRowMenu } from "@/components/server/server-row-menu"
 import { ServerHealthIndicator } from "@/components/server/server-row"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { ServerConnection, serverName } from "@/context/server"
 import { useServerManagementController } from "../dialog-select-server"
 import { DialogServerV2 } from "./dialog-server-v2"
+import { PhoneAccessSettings } from "./phone-access"
 import { SettingsListV2 } from "./parts/list"
 import { AddServerMenu, isWslServer, useFilteredWslServers, WslServerSettings } from "@/wsl/settings"
 import "./settings-v2.css"
@@ -20,6 +22,7 @@ import "./settings-v2.css"
 export const SettingsServersV2: Component = () => {
   const dialog = useDialog()
   const language = useLanguage()
+  const platform = usePlatform()
   const controller = useServerManagementController()
   const [store, setStore] = createStore({ filter: "" })
   const wslServers = useFilteredWslServers(() => store.filter)
@@ -138,6 +141,7 @@ export const SettingsServersV2: Component = () => {
             </For>
           </SettingsListV2>
         </Show>
+        <Show when={platform.remoteAccess}>{(remote) => <PhoneAccessSettings remote={remote()} />}</Show>
       </div>
     </>
   )

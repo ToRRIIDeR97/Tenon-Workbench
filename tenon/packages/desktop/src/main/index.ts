@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, rmSync, statSync } from "node:fs"
 import * as http from "node:http"
 import { createServer } from "node:net"
-import { homedir, tmpdir } from "node:os"
+import { homedir, networkInterfaces, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event, WebContents } from "electron"
@@ -24,6 +24,8 @@ import { hideWidget, openInApp, registerWidgetShortcut, resizeWidget, toggleWidg
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDesktopThreadSync, threadSyncServerEnv } from "./thread-sync/electron"
+import { createRemoteAccess } from "./remote-access/controller"
+import { getStore } from "./store"
 import { createDictationService } from "./dictation-service"
 import { createMailService, startMailEndpoint } from "./mail/service"
 import { createHarnessSyncService } from "./harness-sync-service"
@@ -425,6 +427,12 @@ const main = Effect.gen(function* () {
   const mail = createMailService({ onGoogleGrant: googleCalendar.adoptGrant })
   const threadSync = createDesktopThreadSync()
   answerThreadSyncBridge((route) => threadSync.bridge(route))
+  const remoteAccessStore = getStore("tenon.remote-access")
+  const remoteAccess = createRemoteAccess({
+    store: { get: (key) => remoteAccessStore.get(key), set: (key, value) => remoteAccessStore.set(key, value) },
+    interfaces: () => networkInterfaces(),
+  })
+  app.once("will-quit", () => void remoteAccess.stop())
   const harnessSync = createHarnessSyncService()
   harnessSync.start()
   app.once("will-quit", () => harnessSync.stop())
@@ -476,6 +484,7 @@ const main = Effect.gen(function* () {
     mail,
     harnessSync,
     threadSync,
+    remoteAccess,
   })
   registerWslIpcHandlers(wslServers)
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
@@ -502,6 +511,8 @@ const main = Effect.gen(function* () {
         username: sidecar.username,
         password: sidecar.password,
       })
+      remoteAccess.setTarget(() => sidecar.url)
+      void remoteAccess.start().catch((error: unknown) => logger.error("remote access failed to start", String(error)))
 
       if (process.platform === "win32") {
         void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))
@@ -582,6 +593,8 @@ const main = Effect.gen(function* () {
       username: "opencode",
       password,
     })
+    remoteAccess.setTarget(() => url)
+    void remoteAccess.start().catch((error: unknown) => logger.error("remote access failed to start", String(error)))
 
     if (process.platform === "win32") {
       void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))

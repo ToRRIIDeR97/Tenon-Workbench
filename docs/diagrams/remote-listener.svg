@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" width="980" height="360" role="img" aria-labelledby="title desc">
+<title id="title">Second listener for paired phones</title>
+<desc id="desc">A phone on the home network or VPN calls the desktop's second listener at the chosen address and port with its device token. The listener, a reverse proxy in Electron main and off by default, forwards bearer requests, POST /remote/pair and GET requests with a stream ticket to the loopback server, and answers 401 for passwords and requests without credentials and 403 for socket upgrades. The loopback server authenticates the device token and applies the companion scope to the raw path. The owner turns the listener on, makes pairing codes and revokes devices in Settings › Servers › Phone access.</desc>
+<style>
+  .bg{fill:#ffffff}
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;fill:#1f2328}
+  .t{font-weight:600}
+  .s{font-size:11.5px;fill:#57606a}
+  .h{font-size:16px;font-weight:600}
+  .lbl{font-size:11px;fill:#424a53}
+  .lblbg{fill:#ffffff;opacity:.92}
+  .box{fill:#f6f8fa;stroke:#57606a;stroke-width:1.2}
+  .ext{fill:#ddf4ff;stroke:#0969da;stroke-width:1.2}
+  .proc{fill:#fbefff;stroke:#8250df;stroke-width:1.2}
+  .zone{fill:none;stroke:#8c959f;stroke-width:1.2;stroke-dasharray:7 5}
+  .zonet{font-size:12px;font-weight:600;fill:#57606a}
+  .e{fill:none;stroke:#57606a;stroke-width:1.3}
+  .ah{fill:#57606a}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#0d1117}
+    text{fill:#e6edf3}
+    .s{fill:#9198a1} .lbl{fill:#c9d1d9} .lblbg{fill:#0d1117}
+    .box{fill:#161b22;stroke:#8b949e}
+    .ext{fill:#0c2d4a;stroke:#4493f8}
+    .proc{fill:#271a3d;stroke:#ab7df8}
+    .zone{stroke:#6e7681} .zonet{fill:#9198a1}
+    .e{stroke:#9198a1} .ah{fill:#9198a1}
+  }
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker></defs>
+<rect class="bg" width="980" height="360"/>
+<text class="h" x="24" y="32">Second listener for paired phones</text>
+
+<rect class="ext" x="24" y="120" width="190" height="96" rx="8"/>
+<text class="t" x="38" y="144">Phone (Tenon app)</text>
+<text class="s" x="38" y="164">Authorization: Bearer</text>
+<text class="s" x="38" y="182">&lt;device token&gt;</text>
+<text class="s" x="38" y="200">?ticket= for streams</text>
+
+<rect class="zone" x="270" y="56" width="690" height="284" rx="10"/>
+<text class="zonet" x="284" y="76">This computer</text>
+
+<rect class="proc" x="300" y="100" width="280" height="140" rx="8"/>
+<text class="t" x="314" y="124">Desktop: second listener</text>
+<text class="s" x="314" y="144">chosen LAN or VPN address, port 47100</text>
+<text class="s" x="314" y="162">off by default</text>
+<text class="s" x="314" y="180">forwards: Bearer, POST /remote/pair,</text>
+<text class="s" x="314" y="198">GET ?ticket= (raw path, streamed)</text>
+<text class="s" x="314" y="216">refuses: Basic, auth_token (401),</text>
+<text class="s" x="314" y="234">socket upgrades (403)</text>
+
+<rect class="box" x="660" y="100" width="280" height="140" rx="8"/>
+<text class="t" x="674" y="124">Local server (127.0.0.1)</text>
+<text class="s" x="674" y="144">remote-device middleware:</text>
+<text class="s" x="674" y="162">token → device, else 401</text>
+<text class="s" x="674" y="180">companion scope on the raw path,</text>
+<text class="s" x="674" y="198">else 403</text>
+<text class="s" x="674" y="216">pairing codes, devices, revoke</text>
+
+<rect class="box" x="300" y="270" width="280" height="56" rx="8"/>
+<text class="t" x="314" y="292">Settings › Servers › Phone access</text>
+<text class="s" x="314" y="310">switch, address, QR code, devices</text>
+
+<path class="e" d="M214 168 H300" marker-end="url(#a)"/>
+<rect class="lblbg" x="222" y="146" width="70" height="16"/><text class="lbl" x="224" y="158">plain HTTP</text>
+<path class="e" d="M580 168 H660" marker-end="url(#a)"/>
+<rect class="lblbg" x="590" y="146" width="60" height="16"/><text class="lbl" x="592" y="158">loopback</text>
+<path class="e" d="M440 270 V240" marker-end="url(#a)"/>
+<rect class="lblbg" x="446" y="248" width="30" height="16"/><text class="lbl" x="448" y="260">IPC</text>
+<path class="e" d="M580 298 H800 V240" marker-end="url(#a)"/>
+<rect class="lblbg" x="600" y="304" width="160" height="16"/><text class="lbl" x="602" y="316">owner password: /api/remote/*</text>
+</svg>
