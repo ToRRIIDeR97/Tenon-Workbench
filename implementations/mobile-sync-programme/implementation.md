@@ -1169,6 +1169,79 @@ Commands, from `tenon/packages/app` with `PLAYWRIGHT_PORT=3105 PLAYWRIGHT_SERVER
 verification set, copy it into `e2e/acceptance/`, run it and delete the copy. Then the whole e2e suite and
 `bun run test:routes`.
 
+## P8: Capacitor shell for Android and iOS
+
+One agent (TOR-1, no subagents) wrote this section, both test sets and the code; the review panel is a
+scored self-review in three lenses.
+
+Before: the renderer runs only in Electron and in a browser served by the server; a phone can be paired
+(P6a, P6b) but there is no app to pair.
+
+After: `tenon/packages/mobile` wraps the same renderer in Capacitor 6 (Capacitor 7 needs JDK 21; this
+computer has JDK 17). The app opens on a pairing screen (address and code typed in, a `tenon://pair?…`
+link, or a QR code scanned with the camera where the web view offers `BarcodeDetector`), pairs with
+`POST /remote/pair`, keeps the device token in the platform's secure storage (an Android Keystore key
+sealing it in app preferences; the iOS Keychain), then starts the renderer against that computer with
+every request to it carrying `Authorization: Bearer <token>`. It reconnects with the stored token on the
+next start and can sign out (forget the token). The Android app is built and run on the `tenon_api35`
+emulator against the desktop app on this computer; the iOS project is generated and documented, and
+unverified (no Mac). Nothing is published to a store.
+
+### Contract
+
+`tenon/packages/mobile/src/companion.ts`:
+
+```ts
+normalizeServer(input: string): string | undefined          // origin; http:// and port 47100 when missing
+readPairing(link: string): { url: string; code: string } | undefined
+pairDevice(fetch, input: { url: string; code: string; name: string }): Promise<{ url; id; name; token }>
+  // rejects with Error(bad_code | expired | locked | invalid_name | too_many_attempts | unreachable | refused)
+bearerFetch(fetch, pairing: { url: string; token: string }): typeof fetch
+companionSession(store: { get(key): Promise<string | null>; set(key, value): Promise<void>; remove(key): Promise<void> }):
+  { load(): Promise<Pairing | undefined>; save(p: Pairing): Promise<void>; signOut(): Promise<void> }
+```
+
+### Acceptance criteria
+
+- **AC-P8-1 Package.** `tenon/packages/mobile` (`@tenon/mobile`) builds the renderer with the app's Vite
+  plugin into `dist/` and holds `capacitor.config.ts` (app ID `dev.tenon.companion`, `androidScheme:
+  "http"`, `cleartext: true`, since the link is plain HTTP on a trusted network), the generated `android/`
+  and `ios/` projects, a secure-store plugin for each (`SecureStorePlugin.java`, `SecureStorePlugin.swift`)
+  and `README.md` with the build steps for both. It joins the workspace's typecheck, lint, format and test.
+- **AC-P8-2 Pairing.** `normalizeServer` accepts an IP, a host name or a URL (adds `http://` and port 47100
+  when missing, keeps `https://`, drops paths) and refuses anything else; `readPairing` reads the QR link;
+  `pairDevice` posts `{ code, name }` (the code upper-cased with spaces and hyphens removed) to
+  `/remote/pair` with no credential and returns the token; a refusal names its reason, a 429 is
+  `too_many_attempts`, a network failure `unreachable`.
+- **AC-P8-3 Device token on every request.** `bearerFetch` adds `Authorization: Bearer <token>` to every
+  request whose origin is the paired computer's (replacing any other credential and dropping an
+  `auth_token` query), and leaves requests to other origins alone. The shell installs it for the renderer.
+- **AC-P8-4 Stored, restored, forgotten.** `companionSession` keeps one JSON entry; a new session on the
+  same store loads it; a damaged or non-HTTP entry reads as not paired; sign-out removes it. On the phone the
+  store is the secure-store plugin. Settings › Servers in the shell shows the paired computer and Sign
+  out.
+- **AC-P8-5 On the emulator.** The Android debug APK installs and starts on `tenon_api35`; with Phone
+  access on in the desktop app on this computer, the app pairs (code typed in), lists the computer's
+  threads, opens one, sends a prompt to an empty thread (answered or failing for want of a paid harness
+  login; either is recorded), and answers a permission request when one can be raised without a paid
+  harness; after a restart of the app it reconnects without pairing again; Sign out returns to the pairing
+  screen. Screenshots in `evidence/p8-*.png`.
+- **AC-P8-6 iOS written, not verified.** The iOS project is generated (`ios/App`), the Keychain plugin is
+  written, `Info.plist` allows local networking (`NSAllowsLocalNetworking`) and explains local network and
+  camera use; README says it was never built or run, and why.
+- **AC-P8-7 Documentation.** Architecture (a Mobile companion section), threat model (the token on the phone,
+  plain HTTP, what the shell sends), `uml.md`, a diagram, the matrix, `docs/release-operations.md` (no store
+  publishing; how to build the APK). No source comments except the tool-read kind.
+
+| Criterion | Acceptance set | Verification set |
+| --- | --- | --- |
+| AC-P8-2 to 4 | `acceptance/p8/companion.test.ts`, `session.test.ts` (copied to `tenon/packages/mobile/src/`) | `verification/p8/companion-verification.test.ts`: IPv6, scheme case, method and body kept, look-alike origins, no bearer on pairing, the native project's manifest, config and plugin registration |
+| AC-P8-1, 6, 7 | diff review, `bun run check` | the same verification file (project files) |
+| AC-P8-5 | the emulator run with screenshots | the same run read back |
+
+What the user must supply for iOS: a Mac with Xcode, an Apple ID (a free one runs it on their own
+device for a week), and a run of the README's steps; nothing else is needed for Android debug builds.
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
@@ -1469,3 +1542,50 @@ and frozen (`frozen\p7\`) before any product change; screenshots of the base at 
 
 Left unverified: a real phone and its keyboard (the keyboard was simulated by shrinking the viewport); iOS
 safe areas on a notched device; the note editor on a phone (Projects list was checked, not an open page).
+
+`bun run check` on `00c948f4` (P6b) and `c0391286` (P7), in the check worktree: exit 0 both.
+
+### P8 Capacitor shell (2026-11-27)
+
+One agent (TOR-1, no subagents) on `claude/mobile-shell` from `c0391286`. Plan section and both sets written and
+frozen (`frozen\p8\`) before the package existed.
+
+- Baseline on `c0391286`: the package did not exist; with `companion.ts` moved aside all three acceptance and
+  verification files failed at the import, 0 pass.
+- After: `bun test src` in `tenon/packages/mobile` 13 pass with the verification copy (acceptance 6, the
+  implementor's `workspaces.test.ts` 1, verification 6 including the native project checks), copy deleted;
+  desktop `src/main/remote-access` 12 pass; typecheck of mobile, app and desktop clean; Prettier clean on the
+  package.
+- The emulator run (AC-P8-5), `tenon_api35` (Android 15, web view Chromium 124) against
+  `TENON_TEST_ONBOARDING=1 bun run dev:desktop` with Phone access on `http://192.168.10.136:47100`, driven
+  through the web view's DevTools socket and `adb`: the debug APK installed; pairing with a typed address and
+  code worked; the thread created on the computer was listed under the computer's folder and opened; a prompt
+  typed in the composer could not be sent because the isolated desktop profile has no model (the composer
+  shows "Select model"), and the same prompt sent from the phone through `POST /api/session/:id/prompt` with
+  the device token was admitted (200, `admittedSeq` 1); no permission request could be raised without a
+  model, so answering one on the phone was not run; after a force-stop the app reconnected with the stored
+  token; Sign out in Settings › Servers › This phone returned to the pairing screen. Screenshots
+  `evidence/p8-*.png`.
+- Faults the run found and fixed: the listener passed the phone's `Origin` to the server, which refused it
+  (`listener.ts` now drops it for the phone origins; `listener-origin.test.ts`); `URL.parse` is missing in
+  Chromium 124 (phone-facing code now uses `new URL` in a guard); a fresh phone had no workspace, and `/path`
+  and `/project` are outside the companion scope (the shell seeds the workspace list from the folders of
+  `GET /api/session`); a reload on a deep route loaded no assets with `base: "./"` (now `/`, and pairing and
+  sign-out go to `/`). The last APK installed predates one type-only change (`preconnect` copied onto the
+  wrapped `fetch`).
+- Tests changed after the freeze, with the reason: the verification file built a look-alike URL as
+  `http://127.0.0.1:<port>.evil.example`, which is not a URL at all; the copy that ran uses
+  `http://127.0.0.1.evil.example:<port>`. `bearerFetch` now leaves `/remote/pair` without a token, which the
+  verification set asked for and the contract did not say; the contract above is read that way.
+- Scope notes: the Capacitor 6 CLI fails under the workspace's `tar` 7 override, so `scripts/cap.cjs` runs it
+  with a shim instead of changing the override; Android compiles against SDK 35 (installed) with
+  `android.suppressUnsupportedCompileSdk=35` for AGP 8.2.1, and `minSdkVersion` 23 for the Keystore API;
+  `packages/mobile/android` and `ios` are excluded from Prettier and oxlint; the root `AGENTS.md` names the
+  package.
+- Self-review, round 1: plan conformance 8.5 (AC-P8-5's prompt from the composer and the approval were not
+  run; QR scanning not run), correctness and regressions 9 (four faults found live, all fixed and tested), integrity and scope 9
+  (the listener fix belongs to P6b's code; recorded here). After the record: plan conformance stays 9 for the
+  two runs that need a model, correctness 10, integrity 10.
+
+What the user must supply: for iOS, a Mac with Xcode and an Apple ID; for the prompt and approval on the
+phone, a model the desktop can use (any harness login or provider key).
