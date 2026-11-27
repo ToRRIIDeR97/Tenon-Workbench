@@ -13,6 +13,7 @@ export const Code = Schema.Literals([
   "diverged",
   "foreign_path",
   "unsupported",
+  "not_ready",
 ])
 export type Code = typeof Code.Type
 
