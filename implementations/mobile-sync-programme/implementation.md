@@ -247,8 +247,12 @@ its own repairs change.
 
 ### Acceptance criteria (P3a and P3b)
 
-- **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test, at least as many
-  tests run as on the baseline (221) and no more skipped (1).
+- **AC-P3-1** `bun run test:e2e` in `tenon/packages/app` ends with no failed test and no more skipped
+  than on the baseline (1). The number of tests run is at least the baseline's 221 less the tests
+  deleted as `feature removed`, each of which is listed in a repair record. A test that fails on the
+  base but is missing from the baseline list (the verifier found one,
+  `remote-session-settings.spec.ts` "auto-accept responds for an unfocused server session") is
+  repaired and recorded like the others.
 - **AC-P3-2** Each of the 66 baseline failures has a row in that part's repair record, a table with the
   header `| Spec | Test | Decision | Evidence | Change |`. `Spec` and `Test` are copied from the
   baseline's failing-test table. `Decision` is `spec drifted` (the app is right and the spec was
