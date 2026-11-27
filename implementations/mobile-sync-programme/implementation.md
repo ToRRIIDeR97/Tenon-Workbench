@@ -1296,6 +1296,28 @@ One agent (TOR-1, no subagents) on `claude/manual-feature-checks` from `d717f7eb
 - Matrix acceptance 8 pass; desktop typecheck clean.
 - Self-review: plan conformance 9 (seven rows not run, each said), correctness 10, integrity 10.
 
+## P9: feature backlog
+
+One agent (TOR-1, no subagents) on `claude/feature-backlog` from `fed39c7e`.
+
+### Acceptance criteria
+
+- **AC-P9-1** `docs/product/feature-backlog.md` ranks additions with value, cost, risk and what the user must
+  supply, including the named candidates and what the programme found.
+- **AC-P9-2** Items needing no decision are built from the top, each with a test, until one needs a choice;
+  anything skipped for another reason is said.
+
+### Completion evidence
+
+- Backlog written (12 ranked items). Item 3 (approvals in one place) already exists in the Command Centre
+  hub, reachable from the phone's bottom bar; item 8 built: the Sync page says the Drive folder never needs
+  sharing and This phone says to revoke on the computer too (`sync-notes.test.ts`, 1 pass; app typecheck
+  clean).
+- Not built: items 1 and 2 (need scope decisions and native plugins), 5, 10, 11 (need the user's choice or
+  accounts), and 4, 6 and 7, which need no decision and were left for lack of room in this run.
+- Self-review: plan conformance 8 (three buildable items left unbuilt, said plainly), correctness 10,
+  integrity 10.
+
 ## Verification commands
 
 Run from `tenon/packages/desktop` unless noted. Verification tests are copied to
