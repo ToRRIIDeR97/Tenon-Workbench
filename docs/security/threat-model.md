@@ -1544,8 +1544,9 @@ device management in Settings.
   and one use. It is accepted only as `?ticket=` on `GET /api/event`,
   `GET /event`, `GET /global/event` and `GET /api/session/:sessionID/event`,
   and only while the device is still paired. Terminal sockets are outside the
-  scope, so a device can never get a terminal ticket. A stream that is
-  already open keeps streaming after its device is revoked until it closes.
+  scope, so a device can never get a terminal ticket. Any streamed answer a
+  device opened, by header or ticket, checks the registry every five seconds
+  and ends within about five seconds of the device being revoked.
 - **Scope rules.** `RemoteAccess.allows` is default deny: the method
   (any letter case) and the path must match a row of the table below, and the
   most specific matching row decides, so a literal segment beats a parameter
@@ -1572,8 +1573,10 @@ device management in Settings.
   the calendar, and read the Command Centre, project threads and usage. It
   cannot open terminals, read or write files outside the vault routes, change
   settings, credentials or sign-ins, install or upgrade anything, pair other
-  devices or manage devices. The owner revokes it with
-  `DELETE /api/remote/devices/:id`.
+  devices or manage devices. An allowed instance request that names a remote
+  workspace is forwarded there with that workspace's configured credentials,
+  as the owner's would be, so the same reach extends to its threads. The
+  owner revokes it with `DELETE /api/remote/devices/:id`.
 - **Transport.** The link will be plain HTTP on a network the user trusts (a
   local network or a VPN) until a later phase adds a relay. Anyone who can
   watch that network can read the token, the tickets and every thread the

@@ -50,9 +50,10 @@ export const authorizationLayer = Layer.effect(
         const request = yield* HttpServerRequest.HttpServerRequest
         const device = RemoteDevice.bearerToken(request)
         if (device !== undefined) {
-          const verdict = yield* RemoteDevice.check(request, device, options.endpoint)
-          if (verdict === "allowed") return yield* effect
-          if (verdict === "outside") return RemoteDevice.forbidden()
+          const checked = yield* RemoteDevice.check(request, device, options.endpoint)
+          if (checked.verdict === "allowed" && checked.deviceID)
+            return yield* RemoteDevice.endWhenRevoked(yield* effect, checked.deviceID)
+          if (checked.verdict === "outside") return RemoteDevice.forbidden()
           yield* HttpEffect.appendPreResponseHandler((_request, response) =>
             Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", RemoteDevice.BEARER_CHALLENGE)),
           )
@@ -69,7 +70,8 @@ export const authorizationLayer = Layer.effect(
           return yield* new UnauthorizedError({ message: "Authentication required" })
         }
         if (RemoteDevice.hasStreamTicket(request, options.endpoint)) {
-          if (yield* RemoteDevice.redeemStreamTicket(request)) return yield* effect
+          const deviceID = yield* RemoteDevice.redeemStreamTicket(request)
+          if (deviceID) return yield* RemoteDevice.endWhenRevoked(yield* effect, deviceID)
           return yield* new UnauthorizedError({ message: "Authentication required" })
         }
         const credential = yield* credentialFromRequest(request)

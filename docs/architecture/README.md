@@ -248,7 +248,9 @@ Servers come later. Security detail and the full scope table are in the
   (`tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`) all
   call it first: 401 for an unknown token, 403 outside the scope, otherwise the
   handler. Without a Bearer header the password path is unchanged, plus a
-  `?ticket=` stream ticket on the event-stream routes.
+  `?ticket=` stream ticket on the event-stream routes. A streamed response to
+  a device is wrapped by `endWhenRevoked`, which checks the registry every
+  five seconds and ends the stream once the device is gone.
 - **Routes.** `POST /remote/pair` (`httpapi/groups/remote.ts`, its own
   `RemotePairApi` with no authorization middleware, mounted beside the root
   routes and kept out of `TenonHttpApi` so it does not appear in the legacy
@@ -261,8 +263,8 @@ Servers come later. Security detail and the full scope table are in the
   `tenon/test/server/remote-access-scope.test.ts` (every registered route is
   in exactly one list), `remote-access-authorization.test.ts` (middleware
   behaviour, raw-socket path tricks) and `remote-access-app.test.ts` (the real
-  server: pairing, revoking, stream tickets, 403 on every denied route, the
-  429 limit).
+  server: pairing, revoking, an open stream ending after revocation, stream
+  tickets, 403 on every denied route, the 429 limit).
 
 ## Thread sync
 

@@ -106,9 +106,10 @@ function deviceGate<E, R>(
   route?: { readonly method: string; readonly path: string },
 ) {
   return RemoteDevice.check(request, token, route).pipe(
-    Effect.flatMap((verdict) => {
-      if (verdict === "allowed") return effect
-      if (verdict === "outside") return Effect.succeed(RemoteDevice.forbidden())
+    Effect.flatMap((checked) => {
+      const deviceID = checked.deviceID
+      if (checked.verdict === "allowed" && deviceID) return endWhenRevoked(effect, deviceID)
+      if (checked.verdict === "outside") return Effect.succeed(RemoteDevice.forbidden())
       return Effect.succeed(RemoteDevice.unauthorized())
     }),
   )
@@ -119,8 +120,14 @@ function streamGate<E, R>(
   request: HttpServerRequest.HttpServerRequest,
 ) {
   return RemoteDevice.redeemStreamTicket(request).pipe(
-    Effect.flatMap((redeemed) => (redeemed ? effect : Effect.succeed(RemoteDevice.unauthorized()))),
+    Effect.flatMap((deviceID) =>
+      deviceID ? endWhenRevoked(effect, deviceID) : Effect.succeed(RemoteDevice.unauthorized()),
+    ),
   )
+}
+
+function endWhenRevoked<E, R>(effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>, deviceID: string) {
+  return effect.pipe(Effect.flatMap((response) => RemoteDevice.endWhenRevoked(response, deviceID)))
 }
 
 export const authorizationRouterMiddleware = HttpRouter.middleware()(

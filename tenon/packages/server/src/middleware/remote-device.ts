@@ -2,10 +2,11 @@ export * as RemoteDevice from "./remote-device"
 
 import { RemoteAccess } from "@tenon/core/remote-access"
 import { RemoteAccessService } from "@tenon/core/remote-access/service"
-import { Effect, Option } from "effect"
-import { HttpServerRequest, HttpServerResponse } from "effect/http"
+import { Duration, Effect, Option, Stream } from "effect"
+import { HttpBody, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 export const STREAM_TICKET_QUERY = "ticket"
+export const REVOCATION_CHECK = Duration.seconds(5)
 export const BEARER_CHALLENGE = 'Bearer realm="Tenon"'
 
 export type Verdict = "allowed" | "unknown" | "outside"
@@ -25,7 +26,27 @@ export const check = Effect.fn("RemoteDevice.check")(function* (
 ) {
   const device = yield* authenticate(token)
   const verdict: Verdict = !device ? "unknown" : inScope(request, route) ? "allowed" : "outside"
-  return verdict
+  return { verdict, deviceID: device?.id }
+})
+
+export const endWhenRevoked = Effect.fn("RemoteDevice.endWhenRevoked")(function* (
+  response: HttpServerResponse.HttpServerResponse,
+  deviceID: string,
+) {
+  const access = yield* Effect.serviceOption(RemoteAccessService.Service)
+  const body = response.body
+  if (Option.isNone(access) || body._tag !== "Stream") return response
+  const registry = access.value.registry
+  const revoked = Effect.tryPromise(() => registry.devices()).pipe(
+    Effect.map((devices) => !devices.some((device) => device.id === deviceID)),
+    Effect.orElseSucceed(() => false),
+    Effect.delay(REVOCATION_CHECK),
+    Effect.repeat({ until: (gone) => gone }),
+  )
+  return HttpServerResponse.setBody(
+    response,
+    HttpBody.stream(body.stream.pipe(Stream.interruptWhen(revoked)), body.contentType, body.contentLength),
+  )
 })
 
 export const authenticate = Effect.fn("RemoteDevice.authenticate")(function* (token: string) {
@@ -39,12 +60,12 @@ export const redeemStreamTicket = Effect.fn("RemoteDevice.redeemStreamTicket")(f
   request: HttpServerRequest.HttpServerRequest,
 ) {
   const access = yield* Effect.serviceOption(RemoteAccessService.Service)
-  if (Option.isNone(access)) return false
+  if (Option.isNone(access)) return undefined
   const deviceID = access.value.tickets.redeem(streamTicket(request) ?? "")
-  if (!deviceID) return false
+  if (!deviceID) return undefined
   const registry = access.value.registry
   const devices = yield* Effect.tryPromise(() => registry.devices()).pipe(Effect.orElseSucceed(() => []))
-  return devices.some((device) => device.id === deviceID)
+  return devices.some((device) => device.id === deviceID) ? deviceID : undefined
 })
 
 export function inScope(request: HttpServerRequest.HttpServerRequest, route?: Route) {

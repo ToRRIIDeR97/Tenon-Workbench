@@ -73,6 +73,25 @@ describe("remote access in the real server", () => {
     expect((await call("GET", `/api/event?auth_token=${encodeURIComponent(phone.token)}`)).status).toBe(401)
   })
 
+  test("an open event stream ends after its device is revoked", async () => {
+    const phone = await pair("Revoked stream phone")
+    const response = await handler(
+      new Request("http://localhost/api/event", { headers: bearer(phone.token) }),
+      HttpApiApp.context,
+    )
+    expect(response.status).toBe(200)
+    const reader = response.body?.getReader()
+    const read = async (): Promise<number> => (!reader || (await reader.read()).done ? Date.now() : read())
+    const drained = read()
+    const early = await Promise.race([drained, new Promise<number>((resolve) => setTimeout(() => resolve(0), 1_500))])
+    expect(early).toBe(0)
+    const revokedAt = Date.now()
+    expect((await call("DELETE", `/api/remote/devices/${phone.id}`, owner)).json).toEqual({ removed: true })
+    const ended = await Promise.race([drained, new Promise<number>((resolve) => setTimeout(() => resolve(0), 9_000))])
+    expect(ended).toBeGreaterThan(0)
+    expect(ended - revokedAt).toBeLessThan(9_000)
+  }, 15_000)
+
   test("a phone is refused on every denied route before the handler runs", async () => {
     await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
     const phone = await pair("Denied phone")
