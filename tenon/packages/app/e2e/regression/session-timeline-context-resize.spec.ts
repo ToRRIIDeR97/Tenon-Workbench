@@ -91,7 +91,7 @@ test.describe("regression: session timeline context group resize", () => {
       },
     })
     await startVisualProbe(page, regions)
-    for (const [index, delay] of [120, 350, 80, 500].entries()) {
+    for (const index of contextIDs.keys()) {
       events.push({
         directory,
         payload: {
@@ -111,11 +111,12 @@ test.describe("regression: session timeline context group resize", () => {
           },
         },
       })
-      await page.waitForTimeout(delay)
+      await expect.poll(() => events.length).toBe(0)
+      await expectProbeFrames(page, 10)
     }
 
     await expect(groupRow.locator('[data-slot="turn-steps-step-running"]')).toHaveCount(0)
-    await page.waitForTimeout(700)
+    await expectProbeFrames(page, 30)
     const trace = await stopVisualProbe<keyof typeof regions>(page)
     const texts = trace.samples
       .map((sample) => sample.regions.group?.text)
@@ -139,6 +140,17 @@ test.describe("regression: session timeline context group resize", () => {
     await expect(summary).toHaveAttribute("aria-expanded", "true")
   })
 })
+
+async function expectProbeFrames(page: Page, frames: number) {
+  const count = () =>
+    page.evaluate(
+      () =>
+        (window as Window & { __visualStabilityProbe?: { samples: unknown[] } }).__visualStabilityProbe?.samples
+          .length ?? 0,
+    )
+  const start = await count()
+  await expect.poll(count).toBeGreaterThanOrEqual(start + frames)
+}
 
 async function configurePage(page: Page) {
   await page.addInitScript(() => {

@@ -3,7 +3,8 @@
 Part P3a of the [mobile, thread sync and test pass programme](../../implementations/mobile-sync-programme/implementation.md):
 the 39 thread-view failures of the [test baseline](test-baseline-2026-11-26.md) (`bun run test:e2e`
 table), each decided as `spec drifted`, `app regressed` or `feature removed`. Base commit `57ec14e9`.
-Every Playwright run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`.
+Every end-to-end run used `PLAYWRIGHT_PORT=3101 PLAYWRIGHT_SERVER_PORT=4101`; the benchmark runs used
+`PLAYWRIGHT_PORT=3101`, as their config serves the production build on that port.
 
 ## Shared causes
 
