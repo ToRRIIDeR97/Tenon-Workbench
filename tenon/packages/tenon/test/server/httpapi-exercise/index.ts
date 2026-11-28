@@ -129,6 +129,21 @@ const scenarios: Scenario[] = [
     .inProject({ git: false })
     .at((ctx) => ({ path: "/vcs/branch", headers: ctx.headers(), body: { branch: "main" } }))
     .status(400, undefined, "status"),
+  http.protected
+    .post("/vcs/commit", "vcs.commit")
+    .inProject({ git: false })
+    .at((ctx) => ({ path: "/vcs/commit", headers: ctx.headers(), body: { message: "x" } }))
+    .status(400, undefined, "status"),
+  http.protected
+    .post("/vcs/push", "vcs.push")
+    .inProject({ git: false })
+    .at((ctx) => ({ path: "/vcs/push", headers: ctx.headers() }))
+    .status(400, undefined, "status"),
+  http.protected
+    .post("/vcs/pr", "vcs.pr.create")
+    .inProject({ git: false })
+    .at((ctx) => ({ path: "/vcs/pr", headers: ctx.headers(), body: { title: "x", body: "", draft: true } }))
+    .status(400, undefined, "status"),
   http.protected.get("/command", "command.list").json(200, array, "status"),
   http.protected.get("/agent", "app.agents").json(200, array, "status"),
   http.protected.get("/skill", "app.skills").json(200, array, "status"),
@@ -331,6 +346,30 @@ const scenarios: Scenario[] = [
     .json(200, (body) => {
       object(body)
       check(body.type === "text" && body.content === "", "missing file content should return an empty text result")
+    }),
+  http.protected
+    .post("/file/revert", "file.revert")
+    .mutating()
+    .seeded((ctx) => ctx.file("hello.txt", "bye\n"))
+    .at((ctx) => ({
+      path: "/file/revert",
+      headers: ctx.headers(),
+      body: {
+        files: [
+          {
+            file: "hello.txt",
+            status: "modified",
+            patch: "--- a/hello.txt\n+++ b/hello.txt\n@@ -1 +1 @@\n-hello\n+bye\n",
+          },
+        ],
+      },
+    }))
+    .json(200, (body) => {
+      array(body)
+      check(
+        JSON.stringify(body) === JSON.stringify([{ file: "hello.txt", result: "reverted" }]),
+        `revert: ${JSON.stringify(body)}`,
+      )
     }),
   http.protected
     .put("/file/content", "file.write")

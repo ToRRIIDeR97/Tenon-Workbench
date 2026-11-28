@@ -82,6 +82,7 @@ export type ProjectRecord = {
 export type ProjectCreate = {
   name: string
   outcome: string
+  templateId?: string
   instructions?: string
   tags?: ReadonlyArray<string>
   location?: ProjectRecord["location"]
@@ -265,6 +266,33 @@ export const listVaultPages = (client: Client, filter: { project?: string; searc
 
 export const readVaultPage = (client: Client, path: string) =>
   request<VaultPage>(client, `/second-brain/vault/page?path=${encodeURIComponent(path)}`)
+
+export type VaultBacklink = { path: string; title: string; projectId: string | null; snippet: string }
+
+export const readVaultBacklinks = (client: Client, path: string) =>
+  request<VaultBacklink[]>(client, `/second-brain/vault/backlinks?path=${encodeURIComponent(path)}`)
+
+export const moveVaultPage = (
+  client: Client,
+  input: { path: string; expectedRevision: string; title?: string; projectId?: string | null },
+) =>
+  request<{ page: VaultPage; updatedLinks: number }>(client, "/second-brain/vault/page/move", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+
+export type SearchEverywhere = {
+  pages: ReadonlyArray<{ path: string; title: string; projectId: string | null; snippet: string }>
+  tasks: ReadonlyArray<{ id: string; title: string; snippet: string }>
+  events: ReadonlyArray<{ id: string; title: string; date: string; snippet: string }>
+  threads: ReadonlyArray<{ id: string; title: string; directory: string; snippet: string; updated: number }>
+}
+
+export const searchEverywhere = (client: Client, query: string, limit = 8) =>
+  request<SearchEverywhere>(
+    client,
+    `/second-brain/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`,
+  )
 
 export const writeVaultPage = (
   client: Client,

@@ -8,6 +8,8 @@ import { showToast } from "@/utils/toast"
 import type { FitAddon, Ghostty, Terminal as Term } from "ghostty-web"
 import { type ComponentProps, createEffect, createMemo, onCleanup, onMount, splitProps } from "solid-js"
 import { SerializeAddon } from "@/addons/serialize"
+import { useFindTarget } from "@/features/find/find-bar"
+import { terminalMatches, type TerminalMatch } from "@/features/find/terminal-find"
 import { matchKeybind, parseKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -213,6 +215,33 @@ export const Terminal = (props: TerminalProps) => {
   let serializeAddon: SerializeAddon
   let fitAddon: FitAddon
   let handleResize: () => void
+  let found: TerminalMatch[] = []
+  const bufferLines = () => {
+    const buffer = term?.buffer.active
+    if (!buffer) return []
+    return Array.from({ length: buffer.length }, (_, row) => buffer.getLine(row)?.translateToString(true) ?? "")
+  }
+  useFindTarget({
+    id: `terminal:${id}`,
+    layer: 1,
+    insideOnly: true,
+    placement: "above",
+    root: () => container,
+    search: (query) => {
+      found = terminalMatches(bufferLines(), query)
+      return found.length
+    },
+    select: (index) => {
+      const match = found[index]
+      if (!term || !match) return
+      term.scrollToLine(Math.max(0, match.row - Math.floor(term.rows / 2)))
+      term.select(match.column, match.row, match.length)
+    },
+    clear: () => {
+      found = []
+      term?.clearSelection()
+    },
+  })
   let fitFrame: number | undefined
   let sizeTimer: ReturnType<typeof setTimeout> | undefined
   let pendingSize: { cols: number; rows: number } | undefined

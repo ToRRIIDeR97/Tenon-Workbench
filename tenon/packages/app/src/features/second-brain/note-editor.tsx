@@ -17,6 +17,7 @@ import {
   type TextEdit,
 } from "./note-editor-commands"
 import { useCommand } from "@/context/command"
+import { createDomFindTarget, useFindTarget } from "@/features/find/find-bar"
 import { useLanguage } from "@/context/language"
 import { replayAnimation } from "@/utils/replay-animation"
 
@@ -295,6 +296,14 @@ export function NoteEditor(props: NoteEditorProps) {
 
   let surface: HTMLElement | undefined
   createEffect(on(fullscreen, () => replayAnimation(surface), { defer: true }))
+  useFindTarget(
+    createDomFindTarget({
+      id: "note-editor",
+      layer: 0,
+      root: () => surface,
+      textarea: () => (mode() === "write" ? editor : undefined),
+    }),
+  )
 
   return (
     <section

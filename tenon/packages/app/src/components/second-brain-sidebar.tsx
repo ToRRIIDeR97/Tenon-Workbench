@@ -150,6 +150,7 @@ export function SecondBrainSidebar() {
       label: language.t("secondBrain.sidebar.command"),
       href: "/command",
     },
+    { id: "review", icon: "checklist" as const, label: language.t("secondBrain.sidebar.review"), href: "/review" },
     { id: "usage", icon: "activity" as const, label: language.t("secondBrain.sidebar.usage"), href: "/usage" },
   ]
 

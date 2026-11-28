@@ -8,11 +8,14 @@ import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 import { calendarSync, syncGoogleCalendar } from "@/features/second-brain/calendar-sync"
+import { reminderSettings } from "@/features/second-brain/reminders"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
 
 const INTERVALS = [5, 15, 30, 60]
+const LEADS = [0, 5, 10, 15, 30, 60]
+const TASK_TIMES = ["07:00", "08:00", "09:00", "10:00", "12:00"]
 
 export function SettingsCalendarV2() {
   const language = useLanguage()
@@ -26,6 +29,14 @@ export function SettingsCalendarV2() {
   const tick = setInterval(() => setNow(Date.now()), 30_000)
   onCleanup(() => clearInterval(tick))
 
+  const reminders = () => reminderSettings(settings.calendar.reminders())
+  const leadOptions = LEADS.map((minutes) => ({
+    value: minutes,
+    label:
+      minutes === 0
+        ? language.t("secondBrain.settings.reminders.atStart")
+        : language.t("secondBrain.settings.reminders.before", { minutes }),
+  }))
   const config = () => settings.calendar.sync()
   const lastSynced = createMemo(() => {
     const times = (status.latest?.accounts ?? []).flatMap((account) =>
@@ -63,6 +74,50 @@ export function SettingsCalendarV2() {
         <h2 class="settings-v2-tab-title">{language.t("secondBrain.settings.calendar.title")}</h2>
       </div>
       <div class="settings-v2-tab-body" data-component="calendar-settings">
+        <div class="settings-v2-section" data-component="reminder-settings">
+          <h4 class="settings-v2-section-title">{language.t("secondBrain.settings.reminders.title")}</h4>
+          <SettingsListV2>
+            <SettingsRowV2
+              title={language.t("secondBrain.settings.reminders.enabled")}
+              description={language.t("secondBrain.settings.reminders.enabled.description")}
+            >
+              <Switch
+                checked={reminders().enabled}
+                hideLabel
+                onChange={(value: boolean) => settings.calendar.setReminders({ enabled: value })}
+              >
+                {language.t("secondBrain.settings.reminders.enabled")}
+              </Switch>
+            </SettingsRowV2>
+            <SettingsRowV2 title={language.t("secondBrain.settings.reminders.events")}>
+              <SelectV2
+                appearance="inline"
+                options={leadOptions}
+                current={leadOptions.find((option) => option.value === reminders().eventLeadMinutes) ?? leadOptions[2]}
+                placement="bottom-end"
+                gutter={6}
+                disabled={!reminders().enabled}
+                value={(option) => String(option.value)}
+                label={(option) => option.label}
+                onSelect={(option) => option && settings.calendar.setReminders({ eventLeadMinutes: option.value })}
+              />
+            </SettingsRowV2>
+            <SettingsRowV2
+              title={language.t("secondBrain.settings.reminders.tasks")}
+              description={language.t("secondBrain.settings.reminders.tasks.description")}
+            >
+              <SelectV2
+                appearance="inline"
+                options={TASK_TIMES}
+                current={TASK_TIMES.includes(reminders().taskTime) ? reminders().taskTime : "09:00"}
+                placement="bottom-end"
+                gutter={6}
+                disabled={!reminders().enabled}
+                onSelect={(time) => time && settings.calendar.setReminders({ taskTime: time })}
+              />
+            </SettingsRowV2>
+          </SettingsListV2>
+        </div>
         <Show
           when={platform.googleCalendar}
           fallback={

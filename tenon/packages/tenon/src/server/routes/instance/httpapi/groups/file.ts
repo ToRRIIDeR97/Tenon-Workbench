@@ -100,6 +100,20 @@ export const FileWriteInput = Schema.Struct({
 
 export const FileWriteResult = Schema.Struct({ hash: Schema.String }).annotate({ identifier: "FileWriteResult" })
 
+export const FileRevertInput = Schema.Struct({
+  files: Schema.Array(
+    Schema.Struct({
+      file: Schema.String,
+      patch: Schema.String,
+      status: Schema.optional(Schema.Literals(["added", "deleted", "modified"])),
+    }),
+  ).check(Schema.isMaxLength(500)),
+}).annotate({ identifier: "FileRevertInput" })
+
+export const FileRevertResult = Schema.Array(
+  Schema.Struct({ file: Schema.String, result: Schema.Literals(["reverted", "changed", "failed"]) }),
+).annotate({ identifier: "FileRevertResult" })
+
 export class FileConflictError extends Schema.Error<FileConflictError>("FileConflictError")(
   {
     name: Schema.Literal("FileConflictError"),
@@ -124,6 +138,7 @@ export const FilePaths = {
   content: "/file/content",
   status: "/file/status",
   write: "/file/content",
+  revert: "/file/revert",
 } as const
 
 export const FileApi = HttpApi.make("file")
@@ -191,6 +206,19 @@ export const FileApi = HttpApi.make("file")
             summary: "Write file",
             description:
               "Replace the text of an existing text file in the folder when its current trimmed text hashes to expectedHash (SHA-256 hex); the file keeps its outer whitespace.",
+          }),
+        ),
+        HttpApiEndpoint.post("revert", FilePaths.revert, {
+          query: WorkspaceRoutingQuery,
+          payload: FileRevertInput,
+          success: described(FileRevertResult, "What happened to each file"),
+          error: [FileInvalidError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.revert",
+            summary: "Revert file changes",
+            description:
+              "Undo each file's change by reversing its patch inside the folder: modified files get their earlier text back, added files are removed and deleted files return, unless they changed since.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

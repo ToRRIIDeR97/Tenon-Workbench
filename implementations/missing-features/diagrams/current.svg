@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>Current system: the parts the missing features touch</title>
+  <rect width="900" height="430" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="600" fill="#1c1b1f">Current (base 09c0a066)</text>
+  <rect x="20" y="50" width="400" height="360" rx="10" fill="#f3f0f7" stroke="#79747e"/>
+  <text x="36" y="74" font-weight="600" fill="#1c1b1f">Renderer (packages/app)</text>
+  <g fill="#ffffff" stroke="#79747e">
+    <rect x="36" y="88" width="170" height="44" rx="6"/>
+    <rect x="232" y="88" width="170" height="44" rx="6"/>
+    <rect x="36" y="146" width="170" height="44" rx="6"/>
+    <rect x="232" y="146" width="170" height="44" rx="6"/>
+    <rect x="36" y="204" width="170" height="44" rx="6"/>
+    <rect x="232" y="204" width="170" height="44" rx="6"/>
+    <rect x="36" y="262" width="170" height="44" rx="6"/>
+    <rect x="232" y="262" width="170" height="44" rx="6"/>
+    <rect x="36" y="320" width="366" height="70" rx="6"/>
+  </g>
+  <g fill="#1c1b1f">
+    <text x="46" y="108">Thread timeline</text><text x="46" y="124" font-size="11" fill="#49454f">virtualized, no find</text>
+    <text x="242" y="108">Command palette</text><text x="242" y="124" font-size="11" fill="#49454f">files + commands only</text>
+    <text x="46" y="166">Projects / note page</text><text x="46" y="182" font-size="11" fill="#49454f">wikilinks, no backlinks</text>
+    <text x="242" y="166">Review panel (diffs)</text><text x="242" y="182" font-size="11" fill="#49454f">no commit / PR</text>
+    <text x="46" y="224">Calendar + tasks</text><text x="46" y="240" font-size="11" fill="#49454f">no reminders</text>
+    <text x="242" y="224">Agent write cards</text><text x="242" y="240" font-size="11" fill="#49454f">undo per card only</text>
+    <text x="46" y="282">Terminal (ghostty-web)</text><text x="46" y="298" font-size="11" fill="#49454f">no find</text>
+    <text x="242" y="282">Settings dialog</text><text x="242" y="298" font-size="11" fill="#49454f">no backup, no find</text>
+    <text x="46" y="340">Inbox.md (widget capture)  ·  New Project (no template)</text>
+    <text x="46" y="360">No Daily note, no page templates, no weekly review</text>
+    <text x="46" y="380" font-size="11" fill="#49454f">Phone companion: platform.notify is a no-op</text>
+  </g>
+  <rect x="480" y="50" width="400" height="360" rx="10" fill="#eef3ee" stroke="#79747e"/>
+  <text x="496" y="74" font-weight="600" fill="#1c1b1f">Local server (packages/tenon + core)</text>
+  <g fill="#ffffff" stroke="#79747e">
+    <rect x="496" y="88" width="368" height="56" rx="6"/>
+    <rect x="496" y="158" width="368" height="44" rx="6"/>
+    <rect x="496" y="216" width="368" height="44" rx="6"/>
+    <rect x="496" y="274" width="368" height="44" rx="6"/>
+    <rect x="496" y="332" width="368" height="58" rx="6"/>
+  </g>
+  <g fill="#1c1b1f">
+    <text x="506" y="108">/second-brain/vault/* (KnowledgeVault)</text>
+    <text x="506" y="126" font-size="11" fill="#49454f">pages list/read/write/delete/history; no backlinks, no move</text>
+    <text x="506" y="178">/second-brain/calendar (PlannerCalendar)</text>
+    <text x="506" y="194" font-size="11" fill="#49454f">events + tasks; no search</text>
+    <text x="506" y="236">/vcs, /vcs/branches, /vcs/branch (Vcs)</text>
+    <text x="506" y="252" font-size="11" fill="#49454f">no commit, push or PR</text>
+    <text x="506" y="294">/file/content PUT (hash-guarded write)</text>
+    <text x="506" y="310" font-size="11" fill="#49454f">existing files only; no revert</text>
+    <text x="506" y="352">SQLite: session, session_message, part</text>
+    <text x="506" y="370" font-size="11" fill="#49454f">read for PR links only; no thread search</text>
+  </g>
+  <line x1="420" y1="230" x2="480" y2="230" stroke="#79747e" stroke-width="1.5"/>
+</svg>

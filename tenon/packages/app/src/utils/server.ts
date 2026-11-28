@@ -469,6 +469,47 @@ export async function switchBranch(input: HarnessServer, directory: string, bran
   })
 }
 
+export async function vcsInfo(input: HarnessServer, directory: string) {
+  const body = await instanceRequest(input, directory, "/vcs", "Couldn't read the branch")
+  const value = body && typeof body === "object" ? (body as { branch?: unknown; default_branch?: unknown }) : {}
+  return {
+    branch: typeof value.branch === "string" && value.branch ? value.branch : null,
+    defaultBranch: typeof value.default_branch === "string" && value.default_branch ? value.default_branch : null,
+  }
+}
+
+export async function commitChanges(
+  input: HarnessServer,
+  directory: string,
+  payload: { message: string; branch?: string },
+) {
+  const body = await instanceRequest(input, directory, "/vcs/commit", "Couldn't commit", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  const value = body && typeof body === "object" ? (body as { sha?: unknown; branch?: unknown }) : {}
+  return { sha: String(value.sha ?? ""), branch: String(value.branch ?? "") }
+}
+
+export async function pushBranch(input: HarnessServer, directory: string) {
+  const body = await instanceRequest(input, directory, "/vcs/push", "Couldn't push", { method: "POST" })
+  const value = body && typeof body === "object" ? (body as { branch?: unknown }) : {}
+  return { branch: String(value.branch ?? "") }
+}
+
+export async function openPullRequest(
+  input: HarnessServer,
+  directory: string,
+  payload: { title: string; body: string; base?: string; draft: boolean },
+) {
+  const body = await instanceRequest(input, directory, "/vcs/pr", "Couldn't open the pull request", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  const value = body && typeof body === "object" ? (body as { url?: unknown }) : {}
+  return { url: String(value.url ?? "") }
+}
+
 async function instanceRequest(
   input: HarnessServer,
   directory: string,

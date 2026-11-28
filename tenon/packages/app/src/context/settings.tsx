@@ -60,6 +60,7 @@ export interface Settings {
   notifications: NotificationSettings
   sounds: SoundSettings
   calendar?: CalendarSyncSettings
+  reminders?: { enabled?: boolean; eventLeadMinutes?: number; taskTime?: string }
   commandCentre?: Partial<CommandCentreSettings>
   dictation?: {
     language?: string
@@ -342,6 +343,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       get current() {
         return store
       },
+      restore(next: Settings) {
+        setStore(reconcile({ ...defaultSettings, ...next }))
+      },
       general: {
         autoSave: withFallback(() => store.general?.autoSave, defaultSettings.general.autoSave),
         setAutoSave(value: boolean) {
@@ -470,6 +474,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
       },
       calendar: {
+        reminders: () => store.reminders,
+        setReminders(value: NonNullable<Settings["reminders"]>) {
+          setStore("reminders", (current) => ({ ...current, ...value }))
+        },
         sync: (): CalendarSyncSettings => ({ ...defaultCalendarSync, ...store.calendar }),
         setSync(value: Partial<CalendarSyncSettings>) {
           setStore("calendar", (current) => ({ ...defaultCalendarSync, ...current, ...value }))

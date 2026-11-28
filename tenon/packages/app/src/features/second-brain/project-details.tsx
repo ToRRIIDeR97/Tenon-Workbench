@@ -26,10 +26,13 @@ import {
   SecondBrainRequestError,
   updateProject,
   writeProjectCover,
+  writeTimeline,
+  writeVaultPage,
   type ProjectRecord,
   type ProjectStatus,
 } from "./client"
 import { useUnsavedGuard } from "./unsaved-guard"
+import { PROJECT_TEMPLATES, projectTemplate, timelineFromTemplate, type ProjectTemplateID } from "./templates"
 
 export function useProjectCard(props: { project: ProjectRecord; directory: string; onArchived: () => void }) {
   const language = useLanguage()
@@ -283,9 +286,12 @@ export function ProjectCreate(props: {
 }) {
   const language = useLanguage()
   const layout = useLayout()
+  const platform = usePlatform()
+  const serverSDK = useServerSDK()
   const project = useProjectActions(() => props.directory)
   const [state, setState] = createStore({
     draft: { name: "", outcome: "", instructions: "", tags: "", locationId: "" },
+    templateId: "blank" as ProjectTemplateID,
     saving: false,
     error: "",
     errorField: "" as "" | "name" | "outcome",
@@ -315,12 +321,14 @@ export function ProjectCreate(props: {
       })
     }
     const linked = locations().find((location) => location.id === state.draft.locationId)
+    const template = projectTemplate(state.templateId)
     setState({ saving: true, error: "", errorField: "" })
     const created = await project
       .create({
         name,
         outcome,
-        instructions: state.draft.instructions.trim(),
+        ...(template && template.id !== "blank" ? { templateId: template.id } : {}),
+        instructions: state.draft.instructions.trim() || template?.instructions || "",
         tags: splitTags(state.draft.tags),
         ...(linked ? { location: { workspaceId: linked.id, displayPath: linked.worktree } } : {}),
       })
@@ -333,8 +341,27 @@ export function ProjectCreate(props: {
         )
         return undefined
       })
+    if (created && template && template.id !== "blank") await applyProjectTemplate(created.id, template)
     setState("saving", false)
     if (created) props.onCreated(created)
+  }
+  const applyProjectTemplate = async (projectId: string, template: NonNullable<ReturnType<typeof projectTemplate>>) => {
+    const target = { server: serverSDK().server, fetch: platform.fetch, target: { directory: props.directory } }
+    const items = timelineFromTemplate(template, new Date(), () => `item_${crypto.randomUUID()}`)
+    const results = await Promise.allSettled([
+      items.length ? writeTimeline(target, projectId, { items }) : Promise.resolve(undefined),
+      template.page
+        ? writeVaultPage(target, {
+            path: `${template.page.title}.md`,
+            title: template.page.title,
+            body: template.page.body,
+            projectId,
+            create: true,
+          })
+        : Promise.resolve(undefined),
+    ])
+    if (results.some((result) => result.status === "rejected"))
+      showToast({ variant: "error", title: language.t("secondBrain.projectTemplate.failed") })
   }
   const fieldError = (field: "name" | "outcome") => (
     <Show when={state.error && state.errorField === field}>
@@ -405,6 +432,28 @@ export function ProjectCreate(props: {
         >
           {(locationID) => <span class="min-w-0 truncate">{locationLabel(locationID)}</span>}
         </SelectV2>
+      </label>
+      <label class={labelClass} for="project-template">
+        {language.t("secondBrain.projectTemplate.label")}
+        <SelectV2
+          id="project-template"
+          aria-label={language.t("secondBrain.projectTemplate.label")}
+          class="!h-[var(--v2-control-md)] !w-full"
+          appearance="large"
+          options={PROJECT_TEMPLATES.map((template) => template.id)}
+          current={state.templateId}
+          label={(id) => language.t(`secondBrain.projectTemplate.${id as ProjectTemplateID}`)}
+          onSelect={(id) => setState("templateId", (id as ProjectTemplateID | undefined) ?? "blank")}
+        >
+          {(id) => (
+            <span class="flex min-w-0 flex-col">
+              <span class="truncate">{language.t(`secondBrain.projectTemplate.${id as ProjectTemplateID}`)}</span>
+            </span>
+          )}
+        </SelectV2>
+        <span class="type-meta text-v2-text-text-muted">
+          {language.t(`secondBrain.projectTemplate.${state.templateId}.description`)}
+        </span>
       </label>
       <details class="group">
         <summary class={summaryClass}>

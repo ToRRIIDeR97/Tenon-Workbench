@@ -182,9 +182,9 @@ function createAgentWrites() {
     writes: () => state.writes,
     forSession: (sessionID: string) => state.writes.filter((write) => write.sessionID === sessionID),
     hide: (id: string) => update(id, { hidden: true }),
-    async undo(id: string) {
+    async undo(id: string): Promise<UndoState | undefined> {
       const write = state.writes.find((item) => item.id === id)
-      if (!write?.undo || write.undoState === "pending" || write.undoState === "undone") return
+      if (!write?.undo || write.undoState === "pending" || write.undoState === "undone") return write?.undoState
       update(id, { undoState: "pending" })
       const client = { server: serverSDK().server, fetch: platform.fetch, target: { directory: write.directory } }
       const next = await undoAgentWrite(client, write.undo).then(
@@ -192,6 +192,7 @@ function createAgentWrites() {
         (error): UndoState => (error instanceof SecondBrainRequestError && error.status === 409 ? "changed" : "failed"),
       )
       update(id, { undoState: next })
+      return next
     },
   }
 }

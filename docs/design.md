@@ -453,6 +453,11 @@ Use `[font-weight:N]` when a weight must differ from the role.
   it delegated into a Project, or `thread_start`) shows the Command Centre's
   rail icon (`console`, muted, small) in its sidebar row before the status
   mark, with the tooltip and label "Started by Command Centre".
+- **Find bar** (`features/find/find-bar.tsx`): one floating popover surface at the top right of the view it
+  searches (inside the Settings dialog when that is open): a round search field, "n of m" in tabular figures,
+  previous, next and close icon buttons. Matches paint with the CSS highlight `tenon-page-find` (warning fill at
+  38%), the current one with the solid warning fill and dark text; never a layout change, so reading position
+  holds.
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.

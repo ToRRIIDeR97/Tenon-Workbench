@@ -1789,6 +1789,9 @@ managed in Settings › Servers › Phone access.
 | `GET` | `/second-brain/vault/page` | allowed |
 | `PUT` | `/second-brain/vault/page` | allowed |
 | `GET` | `/second-brain/vault/page/history` | allowed |
+| `POST` | `/second-brain/vault/page/move` | allowed |
+| `GET` | `/second-brain/vault/backlinks` | allowed |
+| `GET` | `/second-brain/search` | allowed |
 | `GET` | `/second-brain/vault/timeline` | allowed |
 | `PUT` | `/second-brain/vault/timeline` | allowed |
 | `GET` | `/second-brain/vault/log` | allowed |
@@ -1864,6 +1867,7 @@ managed in Settings › Servers › Phone access.
 | `GET` | `/file` | denied |
 | `GET` | `/file/content` | denied |
 | `PUT` | `/file/content` | denied |
+| `POST` | `/file/revert` | denied |
 | `GET` | `/file/status` | denied |
 | `GET` | `/api/fs/read/*` | denied |
 | `GET` | `/api/fs/list` | denied |
@@ -1962,6 +1966,9 @@ managed in Settings › Servers › Phone access.
 | `POST` | `/vcs/apply` | denied |
 | `GET` | `/vcs/branches` | denied |
 | `POST` | `/vcs/branch` | denied |
+| `POST` | `/vcs/commit` | denied |
+| `POST` | `/vcs/push` | denied |
+| `POST` | `/vcs/pr` | denied |
 | `GET` | `/command` | denied |
 | `GET` | `/agent` | denied |
 | `GET` | `/skill` | denied |
@@ -2208,6 +2215,26 @@ and it never creates, deletes or resets a branch. Git refuses a switch that
 would overwrite local changes; that first stderr line goes back as the error
 message and shows in a toast. It doesn't run outside git.
 
+## Commit, push and pull requests from the review panel
+
+The review panel's Commit… dialog calls three routes on the request's folder,
+behind the managed server's usual auth; the phone companion is denied all three.
+
+- `POST /vcs/commit` stages every change (`git add -A`) and commits with the
+  message passed on stdin (`git commit -F -`), so the message can't become an
+  option. A new branch name must pass `VcsPublish.validBranchName` (git's ref
+  rules, no leading `-`) before `git switch -c`. It never amends, resets or
+  force-pushes, and it runs the repository's own commit hooks.
+- `POST /vcs/push` pushes only the current branch to `origin` with `-u`, with
+  `GIT_TERMINAL_PROMPT=0` so a missing credential fails instead of waiting for a
+  prompt the user can't see. Credentials come from the user's own git setup.
+- `POST /vcs/pr` runs the GitHub CLI found on PATH with an argument array
+  (`execFile`, no shell; title and body are single arguments), the base checked
+  like a branch name, `GH_PROMPT_DISABLED=1` and a two-minute timeout. Tenon
+  stores no GitHub token; `gh` uses the user's own sign-in.
+- The dialog suggests a new branch when the folder is on its default branch, so
+  a commit doesn't land on `main` by accident, but the user can clear it.
+
 ## Workbench panel tools
 
 - **`tenon-file://`.** The renderer names a folder and a relative path; main
@@ -2308,6 +2335,48 @@ arbitrary workspace file's text.
   run or a terminal in any folder). A possible hardening, not done: accept
   writes only for folders the app has open (a Project, workspace or open
   thread's folder) rather than any folder the request names.
+
+## Turn undo: the file revert route
+
+Undo turn (`app/src/pages/session/turn-undo*.ts*`) sends the turn's recorded
+file patches to `POST /file/revert` (`httpapi/handlers/file.ts`,
+`tenon/src/file/revert.ts`), the one route that can remove or recreate a file.
+
+- Same caller and folder rules as the file write route above; denied to the
+  phone companion.
+- Each path is resolved against the folder and must stay inside it, and its
+  real path and the real path of its nearest existing ancestor must stay inside
+  the folder's real path, so a symlink or junction anywhere above it can't lead
+  it out, even when missing folders would be created. A path outside answers
+  `failed` for that file and touches nothing.
+- Turn diffs are relative to the repository root; the app rebases them onto the
+  thread's folder and lists files outside that folder as not undoable instead
+  of sending them.
+- A modified file is written only through `writeIfUnchanged` with the bytes the
+  patch was reversed against; a file changed since in the patched lines is left
+  as it is (`changed`). An added file is removed only when its text still equals
+  what the turn wrote; a deleted file is recreated only when it is still gone.
+  Binary and invalid UTF-8 files are `failed`.
+- At most 500 files per request. What a credential holder could do is bounded by
+  the patch it sends: it could write any text it composes as a "pre-image", so
+  the route adds create and remove to what the write route already allows that
+  caller. The same hardening applies (accept only folders the app has open).
+
+## Search, settings backup and capture
+
+- `GET /second-brain/search` reads thread text across every folder's threads,
+  not only the request's, as the session list already does; it returns titles,
+  folders and short snippets (the match and about 60 characters each side) of user and assistant text, never tool
+  output, reasoning or archived threads. The phone companion may call it, like
+  the session list.
+- A settings export holds no secrets: MCP `environment`, `headers` and `oauth`
+  values are replaced by `""`; provider keys and account tokens aren't part of
+  the settings store. An import never runs anything: MCP servers from a file
+  arrive switched off, because a local server entry is a command a harness
+  would start.
+- Reminders, the Inbox view and the weekly review run in the renderer over data
+  the app already reads; reminders keep only item ids and dates in
+  `localStorage`.
 
 ## Checks
 

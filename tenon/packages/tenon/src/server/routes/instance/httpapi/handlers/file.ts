@@ -13,6 +13,7 @@ import { createHash } from "crypto"
 import { HttpApiBuilder, HttpApiError } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
 import { FileConflictError, FileInvalidError } from "../groups/file"
+import { FileRevert } from "@/file/revert"
 
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex")
 const invalid = (message: string) => new FileInvalidError({ name: "FileInvalidError", data: { message } })
@@ -185,6 +186,77 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       return { hash: sha256(ctx.payload.content.trim()) }
     })
 
+    const revertOne = Effect.fnUntraced(function* (
+      directory: string,
+      root: string,
+      change: { file: string; patch: string; status?: FileRevert.Status },
+    ) {
+      const fs = yield* FSUtil.Service
+      const file = path.resolve(directory, change.file)
+      if (!FSUtil.contains(directory, file)) return "failed" as const
+      let ancestor = path.dirname(file)
+      let parent = yield* fs.realPath(ancestor).pipe(Effect.option)
+      while (Option.isNone(parent) && path.dirname(ancestor) !== ancestor) {
+        ancestor = path.dirname(ancestor)
+        parent = yield* fs.realPath(ancestor).pipe(Effect.option)
+      }
+      if (Option.isNone(parent) || !FSUtil.contains(root, parent.value)) return "failed" as const
+      const real = yield* fs.realPath(file).pipe(Effect.option)
+      if (Option.isSome(real) && !FSUtil.contains(root, real.value)) return "failed" as const
+      const canonical = Option.isSome(real) ? real.value : file
+      const bytes = Option.isSome(real) ? yield* fs.readFile(real.value).pipe(Effect.option) : Option.none()
+      const current = Option.isSome(bytes) ? yield* decodeText(bytes.value) : undefined
+      if (Option.isSome(bytes) && current === undefined) return "failed" as const
+      const outcome = FileRevert.revertFileChange({ status: change.status, patch: change.patch, current })
+      if (outcome.kind === "changed") return "changed" as const
+      if (outcome.kind === "none") return "reverted" as const
+      const target = { canonical, resource: path.relative(root, canonical) }
+      const done = yield* filesystem(
+        FileMutation.Service.use((files) =>
+          Effect.gen(function* () {
+            if (outcome.kind === "remove") {
+              yield* files.remove({ target })
+              return
+            }
+            if (outcome.kind === "create") {
+              yield* files.create({ target, content: outcome.content })
+              return
+            }
+            yield* files.writeIfUnchanged({
+              target,
+              content: outcome.content,
+              expected: Option.isSome(bytes) ? bytes.value : new Uint8Array(),
+            })
+          }),
+        ),
+      ).pipe(
+        Effect.as("reverted" as const),
+        Effect.catch((error: unknown) => {
+          const tag = typeof error === "object" && error !== null && "_tag" in error ? String(error._tag) : ""
+          return Effect.succeed(
+            tag === "FileMutation.StaleContentError" || tag === "FileMutation.TargetExistsError"
+              ? ("changed" as const)
+              : ("failed" as const),
+          )
+        }),
+      )
+      return done
+    })
+
+    const revert = Effect.fn("FileHttpApi.revert")(function* (ctx: {
+      payload: { files: ReadonlyArray<{ file: string; patch: string; status?: FileRevert.Status }> }
+    }) {
+      const directory = (yield* InstanceState.context).directory
+      const fs = yield* FSUtil.Service
+      const root = yield* fs.realPath(directory).pipe(Effect.orElseSucceed(() => directory))
+      return yield* Effect.forEach(ctx.payload.files, (change) =>
+        revertOne(directory, root, change).pipe(
+          Effect.catchCause(() => Effect.succeed("failed" as const)),
+          Effect.map((result) => ({ file: change.file, result })),
+        ),
+      )
+    })
+
     const status = Effect.fn("FileHttpApi.status")(function* () {
       return []
     })
@@ -196,6 +268,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       .handle("list", list)
       .handle("content", content)
       .handle("write", write)
+      .handle("revert", revert)
       .handle("status", status)
   }),
 ).pipe(Layer.provide(locationServiceMapLayer))

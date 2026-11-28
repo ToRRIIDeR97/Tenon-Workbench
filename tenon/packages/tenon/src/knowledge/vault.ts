@@ -16,6 +16,7 @@ import os from "node:os"
 import path from "node:path"
 import { ulid } from "ulid"
 import { BrainProject } from "../project/brain"
+import { WikiLinks } from "./wiki-links"
 
 const maxBytes = 5 * 1024 * 1024
 const smallFileLimit = 64 * 1024
@@ -64,6 +65,33 @@ export const PageWriteInput = Schema.Struct({
   create: Schema.optional(Schema.Boolean),
 })
 export type PageWriteInput = typeof PageWriteInput.Type
+
+export const Backlink = Schema.Struct({
+  path: Schema.String,
+  title: Schema.String,
+  projectId: Schema.NullOr(Schema.String),
+  snippet: Schema.String,
+})
+export type Backlink = typeof Backlink.Type
+
+export const PageMoveInput = Schema.Struct({
+  path: Schema.String,
+  expectedRevision: Schema.String,
+  title: Schema.optional(Schema.String),
+  projectId: Schema.optional(Schema.NullOr(Schema.String)),
+})
+export type PageMoveInput = typeof PageMoveInput.Type
+
+export const PageMoveResult = Schema.Struct({ page: Page, updatedLinks: Schema.Number })
+export type PageMoveResult = typeof PageMoveResult.Type
+
+export const PageSearchHit = Schema.Struct({
+  path: Schema.String,
+  title: Schema.String,
+  projectId: Schema.NullOr(Schema.String),
+  snippet: Schema.String,
+})
+export type PageSearchHit = typeof PageSearchHit.Type
 
 export const PageVersion = Schema.Struct({ revision: Schema.String, updatedAt: Schema.String })
 export const PageVersionBody = Schema.Struct({ revision: Schema.String, body: Schema.String })
@@ -420,6 +448,192 @@ export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
   const target = yield* resolveInside(vault, relative)
   yield* files.remove({ target })
   forgetPage(target.canonical)
+})
+
+const everyPage = Effect.fnUntraced(function* (vault: Vault, projects: ReadonlyMap<string, string>) {
+  const fs = yield* FSUtil.Service
+  const byFolder = projectFolderIndex(projects)
+  const files = yield* fs.glob("**/*.md", { cwd: vault.directory, absolute: false, include: "file", dot: false })
+  const pages = yield* Effect.forEach(
+    files.map((file) => file.replaceAll("\\", "/")).filter((file) => isListedPage(file, byFolder)),
+    (file) =>
+      readPageFile(vault, file, projects, byFolder).pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
+            Effect.as(undefined),
+          ),
+        ),
+      ),
+    { concurrency: 8 },
+  )
+  return pages.filter((page) => page !== undefined)
+})
+
+export const backlinks = Effect.fn("KnowledgeVault.backlinks")(function* (vault: Vault, input: string) {
+  const relative = yield* pagePath(input)
+  const projects = yield* projectFolders(vault)
+  const target = yield* readPageFile(vault, relative, projects)
+  const keys = WikiLinks.pageKeys(target.info)
+  const pages = yield* everyPage(vault, projects)
+  return pages
+    .filter((page) => page.info.path !== relative)
+    .flatMap((page): Backlink[] => {
+      const link = WikiLinks.links(page.body).find((item) => keys.has(item.key))
+      if (!link) return []
+      return [
+        {
+          path: page.info.path,
+          title: page.info.title,
+          projectId: page.info.projectId,
+          snippet: WikiLinks.snippet(page.body, link.index, link.length),
+        },
+      ]
+    })
+    .sort((left, right) => left.title.localeCompare(right.title) || left.path.localeCompare(right.path))
+    .slice(0, pageLimit)
+})
+
+export const searchPages = Effect.fn("KnowledgeVault.searchPages")(function* (
+  vault: Vault,
+  query: string,
+  limit: number,
+) {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return [] as PageSearchHit[]
+  const projects = yield* projectFolders(vault)
+  const pages = yield* everyPage(vault, projects)
+  return pages
+    .flatMap((page): Array<PageSearchHit & { rank: number; updatedAt: string }> => {
+      const inTitle = page.info.title.toLowerCase().indexOf(needle)
+      const inBody = page.body.toLowerCase().indexOf(needle)
+      if (inTitle < 0 && inBody < 0) return []
+      return [
+        {
+          path: page.info.path,
+          title: page.info.title,
+          projectId: page.info.projectId,
+          snippet:
+            inBody < 0 ? WikiLinks.snippet(page.body, 0, 0, 80) : WikiLinks.snippet(page.body, inBody, needle.length),
+          rank: inTitle < 0 ? 1 : 0,
+          updatedAt: page.info.updatedAt,
+        },
+      ]
+    })
+    .sort((left, right) => left.rank - right.rank || right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, limit)
+    .map(({ rank: _rank, updatedAt: _updatedAt, ...hit }) => hit)
+})
+
+const fileNameFor = (title: string) => {
+  const name = title
+    .normalize("NFC")
+    .replace(/[\\/:*?"<>|#^[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/, "")
+  return name ? `${[...name].slice(0, segmentLimit - 3).join("")}.md` : undefined
+}
+
+const moveHistory = Effect.fnUntraced(function* (vault: Vault, from: string, to: string) {
+  const files = yield* FileMutation.Service
+  const fs = yield* FSUtil.Service
+  for (const version of yield* versions(vault, from)) {
+    const source = yield* resolveInside(vault, `${historyFolder(from)}/${version}.md`)
+    const bytes = yield* fs.readFile(source.canonical).pipe(Effect.option)
+    if (Option.isNone(bytes)) continue
+    const target = yield* resolveInside(vault, `${historyFolder(to)}/${version}.md`)
+    yield* files
+      .create({ target, content: bytes.value })
+      .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
+    yield* files.remove({ target: source })
+  }
+})
+
+export const movePage = Effect.fn("KnowledgeVault.movePage")(function* (vault: Vault, input: PageMoveInput) {
+  const files = yield* FileMutation.Service
+  const relative = yield* pagePath(input.path)
+  const projects = yield* projectFolders(vault)
+  if (!isWritablePage(relative, projects)) return yield* new InvalidError({ reason: "reserved_path" })
+  const current = yield* readPageFile(vault, relative, projects)
+  if (current.revision !== input.expectedRevision) return yield* new ConflictError({ reason: "stale" })
+  const title = input.title === undefined ? current.info.title : input.title.trim()
+  if (!title || [...title].length > titleLimit) return yield* new InvalidError({ reason: "invalid_title" })
+  const name = input.title === undefined ? path.posix.basename(relative) : fileNameFor(title)
+  if (name === undefined) return yield* new InvalidError({ reason: "invalid_title" })
+  const here = path.posix.dirname(relative)
+  const folder =
+    input.projectId === undefined
+      ? here === "."
+        ? ""
+        : here
+      : input.projectId === null
+        ? ""
+        : yield* ensureProjectFolder(vault, input.projectId)
+  const next = folder ? `${folder}/${name}` : name
+  const after = yield* projectFolders(vault)
+  const byFolder = projectFolderIndex(after)
+  if (!isPagePath(next) || !isWritablePageFolder(next, byFolder))
+    return yield* new InvalidError({ reason: "invalid_path" })
+  const samePlace = foldName(next) === foldName(relative)
+  if (samePlace && title === current.info.title) return yield* new InvalidError({ reason: "unchanged" })
+  const source = encode(
+    { id: current.info.id, title, updatedAt: new Date().toISOString() },
+    current.data,
+    current.body,
+    current.bom,
+  )
+  const from = yield* resolveInside(vault, relative)
+  if (samePlace) {
+    yield* files
+      .writeIfUnchanged({ target: from, content: source, expected: current.bytes })
+      .pipe(
+        Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))),
+      )
+    forgetPage(from.canonical)
+  } else {
+    const target = yield* resolveInside(vault, next)
+    yield* files
+      .create({ target, content: source })
+      .pipe(
+        Effect.catchTag("FileMutation.TargetExistsError", () => Effect.fail(new ConflictError({ reason: "exists" }))),
+      )
+    yield* files.remove({ target: from })
+    forgetPage(from.canonical)
+    forgetPage(target.canonical)
+    yield* moveHistory(vault, relative, next).pipe(
+      Effect.catch((error) => Effect.logWarning("Could not move page history", { path: relative, error: error._tag })),
+    )
+  }
+  const page = decode(next, source, byFolder)
+  const oldKeys = WikiLinks.pageKeys(current.info)
+  const newKeys = WikiLinks.pageKeys(page.info)
+  const others = (yield* everyPage(vault, after)).filter((item) => item.info.path !== next)
+  const otherKeys = new Set(others.flatMap((item) => [...WikiLinks.pageKeys(item.info)]))
+  const stale = (key: string) => oldKeys.has(key) && !newKeys.has(key) && !otherKeys.has(key)
+  let updatedLinks = 0
+  for (const other of others) {
+    const rewritten = WikiLinks.rewriteLinks(other.body, stale, title)
+    if (rewritten.count === 0) continue
+    const target = yield* resolveInside(vault, other.info.path)
+    const content = encode(
+      { id: other.info.id, title: other.info.title, updatedAt: new Date().toISOString() },
+      other.data,
+      rewritten.body,
+      other.bom,
+    )
+    const saved = yield* keepVersion(vault, other.info.path, other).pipe(
+      Effect.andThen(files.writeIfUnchanged({ target, content, expected: other.bytes })),
+      Effect.as(true),
+      Effect.catch((error) =>
+        Effect.logWarning("Could not update a link to a moved page", { path: other.info.path, error: error._tag }).pipe(
+          Effect.as(false),
+        ),
+      ),
+    )
+    forgetPage(target.canonical)
+    if (saved) updatedLinks += rewritten.count
+  }
+  return { page: { info: page.info, body: page.body, revision: page.revision }, updatedLinks }
 })
 
 export const pageHistory = Effect.fn("KnowledgeVault.pageHistory")(function* (vault: Vault, input: string) {

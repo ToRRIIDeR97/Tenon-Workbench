@@ -11,7 +11,8 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
-import { listProjects, listVaultPages, type ProjectRecord } from "@/features/second-brain/client"
+import { listProjects, listVaultPages, searchEverywhere, type ProjectRecord } from "@/features/second-brain/client"
+import { everywhereLinks, shouldSearchEverywhere } from "@/features/search/everywhere"
 import { matchProjects } from "@/features/second-brain/notes-timeline"
 import { sessionTitle } from "@/utils/session-title"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
@@ -23,7 +24,7 @@ import { useNavigate } from "@solidjs/router"
 
 export type CommandPaletteEntry = {
   id: string
-  type: "command" | "file" | "session" | "page" | "project"
+  type: "command" | "file" | "session" | "page" | "project" | "task" | "event"
   title: string
   description?: string
   keybind?: string
@@ -159,6 +160,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     category: () => language.t("command.category.session"),
   })
   const vault = createVaultEntries(() => serverSDK.server)
+  const everywhere = createEverywhereEntries(() => serverSDK.server)
 
   const highlight = (item: CommandPaletteEntry | undefined) => {
     state.cleanup?.()
@@ -208,6 +210,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     rootFileEntries,
     sessions,
     vault,
+    everywhere,
     highlight,
     select,
     close: () => dialog.close(),
@@ -281,6 +284,68 @@ export function createVaultEntries(server: () => ServerConnection.Any) {
         }),
       ),
     ]
+  }
+}
+
+export function createEverywhereEntries(server: () => ServerConnection.Any) {
+  const language = useLanguage()
+  const layout = useLayout()
+  const platform = usePlatform()
+  let abort: AbortController | undefined
+  onCleanup(() => abort?.abort())
+  return async (text: string): Promise<CommandPaletteEntry[]> => {
+    abort?.abort()
+    const search = text.trim()
+    const directory = layout.home.workspace()
+    if (!shouldSearchEverywhere(search) || !directory) return []
+    const current = new AbortController()
+    abort = current
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, VAULT_SEARCH_DELAY)
+      current.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer)
+          resolve()
+        },
+        { once: true },
+      )
+    })
+    if (current.signal.aborted) return []
+    const connection = server()
+    const result = await searchEverywhere(
+      { server: connection, fetch: platform.fetch, target: { directory } },
+      search,
+    ).catch(() => undefined)
+    if (!result || current.signal.aborted) return []
+    const key = ServerConnection.key(connection)
+    const category = {
+      pages: language.t("secondBrain.palette.everywhere.pages"),
+      tasks: language.t("secondBrain.palette.everywhere.tasks"),
+      events: language.t("secondBrain.palette.everywhere.events"),
+      threads: language.t("secondBrain.palette.everywhere.threads"),
+    }
+    return everywhereLinks(result, key).map((link): CommandPaletteEntry => {
+      if (link.group === "threads")
+        return {
+          id: link.key,
+          type: "session",
+          title: link.title,
+          description: link.detail,
+          category: category.threads,
+          server: key,
+          directory: link.directory,
+          sessionID: link.id,
+        }
+      return {
+        id: link.key,
+        type: link.group === "pages" ? "page" : link.group === "tasks" ? "task" : "event",
+        title: link.title,
+        description: link.detail,
+        category: category[link.group],
+        href: link.href,
+      }
+    })
   }
 }
 

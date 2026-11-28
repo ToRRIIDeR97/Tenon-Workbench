@@ -9,7 +9,7 @@ import { Skill } from "@/skill"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
-import { ApiVcsApplyError, ApiVcsBranchError } from "../groups/instance"
+import { ApiVcsApplyError, ApiVcsBranchError, ApiVcsPublishError } from "../groups/instance"
 import { markInstanceForDisposal } from "../lifecycle"
 
 export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance", (handlers) =>
@@ -90,6 +90,23 @@ export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance"
         )
     })
 
+    const publishFailure = (error: Vcs.PublishError) =>
+      new ApiVcsPublishError({ name: "VcsPublishError", data: { message: error.message, reason: error.reason } })
+
+    const commitVcs = Effect.fn("InstanceHttpApi.vcsCommit")(function* (ctx: { payload: Vcs.CommitInput }) {
+      return yield* vcs.commit(ctx.payload).pipe(Effect.mapError(publishFailure))
+    })
+
+    const pushVcs = Effect.fn("InstanceHttpApi.vcsPush")(function* () {
+      return yield* vcs.push().pipe(Effect.mapError(publishFailure))
+    })
+
+    const pullRequestVcs = Effect.fn("InstanceHttpApi.vcsPullRequest")(function* (ctx: {
+      payload: Vcs.PullRequestInput
+    }) {
+      return yield* vcs.pullRequest(ctx.payload).pipe(Effect.mapError(publishFailure))
+    })
+
     const getCommand = Effect.fn("InstanceHttpApi.command")(function* () {
       return yield* command.list()
     })
@@ -120,6 +137,9 @@ export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance"
       .handle("vcsApply", applyVcs)
       .handle("vcsBranches", getVcsBranches)
       .handle("vcsSwitchBranch", switchVcsBranch)
+      .handle("vcsCommit", commitVcs)
+      .handle("vcsPush", pushVcs)
+      .handle("vcsPullRequest", pullRequestVcs)
       .handle("command", getCommand)
       .handle("agent", getAgent)
       .handle("skill", getSkill)

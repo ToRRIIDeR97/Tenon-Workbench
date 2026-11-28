@@ -60,6 +60,7 @@ import { REVIEW_SIDEBAR_OVERLAY_WIDTH } from "@/pages/session/v2/review-panel-v2
 import { SessionCanvasTab } from "@/pages/session/canvas-tab"
 import { SessionBrowserTab } from "@/pages/session/browser-tab"
 import { SessionDocumentsTab } from "@/pages/session/documents-tab"
+import { createDomFindTarget, useFindTarget } from "@/features/find/find-bar"
 import { SessionDeviceTab } from "@/pages/session/device-tab"
 
 type ReviewDiff = FileDiffInfo | SnapshotFileDiff | VcsFileDiff
@@ -558,6 +559,9 @@ export function SessionSidePanel(props: {
   )
 
   let content: HTMLDivElement | undefined
+  useFindTarget(
+    createDomFindTarget({ id: "side-panel", layer: 1, root: () => aside, enabled: () => open(), insideOnly: true }),
+  )
   createEffect(
     on(
       () => props.size.active() || !!props.closing,

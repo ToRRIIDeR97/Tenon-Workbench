@@ -25,6 +25,7 @@ import { NoteEditor } from "./note-editor"
 import { noteLinkLookup, previewNoteLinks } from "./note-links"
 import { bodyAfterSave, newPagePath } from "./notes-timeline"
 import { DialogPageVersions } from "./page-versions"
+import { DialogMovePage, PageBacklinks } from "./page-links"
 import { DialogConfirmReload, useUnsavedGuard } from "./unsaved-guard"
 import { DateChip } from "./project-controls"
 
@@ -43,6 +44,7 @@ export function NotesPageView(props: {
   onOpen: (path: string) => void
   onSaved: (info: VaultPageInfo) => void
   onDelete: (page: { path: string; title: string; revision: string }) => void
+  onMoved: (from: string, page: VaultPage, updatedLinks: number) => void
   onDirty: (dirty: boolean) => void
   held: boolean
 }) {
@@ -201,6 +203,21 @@ export function NotesPageView(props: {
     setState("body", body)
     void save()
   }
+  const openMove = (mode: "rename" | "move") => requestAnimationFrame(() => showMove(mode))
+  const showMove = (mode: "rename" | "move") =>
+    void dialog.show(() => (
+      <DialogMovePage
+        client={props.client}
+        mode={mode}
+        path={props.path}
+        title={state.title}
+        revision={state.revision}
+        projectId={state.projectId}
+        projects={props.projects}
+        onMoved={(result) => props.onMoved(props.path, result.page, result.updatedLinks)}
+      />
+    ))
+
   const openVersions = () =>
     void dialog.show(() => (
       <DialogPageVersions client={props.client} path={props.path} blocked={dirty()} onRestore={restore} />
@@ -394,6 +411,18 @@ export function NotesPageView(props: {
                     </MenuV2.Item>
                     <MenuV2.Item
                       disabled={!state.revision || dirty() || state.saving}
+                      onSelect={() => openMove("rename")}
+                    >
+                      {language.t("secondBrain.vault.rename.menu")}
+                    </MenuV2.Item>
+                    <MenuV2.Item
+                      disabled={!state.revision || dirty() || state.saving}
+                      onSelect={() => openMove("move")}
+                    >
+                      {language.t("secondBrain.vault.move.menu")}
+                    </MenuV2.Item>
+                    <MenuV2.Item
+                      disabled={!state.revision || dirty() || state.saving}
                       onSelect={() =>
                         props.onDelete({ path: props.path, title: state.title, revision: state.revision })
                       }
@@ -510,6 +539,7 @@ export function NotesPageView(props: {
                 }}
               />
             </div>
+            <PageBacklinks client={props.client} path={props.path} revision={state.revision} onOpen={props.onOpen} />
           </div>
         </div>
       </article>

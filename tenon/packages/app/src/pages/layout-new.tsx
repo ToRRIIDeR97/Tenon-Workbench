@@ -1,11 +1,12 @@
 import { createMediaQuery } from "@solid-primitives/media"
-import { useLocation } from "@solidjs/router"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { PHONE_QUERY } from "@/utils/phone"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import {
   createEffect,
   createMemo,
+  createSignal,
   ErrorBoundary,
   on,
   onMount,
@@ -24,11 +25,53 @@ import { AgentWritePill } from "@/features/agent-writes/cards"
 import { AgentWritesProvider } from "@/features/agent-writes/store"
 import { CommandCentreProvider } from "@/features/command-centre/command-centre"
 import { WorkflowsProvider } from "@/features/command-centre/workflow-store"
+import { createDomFindTarget, FindProvider, useFindTarget } from "@/features/find/find-bar"
+import { CalendarReminders } from "@/features/second-brain/calendar-reminders"
 import { CommandStrip } from "@/features/command-centre/command-strip"
 import { useLanguage } from "@/context/language"
+import { useCommand } from "@/context/command"
 import { usePlatform } from "@/context/platform"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 import { nextPageMotionKey, routeSection, type PageMotionKey } from "./page-motion"
+
+function PageFindTarget(props: { root: () => HTMLElement | undefined }) {
+  useFindTarget(createDomFindTarget({ id: "page", layer: 0, root: props.root }))
+  return null
+}
+
+function GlobalPageCommands() {
+  const command = useCommand()
+  const language = useLanguage()
+  const navigate = useNavigate()
+  command.register("global-pages", () => [
+    {
+      id: "search.everywhere",
+      title: language.t("secondBrain.palette.searchEverywhere"),
+      category: language.t("command.category.view"),
+      keybind: "mod+shift+f",
+      onSelect: () => command.show(),
+    },
+    {
+      id: "notes.daily",
+      title: language.t("secondBrain.daily.command"),
+      category: language.t("command.category.view"),
+      onSelect: () => navigate("/projects?daily=1"),
+    },
+    {
+      id: "notes.inbox",
+      title: language.t("secondBrain.inbox.command"),
+      category: language.t("command.category.view"),
+      onSelect: () => navigate("/projects?inbox=1"),
+    },
+    {
+      id: "review.open",
+      title: language.t("secondBrain.review.command"),
+      category: language.t("command.category.view"),
+      onSelect: () => navigate("/review"),
+    },
+  ])
+  return null
+}
 
 function FirstRouteMark() {
   const platform = usePlatform()
@@ -41,6 +84,7 @@ export default function NewLayout(props: ParentProps) {
   const location = useLocation()
   const phone = createMediaQuery(PHONE_QUERY)
   const [state, setState] = createStore({ debugTools: true })
+  const [mainRoot, setMainRoot] = createSignal<HTMLElement>()
   const pageKey = createMemo<PageMotionKey>((previous) => nextPageMotionKey(previous, location.pathname), {
     section: routeSection(untrack(() => location.pathname)),
     count: 0,
@@ -60,51 +104,59 @@ export default function NewLayout(props: ParentProps) {
 
   return (
     <AgentWritesProvider>
-      <div
-        class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
-        style={{
-          "padding-top": "env(safe-area-inset-top, 0px)",
-          "padding-bottom": "env(safe-area-inset-bottom, 0px)",
-        }}
-      >
-        <Titlebar
-          update={update}
-          debugTools={
-            import.meta.env.DEV
-              ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
-              : undefined
-          }
-        />
-        <CommandCentreProvider>
-          <WorkflowsProvider>
-            <SidebarControllerProvider>
-              <div class="relative flex flex-1 min-h-0 min-w-0" classList={{ "pb-14": phone() }}>
-                <SecondBrainSidebar />
-                <main class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-                  <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
-                    <Suspense>
-                      <ViewSwitch
-                        key={pageKey().count}
-                        exit={false}
-                        class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start"
-                      >
-                        {props.children}
-                      </ViewSwitch>
-                      <FirstRouteMark />
-                    </Suspense>
-                  </ErrorBoundary>
-                  <Show when={location.pathname !== "/command"}>
-                    <CommandStrip />
-                  </Show>
-                  <AgentWritePill />
-                </main>
-              </div>
-            </SidebarControllerProvider>
-          </WorkflowsProvider>
-        </CommandCentreProvider>
-        {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
-        <ToastRegion v2 />
-      </div>
+      <FindProvider>
+        <div
+          class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
+          style={{
+            "padding-top": "env(safe-area-inset-top, 0px)",
+            "padding-bottom": "env(safe-area-inset-bottom, 0px)",
+          }}
+        >
+          <Titlebar
+            update={update}
+            debugTools={
+              import.meta.env.DEV
+                ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
+                : undefined
+            }
+          />
+          <CommandCentreProvider>
+            <WorkflowsProvider>
+              <SidebarControllerProvider>
+                <div class="relative flex flex-1 min-h-0 min-w-0" classList={{ "pb-14": phone() }}>
+                  <SecondBrainSidebar />
+                  <main
+                    ref={setMainRoot}
+                    class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict"
+                  >
+                    <PageFindTarget root={mainRoot} />
+                    <CalendarReminders />
+                    <GlobalPageCommands />
+                    <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
+                      <Suspense>
+                        <ViewSwitch
+                          key={pageKey().count}
+                          exit={false}
+                          class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start"
+                        >
+                          {props.children}
+                        </ViewSwitch>
+                        <FirstRouteMark />
+                      </Suspense>
+                    </ErrorBoundary>
+                    <Show when={location.pathname !== "/command"}>
+                      <CommandStrip />
+                    </Show>
+                    <AgentWritePill />
+                  </main>
+                </div>
+              </SidebarControllerProvider>
+            </WorkflowsProvider>
+          </CommandCentreProvider>
+          {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
+          <ToastRegion v2 />
+        </div>
+      </FindProvider>
     </AgentWritesProvider>
   )
 }

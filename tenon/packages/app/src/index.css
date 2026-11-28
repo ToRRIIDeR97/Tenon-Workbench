@@ -390,6 +390,15 @@
   background-color: color-mix(in srgb, var(--v2-text-text-accent) 28%, transparent);
 }
 
+::highlight(tenon-page-find) {
+  background-color: color-mix(in srgb, var(--v2-state-fill-warning, #f5c542) 38%, transparent);
+}
+
+::highlight(tenon-page-find-current) {
+  background-color: var(--v2-state-fill-warning, #f5c542);
+  color: #1c1b1f;
+}
+
 :root[data-color-scheme="dark"]
   :is([data-component="session-prompt-dock"], [data-component="prompt-input-v2"], [data-component="composer-box"]) {
   --v2-text-text-muted: #f2f2f2;

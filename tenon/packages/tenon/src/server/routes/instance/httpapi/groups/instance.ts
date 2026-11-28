@@ -29,6 +29,14 @@ export const VcsDiffQuery = Schema.Struct({
   context: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
 })
 
+export class ApiVcsPublishError extends Schema.Error<ApiVcsPublishError>("VcsPublishError")(
+  {
+    name: Schema.Literal("VcsPublishError"),
+    data: Schema.Struct({ message: Schema.String, reason: Vcs.PublishReason }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
 export class ApiVcsBranchError extends Schema.Error<ApiVcsBranchError>("VcsBranchError")(
   {
     name: Schema.Literal("VcsBranchError"),
@@ -61,6 +69,9 @@ export const InstancePaths = {
   vcsApply: "/vcs/apply",
   vcsBranches: "/vcs/branches",
   vcsSwitchBranch: "/vcs/branch",
+  vcsCommit: "/vcs/commit",
+  vcsPush: "/vcs/push",
+  vcsPullRequest: "/vcs/pr",
   command: "/command",
   agent: "/agent",
   skill: "/skill",
@@ -168,6 +179,42 @@ export const InstanceApi = HttpApi.make("instance")
             identifier: "vcs.branch.switch",
             summary: "Switch branch",
             description: "Switch the working tree to a local branch. Git refuses when local changes would be lost.",
+          }),
+        ),
+        HttpApiEndpoint.post("vcsCommit", InstancePaths.vcsCommit, {
+          query: WorkspaceRoutingQuery,
+          payload: Vcs.CommitInput,
+          success: described(Vcs.CommitResult, "Changes committed"),
+          error: ApiVcsPublishError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "vcs.commit",
+            summary: "Commit changes",
+            description:
+              "Stage every change in the folder and commit it with the message, first creating and switching to branch when one is given.",
+          }),
+        ),
+        HttpApiEndpoint.post("vcsPush", InstancePaths.vcsPush, {
+          query: WorkspaceRoutingQuery,
+          success: described(Vcs.PushResult, "Branch pushed"),
+          error: ApiVcsPublishError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "vcs.push",
+            summary: "Push branch",
+            description: "Push the current branch to origin and set it as the upstream.",
+          }),
+        ),
+        HttpApiEndpoint.post("vcsPullRequest", InstancePaths.vcsPullRequest, {
+          query: WorkspaceRoutingQuery,
+          payload: Vcs.PullRequestInput,
+          success: described(Vcs.PullRequestResult, "Pull request opened"),
+          error: ApiVcsPublishError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "vcs.pr.create",
+            summary: "Open pull request",
+            description: "Open a pull request for the current branch with the GitHub CLI.",
           }),
         ),
         HttpApiEndpoint.get("command", InstancePaths.command, {
