@@ -3,6 +3,8 @@ import { readCalendar, type CalendarSnapshot } from "./client"
 
 type Client = Parameters<typeof readCalendar>[0]
 
+export const CALENDAR_CHANGED = "tenon:calendar-changed"
+
 const PREFIX = "tenon.calendar-cache:"
 const memory = new Map<string, CalendarSnapshot>()
 
@@ -36,6 +38,7 @@ export function createCalendarResource(source: () => string | undefined, client:
       remember(directory, next)
       setShown({ directory, snapshot: next })
       actions.mutate(next)
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(CALENDAR_CHANGED))
     },
   }
 }

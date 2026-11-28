@@ -48,7 +48,7 @@ window width, and a Projects panel beside it. Below 768 px the Projects panel
 is hidden and the rail remains.
 
 1. **Rail**, a tinted strip in one card with the Projects panel: **Home**,
-   **Projects**, **Calendar**, **Command Centre**, **Usage** (token usage, `/usage`) and, at its foot, **Settings**
+   **Projects**, **Calendar**, **Command Centre**, **Weekly review** (`/review`), **Usage** (token usage, `/usage`) and, at its foot, **Settings**
    as icon boxes with a tooltip naming each (the current page gets the accent
    container; Settings opens the Settings dialog). A new thread starts from `mod+n`, a Project's **+**,
    or Home's composer.
@@ -151,6 +151,9 @@ The titlebar is window chrome only: the sidebar toggle, back and forward
 | `/projects`, `/calendar`, `/command` | That page | That item |
 | `/command?thread=<id>` | Command Centre with that thread open | Command Centre |
 | `/routines` | Routines (linked from the Command Centre) | None |
+| `/review` | Weekly review: done this week, overdue, next 7 days, quiet Projects, threads and pages this week | Weekly review |
+| `/projects?inbox=1` | The Inbox: captured notes with Make task, Add to Project, Hand to agent and Done | Projects |
+| `/projects?daily=1` | Opens today's note (`Daily/YYYY-MM-DD.md`), creating it from `Templates/Daily.md` or the built-in daily template | Projects |
 | `/activity` | Redirects to `/command` | Command Centre |
 | `/projects?project=<id>&section=<tasks\|pages\|threads\|log\|settings>` | A Project as one page, scrolled to that section (an older `&tab=` maps to its section) | Projects |
 | `/projects?page=<path>`, `/projects?new=1` | A page full width; the New Project form | Projects |
@@ -189,6 +192,8 @@ deleted.
 | `mod+shift+[` / `mod+shift+]` | Previous / next Project |
 | `mod+[` / `mod+]` | Back / forward |
 | `mod+k` | Command palette (also lists Go to Home, Projects, Calendar and Command Centre) |
+| `mod+shift+f` | Command palette for search everywhere: pages, tasks, events and thread messages |
+| `mod+f` | Find in the current view: the thread (all loaded turns), a page, a note, Settings, the side panel or a focused terminal. Enter / Shift+Enter or F3 / Shift+F3 step, Escape closes |
 | `mod+z` | Undo the last sidebar action while its undo toast is open (not in text fields) |
 
 On the Projects page `mod+s` saves the open page from anywhere on the page,

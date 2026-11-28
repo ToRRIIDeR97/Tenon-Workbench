@@ -8,6 +8,7 @@ import pkg from "../package.json"
 import { bearerFetch, companionSession, seedWorkspaces, threadDirectories, type Pairing } from "./companion"
 import { PairingScreen } from "./pairing-screen"
 import { secureStore } from "./secure-store"
+import { phoneNotifier } from "./notifications"
 
 const WORKSPACES_KEY = "tenon.global.dat:server"
 const session = companionSession(secureStore())
@@ -23,7 +24,7 @@ const basePlatform = {
     window.open(url.href, "_blank", "noopener,noreferrer")
   },
   restart: async () => window.location.replace("/"),
-  notify: async () => undefined,
+  notify: phoneNotifier(),
 } satisfies Platform
 
 async function start() {

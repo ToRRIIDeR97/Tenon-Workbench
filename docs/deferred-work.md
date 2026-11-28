@@ -97,6 +97,12 @@ external_directory approval before edit approval.
   each write lists the name twice; if that grows slow, keep a start page token
   from the Drive changes feed instead of listing again.
 
+- `thread-search.ts`: thread search scans `session_message.data` and
+  `part.data` with `LIKE` (400 rows per store) and filters the visible text in
+  memory; add an SQLite FTS5 index over user and assistant text once histories
+  grow, and match queries that contain quotes or span lines (JSON escapes them
+  in the stored data).
+
 ## Upstream engine (`tenon/packages/tenon/src`)
 
 - `provider/provider.ts`: stop writing `process.env` directly (twice) once the
@@ -137,3 +143,17 @@ external_directory approval before edit approval.
   `client.v2.project.list()` and
   `client.v2.session.list({ parentID: null, order: "desc" })`, then remove this
   adapter and its V1 fields.
+- `app/src/features/find/terminal-find.ts`: match columns come from
+  `translateToString`, so a line with wide characters (CJK, emoji) selects a
+  little off; map string offsets to cell columns.
+- `app/src/features/find/find-bar.tsx`: the code viewer and diff views render
+  through `@pierre/diffs`; DOM find reaches only the rendered lines, and diffs
+  inside a shadow root are not searched.
+- `app/src/features/second-brain/calendar-reminders.tsx`: reminders fire only
+  while the app runs and only for the workspace selected in the sidebar.
+- `mobile/ios/App/Podfile`: the local-notifications pod was added by
+  `cap update ios` on Windows; run `pod install` and build on a Mac.
+- `tenon/test/server/httpapi-exercise`: `bun run test:httpapi` already fails
+  on routes without a scenario (most second-brain routes, including the new
+  backlinks, move and search routes).
+

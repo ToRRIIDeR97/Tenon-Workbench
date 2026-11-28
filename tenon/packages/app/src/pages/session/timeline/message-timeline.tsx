@@ -74,6 +74,7 @@ import { readPartText } from "@tenon/session-ui/message-part-text"
 import { AgentWritesDone, AgentWritesInline } from "@/features/agent-writes/cards"
 import { isCommandThread } from "@/features/command-centre/command-centre"
 import { type AgentWrite, useAgentWrites, writeTurn } from "@/features/agent-writes/store"
+import { TurnUndoButton } from "@/pages/session/turn-undo-button"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -392,6 +393,15 @@ export function MessageTimeline(props: {
     }
     return { turns, loose }
   })
+  const turnUndoFor = (row: FramedTimelineRow) => {
+    const last = timelineRows()[messageLastRowIndex().get(row.userMessageID) ?? -1]
+    if (!last || TimelineRow.key(last) !== TimelineRow.key(row) || workingTurn(row.userMessageID)) return undefined
+    const message = messageByID().get(row.userMessageID)
+    const diffs = message?.role === "user" ? (message.summary?.diffs ?? []) : []
+    const writes = writesByTurn().turns.get(row.userMessageID) ?? []
+    if (diffs.length === 0 && writes.length === 0) return undefined
+    return { diffs, writes }
+  }
   const rowWrites = (row: FramedTimelineRow) => {
     const writes = writesByTurn().turns.get(row.userMessageID)
     if (!writes) return undefined
@@ -941,6 +951,16 @@ export function MessageTimeline(props: {
           {(writes) =>
             commandThread() ? <AgentWritesDone writes={writes()} /> : <AgentWritesInline writes={writes()} />
           }
+        </Show>
+        <Show when={turnUndoFor(input.row())}>
+          {(turn) => (
+            <TurnUndoButton
+              directory={sdk().directory}
+              worktree={sync().project?.worktree}
+              diffs={turn().diffs}
+              writes={turn().writes}
+            />
+          )}
         </Show>
       </div>
     )

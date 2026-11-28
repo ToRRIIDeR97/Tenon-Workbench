@@ -42,3 +42,20 @@ decision on scope (which events notify; which Inbox), so they wait for the user.
 Not built although they need no decision: items 4 (cross-thread search), 6 (page rename and move) and 7
 (turn-wide Undo). They were left because this run ran out of room, not because they need a choice; they are
 the next to build.
+
+## Built after the 28 Nov review
+
+From the [feature review](../../implementations/missing-features/implementation.md) (usage budgets, #5, left
+out on request):
+
+- **1. Phone notifications** (local half): a local notification when a thread needs you while the companion
+  runs in the background (`@capacitor/local-notifications`). Push with the app closed still needs FCM/APNs and a
+  relay.
+- **4. Cross-thread search**: Search everywhere in the command palette (Ctrl/Cmd+Shift+F) over pages, tasks,
+  events and thread messages.
+- **6. Page rename and move between Projects**, with links in other pages following the page.
+- **7. Undo a whole agent turn**: Undo turn on a finished turn's last row.
+- Also new: Ctrl/Cmd+F find in threads, pages, notes, Settings, the side panel and terminals; backlinks; page
+  templates and Daily notes; Project starter templates; Inbox triage; event and task reminders; commit, push and
+  open a pull request from the review panel; Settings › Backup; the weekly review page.
+

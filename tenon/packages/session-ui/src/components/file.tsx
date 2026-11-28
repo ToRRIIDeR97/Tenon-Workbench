@@ -693,7 +693,6 @@ function ViewerShell(props: {
       ref={(el) => (props.viewer.wrapper = el)}
       tabIndex={0}
       onPointerDown={props.viewer.find.onPointerDown}
-      onFocus={props.viewer.find.onFocus}
     >
       <Show when={props.viewer.find.open()}>
         <FileSearchBar

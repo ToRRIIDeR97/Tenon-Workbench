@@ -89,6 +89,8 @@ import {
   type PanelSection,
 } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
+import { useThreadFindTarget } from "@/features/find/thread-find-target"
+import { DialogCommit } from "@/features/git/commit-dialog"
 import { createTimelineModel } from "@/pages/session/timeline/model"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -1072,6 +1074,14 @@ export default function Page() {
     const id = (event as CustomEvent<unknown>).detail
     if (typeof id === "string") revealMessage(id)
   })
+  useThreadFindTarget({
+    root: () => scroller,
+    messages,
+    parts: () => sync().data.part,
+    reveal: (id) => revealMessage(id),
+    more: () => historyMore(),
+    loadOlder: () => void loadOlder(),
+  })
   let scrollToEnd = () => {}
   let scrollMark = 0
   let messageMark = 0
@@ -1373,15 +1383,35 @@ export default function Page() {
     }
 
     return (
-      <SelectV2
-        appearance="inline"
-        options={changesOptions()}
-        current={reviewMode()}
-        label={changesLabel}
-        placement="bottom-start"
-        gutter={6}
-        onSelect={(option) => option && view().review.setMode(option)}
-      />
+      <div class="flex min-w-0 items-center gap-1">
+        <SelectV2
+          appearance="inline"
+          options={changesOptions()}
+          current={reviewMode()}
+          label={changesLabel}
+          placement="bottom-start"
+          gutter={6}
+          onSelect={(option) => option && view().review.setMode(option)}
+        />
+        <Show when={sync().project?.vcs === "git" && reviewMode() !== "branch" && reviewDiffs().length > 0}>
+          <ButtonV2
+            size="small"
+            variant="tonal"
+            data-action="git-commit"
+            onClick={() =>
+              void dialog.show(() => (
+                <DialogCommit
+                  directory={sdk().directory}
+                  threadTitle={info()?.title ?? ""}
+                  files={reviewDiffs().length}
+                />
+              ))
+            }
+          >
+            {language.t("secondBrain.git.commit.open")}
+          </ButtonV2>
+        </Show>
+      </div>
     )
   }
 

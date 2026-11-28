@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import { KnowledgeVault } from "@/knowledge/vault"
+import { KnowledgeSearch } from "@/knowledge/search"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
 import { CommandActions } from "@/agents/command-actions"
@@ -66,6 +67,9 @@ export const SecondBrainPaths = {
   vaultPages: "/second-brain/vault/pages",
   vaultPage: "/second-brain/vault/page",
   vaultPageHistory: "/second-brain/vault/page/history",
+  vaultPageMove: "/second-brain/vault/page/move",
+  vaultBacklinks: "/second-brain/vault/backlinks",
+  search: "/second-brain/search",
   vaultTimeline: "/second-brain/vault/timeline",
   vaultLog: "/second-brain/vault/log",
   vaultConflicts: "/second-brain/vault/conflicts",
@@ -206,6 +210,32 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
       HttpApiEndpoint.delete("removeVaultPage", SecondBrainPaths.vaultPage, {
         query: Schema.Struct({ ...VaultPageQuery.fields, expectedRevision: Schema.String }),
         success: described(Schema.Struct({ removed: Schema.Literal(true) }), "Vault page removed"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("moveVaultPage", SecondBrainPaths.vaultPageMove, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: KnowledgeVault.PageMoveInput,
+        success: described(
+          KnowledgeVault.PageMoveResult,
+          "The page at its new path or title, and how many links in other pages were updated",
+        ),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readVaultBacklinks", SecondBrainPaths.vaultBacklinks, {
+        query: VaultPageQuery,
+        success: described(Schema.Array(KnowledgeVault.Backlink), "Pages that link to this page"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("searchEverywhere", SecondBrainPaths.search, {
+        query: Schema.Struct({
+          ...WorkspaceRoutingQueryFields,
+          q: Schema.String,
+          limit: Schema.optional(Schema.String),
+        }),
+        success: described(
+          KnowledgeSearch.Result,
+          "Pages, tasks and events of this workspace, and threads, that mention the query",
+        ),
         error: errors,
       }),
       HttpApiEndpoint.get("readVaultPageHistory", SecondBrainPaths.vaultPageHistory, {

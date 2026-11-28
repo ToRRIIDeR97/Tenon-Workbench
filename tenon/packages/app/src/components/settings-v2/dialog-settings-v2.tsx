@@ -1,4 +1,4 @@
-import { Component, createMemo, createSignal, Show, startTransition } from "solid-js"
+import { Component, createMemo, createSignal, onCleanup, onMount, Show, startTransition } from "solid-js"
 import { Dialog } from "@tenon/ui/v2/dialog-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
@@ -20,6 +20,7 @@ import { SettingsSyncV2 } from "./sync"
 import { SettingsDictationV2 } from "./dictation"
 import { SettingsCommandCentreV2 } from "./command-centre"
 import { SettingsAccountsV2 } from "./accounts"
+import { SettingsBackupV2 } from "./backup"
 import { MicIcon } from "../prompt-input/dictation-button"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
@@ -27,6 +28,7 @@ import { useDialog } from "@tenon/ui/context/dialog"
 import { useLayout } from "@/context/layout"
 import { useDrafts } from "@/context/drafts"
 import { useServerSync } from "@/context/server-sync"
+import { createDomFindTarget, useFind, useFindTarget } from "@/features/find/find-bar"
 
 export const DialogSettings: Component<{
   sessionID?: string
@@ -52,6 +54,23 @@ export const DialogSettings: Component<{
     return undefined
   })
 
+  let marker: HTMLSpanElement | undefined
+  const dialogRoot = () => marker?.closest<HTMLElement>("[data-slot=dialog-content]") ?? undefined
+  const find = useFind()
+  useFindTarget(createDomFindTarget({ id: "settings", layer: 10, root: dialogRoot, mount: dialogRoot }))
+  onMount(() => {
+    const root = dialogRoot()
+    if (!root || !find) return
+    const onKey = (event: KeyboardEvent) => {
+      if (!find.matchesKey(event)) return
+      event.preventDefault()
+      event.stopPropagation()
+      find.open("settings")
+    }
+    root.addEventListener("keydown", onKey)
+    onCleanup(() => root.removeEventListener("keydown", onKey))
+  })
+
   const showProviders = () => {
     void dialog.show(() => <DialogSettings sessionID={props.sessionID} defaultValue="providers" />)
   }
@@ -62,6 +81,7 @@ export const DialogSettings: Component<{
 
   return (
     <Dialog size="x-large" variant="settings" class="settings-v2-dialog relative">
+      <span ref={marker} hidden />
       <IconButtonV2
         type="button"
         variant="ghost-muted"
@@ -107,6 +127,10 @@ export const DialogSettings: Component<{
                     <TabsV2.Trigger value="sync">
                       <Icon name="cloud-upload" />
                       {language.t("secondBrain.settings.sync.tab")}
+                    </TabsV2.Trigger>
+                    <TabsV2.Trigger value="backup">
+                      <Icon name="archive" />
+                      {language.t("secondBrain.backup.tab")}
                     </TabsV2.Trigger>
                     <Show when={platform.mail}>
                       <TabsV2.Trigger value="accounts">
@@ -177,6 +201,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="sync" class="settings-v2-panel">
           <SettingsSyncV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="backup" class="settings-v2-panel">
+          <SettingsBackupV2 />
         </TabsV2.Content>
         <Show when={platform.mail}>
           <TabsV2.Content value="accounts" class="settings-v2-panel">

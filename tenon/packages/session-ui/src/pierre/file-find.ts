@@ -12,7 +12,6 @@ export type FindHost = {
 }
 
 const hosts = new Set<FindHost>()
-let target: FindHost | undefined
 let current: FindHost | undefined
 let installed = false
 
@@ -65,7 +64,7 @@ function installShortcuts() {
         return
       }
 
-      const host = hostForNode(document.activeElement) ?? hostForNode(event.target) ?? target ?? Array.from(hosts)[0]
+      const host = hostForNode(document.activeElement) ?? hostForNode(event.target)
       if (!host) return
 
       event.preventDefault()
@@ -360,7 +359,6 @@ export function createFileFind(opts: CreateFileFindOptions) {
   const focus = () => {
     if (current && current !== host) current.close()
     current = host
-    target = host
     if (!open()) setState("open", true)
     requestAnimationFrame(() => {
       apply({ scroll: true })
@@ -412,7 +410,6 @@ export function createFileFind(opts: CreateFileFindOptions) {
     mode = supportsHighlights() ? "highlights" : "overlay"
     installShortcuts()
     hosts.add(host)
-    if (!target) target = host
 
     onCleanup(() => {
       hosts.delete(host)
@@ -420,7 +417,6 @@ export function createFileFind(opts: CreateFileFindOptions) {
         current = undefined
         clearHighlightFind()
       }
-      if (target === host) target = undefined
     })
   })
 
@@ -465,11 +461,7 @@ export function createFileFind(opts: CreateFileFindOptions) {
     next,
     refresh: (args?: { reset?: boolean; scroll?: boolean }) => apply(args),
     onPointerDown: () => {
-      target = host
       opts.wrapper()?.focus({ preventScroll: true })
-    },
-    onFocus: () => {
-      target = host
     },
     onInputKeyDown: (event: KeyboardEvent) => {
       if (event.key === "Escape") {

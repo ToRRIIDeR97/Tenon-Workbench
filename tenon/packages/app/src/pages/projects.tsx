@@ -1,7 +1,9 @@
 import { useLocation, useNavigate, useSearchParams } from "@solidjs/router"
+import { useDialog } from "@tenon/ui/context/dialog"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, For, on, onCleanup, Show, type JSX } from "solid-js"
@@ -19,6 +21,7 @@ import {
   listVaultPages,
   readProjectLog,
   readTimeline,
+  readVaultPage,
   removeVaultPage,
   SecondBrainRequestError,
   writeTimeline,
@@ -29,6 +32,19 @@ import {
   type VaultPageInfo,
 } from "@/features/second-brain/client"
 import { NotesPageView } from "@/features/second-brain/notes-page"
+import { InboxView } from "@/features/second-brain/inbox-view"
+import { DialogTemplatePage } from "@/features/second-brain/template-page-dialog"
+import {
+  applyTemplate,
+  BUILT_IN_DAILY,
+  DAILY_TEMPLATE_PATH,
+  dailyNotePath,
+  isTemplatePath,
+  localDate,
+  starterTemplate,
+  TEMPLATES_FOLDER,
+  templateName,
+} from "@/features/second-brain/templates"
 import { matchProjects, newPagePath } from "@/features/second-brain/notes-timeline"
 import { ProjectCreate, projectWorkPrompt } from "@/features/second-brain/project-details"
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
@@ -67,6 +83,8 @@ export default function ProjectsPage() {
     note?: string
     new?: string
     from?: string
+    daily?: string
+    inbox?: string
   }>()
   const [state, setState] = createStore({
     directory: "",
@@ -226,7 +244,20 @@ ${path}`
       }))
   const threads = createMemo(() => recentThreads(projectFolder()))
 
-  const createPage = async (owner?: string) => {
+  const templates = createMemo(() =>
+    pageList()
+      .filter((page) => isTemplatePath(page.path))
+      .sort((left, right) => templateName(left.path).localeCompare(templateName(right.path))),
+  )
+  const templateBody = async (target: string, path: string | undefined) => {
+    if (!path) return undefined
+    return readVaultPage(client(target), path).then(
+      (page) => page.body,
+      () => undefined,
+    )
+  }
+
+  const createPage = async (owner?: string, template?: { path: string; title: string }) => {
     const target = directory()
     if (!target || state.creating) return
     const folder = owner
@@ -234,12 +265,14 @@ ${path}`
           .find((page) => page.projectId === owner)
           ?.path.split("/")[0]
       : ""
-    const title = language.t("secondBrain.vault.untitled")
+    const title = template ? template.title : language.t("secondBrain.vault.untitled")
     setState({ creating: true, error: "" })
+    const source = await templateBody(target, template?.path)
+    const body = source === undefined ? "" : applyTemplate(source, { now: new Date(), title })
     const result = await writeVaultPage(client(target), {
       path: newPagePath(title, folder ?? "", pageList()),
       title,
-      body: "",
+      body,
       projectId: owner,
       create: true,
     }).then(
@@ -255,6 +288,74 @@ ${path}`
     vault.store(result.page.info)
     openPage(result.page.info.path)
   }
+
+  const dialog = useDialog()
+  const askTemplateTitle = (path: string) =>
+    void dialog.show(() => (
+      <DialogTemplatePage
+        template={templateName(path)}
+        onCreate={(title) => void createPage(undefined, { path, title })}
+      />
+    ))
+
+  const createTemplate = async () => {
+    const target = directory()
+    if (!target || state.creating) return
+    const title = language.t("secondBrain.templates.newName")
+    setState({ creating: true, error: "" })
+    const result = await writeVaultPage(client(target), {
+      path: `${TEMPLATES_FOLDER}/${newPagePath(title, TEMPLATES_FOLDER, pageList())}`,
+      title,
+      body: starterTemplate(language.t("secondBrain.templates.placeholders")),
+      create: true,
+    }).catch(() => undefined)
+    setState("creating", false)
+    if (!result) return setState("error", language.t("secondBrain.error.request"))
+    if (target !== directory()) return
+    vault.store(result.info)
+    openPage(result.info.path)
+  }
+
+  const openDaily = async () => {
+    const target = directory()
+    if (!target || state.creating) return
+    const now = new Date()
+    const path = dailyNotePath(now)
+    const existing = pageList().find((page) => page.path.toLowerCase() === path.toLowerCase())
+    if (existing) return openPage(existing.path)
+    setState({ creating: true, error: "" })
+    const custom = pageList().find((page) => page.path.toLowerCase() === DAILY_TEMPLATE_PATH.toLowerCase())
+    const source = (await templateBody(target, custom?.path)) ?? BUILT_IN_DAILY
+    const title = localDate(now)
+    const result = await writeVaultPage(client(target), {
+      path,
+      title,
+      body: applyTemplate(source, { now, title }),
+      create: true,
+    }).then(
+      (page) => ({ page, error: undefined }),
+      (error: unknown) => ({ page: undefined, error }),
+    )
+    setState("creating", false)
+    if (target !== directory()) return
+    if (result.page) {
+      vault.store(result.page.info)
+      return openPage(result.page.info.path)
+    }
+    if (result.error instanceof SecondBrainRequestError && result.error.status === 409) return openPage(path)
+    setState("error", language.t("secondBrain.error.request"))
+  }
+
+  createEffect(
+    on(
+      () => (search.daily && directory() && vault.pages() ? directory() : undefined),
+      (ready) => {
+        if (!ready) return
+        navigate("/projects", { replace: true })
+        void openDaily()
+      },
+    ),
+  )
 
   const undo = createUndoQueue({
     show: (action, run) =>
@@ -438,6 +539,26 @@ ${path}`
     </h2>
   )
 
+  const inboxView = () => (
+    <Show when={directory()} keyed>
+      {(target) => (
+        <InboxView
+          client={client(target)}
+          projects={projects()}
+          pages={pageList()}
+          onBack={() => navigate("/projects")}
+          onHandToAgent={(text, record) => {
+            const folder = record ? threadDirectory(record) : target
+            void drafts.create(
+              { server: server.key, directory: folder ?? target, ...(record ? { projectID: record.id } : {}) },
+              language.t("secondBrain.inbox.prompt", { text }),
+            )
+          }}
+        />
+      )}
+    </Show>
+  )
+
   const landing = () => {
     const active = () => projects().filter((record) => record.status !== "archived")
     const archived = () => projects().filter((record) => record.status === "archived")
@@ -464,9 +585,45 @@ ${path}`
           title={language.t("secondBrain.projects.title")}
           actions={
             <>
+              <ButtonV2 variant="ghost" icon="calendar" disabled={state.creating} onClick={() => void openDaily()}>
+                {language.t("secondBrain.daily.open")}
+              </ButtonV2>
+              <ButtonV2 variant="ghost" icon="archive" onClick={() => navigate("/projects?inbox=1")}>
+                {language.t("secondBrain.inbox.open")}
+              </ButtonV2>
               <ButtonV2 variant="ghost" icon="plus" disabled={state.creating} onClick={() => void createPage()}>
                 {language.t("secondBrain.vault.newPage")}
               </ButtonV2>
+              <MenuV2 gutter={4} modal={false} placement="bottom-end">
+                <MenuV2.Trigger
+                  as={IconButtonV2}
+                  variant="ghost-muted"
+                  class="!size-8"
+                  disabled={state.creating}
+                  icon={<Icon name="chevron-down" size="small" />}
+                  aria-label={language.t("secondBrain.templates.menu")}
+                />
+                <MenuV2.Portal>
+                  <MenuV2.Content>
+                    <MenuV2.Group>
+                      <MenuV2.GroupLabel>{language.t("secondBrain.templates.menu")}</MenuV2.GroupLabel>
+                      <For each={templates()}>
+                        {(template) => (
+                          <MenuV2.Item onSelect={() => requestAnimationFrame(() => askTemplateTitle(template.path))}>
+                            {templateName(template.path)}
+                          </MenuV2.Item>
+                        )}
+                      </For>
+                    </MenuV2.Group>
+                    <Show when={templates().length > 0}>
+                      <MenuV2.Separator />
+                    </Show>
+                    <MenuV2.Item onSelect={() => void createTemplate()}>
+                      {language.t("secondBrain.templates.create")}
+                    </MenuV2.Item>
+                  </MenuV2.Content>
+                </MenuV2.Portal>
+              </MenuV2>
               <ButtonV2
                 variant="contrast"
                 icon="plus"
@@ -671,12 +828,15 @@ ${path}`
                   fallback={
                     <ProjectCreate
                       directory={directory()}
-                      onCreated={(created) => openProject(created.id)}
+                      onCreated={(created) => {
+                        vault.retry()
+                        openProject(created.id)
+                      }}
                       onCancel={() => navigate("/projects")}
                     />
                   }
                 >
-                  <Show when={projectId()} fallback={landing()}>
+                  <Show when={projectId()} fallback={search.inbox ? inboxView() : landing()}>
                     <Show
                       when={project()}
                       fallback={
@@ -755,6 +915,19 @@ ${path}`
                   onOpen={openPage}
                   onSaved={vault.store}
                   onDelete={deletePage}
+                  onMoved={(from, page, updatedLinks) => {
+                    vault.remove(from)
+                    vault.store(page.info)
+                    if (updatedLinks > 0) vault.retry()
+                    navigate(pageHref(page.info.path), { replace: true, state: location.state })
+                    showToast({
+                      title: language.t("secondBrain.vault.move.done", { title: page.info.title }),
+                      description:
+                        updatedLinks > 0
+                          ? language.t("secondBrain.vault.move.linksUpdated", { count: updatedLinks })
+                          : undefined,
+                    })
+                  }}
                   onDirty={(dirty) => setState("dirty", dirty)}
                   held={held()}
                 />

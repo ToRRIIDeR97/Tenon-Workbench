@@ -1,5 +1,7 @@
 import { LayerNode } from "@tenon/core/effect/layer-node"
-import { Effect, Layer, Context, Schema, Scope } from "effect"
+import { Effect, Layer, Context, Schema, Scope, Stream } from "effect"
+import { execFile } from "node:child_process"
+import { GithubWork } from "@tenon/core/github/work"
 import { formatPatch, structuredPatch } from "diff"
 import { InstanceState } from "@/effect/instance-state"
 import { Watcher } from "@tenon/core/filesystem/watcher"
@@ -7,6 +9,7 @@ import { Git } from "@/git"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { EventV2 } from "@tenon/core/event"
 import { VcsEvent } from "@tenon/schema/vcs-event"
+import { VcsPublish } from "./vcs-publish"
 
 const PATCH_CONTEXT_LINES = 2_147_483_647
 const MAX_PATCH_BYTES = 10_000_000
@@ -290,6 +293,36 @@ export class BranchSwitchError extends Schema.TaggedError<BranchSwitchError>()("
   reason: Schema.Literals(["non-git", "unknown-branch", "failed"]),
 }) {}
 
+export const CommitInput = Schema.Struct({ message: Schema.String, branch: Schema.optional(Schema.String) })
+export type CommitInput = Schema.Schema.Type<typeof CommitInput>
+export const CommitResult = Schema.Struct({ sha: Schema.String, branch: Schema.String })
+export type CommitResult = Schema.Schema.Type<typeof CommitResult>
+export const PushResult = Schema.Struct({ branch: Schema.String })
+export const PullRequestInput = Schema.Struct({
+  title: Schema.String,
+  body: Schema.String,
+  base: Schema.optional(Schema.String),
+  draft: Schema.Boolean,
+})
+export type PullRequestInput = Schema.Schema.Type<typeof PullRequestInput>
+export const PullRequestResult = Schema.Struct({ url: Schema.String })
+
+export const PublishReason = Schema.Literals([
+  "non-git",
+  "invalid",
+  "invalid-branch",
+  "nothing",
+  "no-remote",
+  "detached",
+  "gh-missing",
+  "failed",
+])
+
+export class PublishError extends Schema.TaggedError<PublishError>()("VcsPublishError", {
+  message: Schema.String,
+  reason: PublishReason,
+}) {}
+
 export class PatchApplyError extends Schema.TaggedError<PatchApplyError>()("VcsPatchApplyError", {
   message: Schema.String,
   reason: Schema.Literals(["non-git", "not-clean"]),
@@ -305,6 +338,9 @@ export interface Interface {
   readonly apply: (input: ApplyInput) => Effect.Effect<ApplyResult, PatchApplyError>
   readonly branches: () => Effect.Effect<string[]>
   readonly switchBranch: (input: SwitchBranchInput) => Effect.Effect<Info, BranchSwitchError>
+  readonly commit: (input: CommitInput) => Effect.Effect<CommitResult, PublishError>
+  readonly push: () => Effect.Effect<{ branch: string }, PublishError>
+  readonly pullRequest: (input: PullRequestInput) => Effect.Effect<{ url: string }, PublishError>
 }
 
 interface State {
@@ -463,9 +499,103 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
         yield* events.publish(Event.BranchUpdated, { branch: input.branch })
         return { branch: input.branch, default_branch: value.root?.name }
       }),
+      commit: Effect.fn("Vcs.commit")(function* (input: CommitInput) {
+        const ctx = yield* InstanceState.context
+        if (ctx.project.vcs !== "git") return yield* publishError("non-git", "This folder isn't a git repository")
+        if (VcsPublish.messageProblem(input.message))
+          return yield* publishError("invalid", "Write a commit message first")
+        const branch = input.branch?.trim()
+        if (branch !== undefined && branch !== "" && !VcsPublish.validBranchName(branch))
+          return yield* publishError("invalid-branch", `${branch} isn't a valid branch name`)
+        const status = yield* git.run(["status", "--porcelain"], { cwd: ctx.directory })
+        if (status.exitCode !== 0) return yield* publishError("failed", firstLine(status) || "Couldn't read changes")
+        if (!status.text().trim()) return yield* publishError("nothing", "There are no changes to commit")
+        if (branch) {
+          const created = yield* git.run(["switch", "-c", branch], { cwd: ctx.directory })
+          if (created.exitCode !== 0)
+            return yield* publishError("failed", firstLine(created) || `Couldn't create ${branch}`)
+        }
+        const added = yield* git.run(["add", "-A"], { cwd: ctx.directory })
+        if (added.exitCode !== 0) return yield* publishError("failed", firstLine(added) || "Couldn't stage changes")
+        const committed = yield* git.run(["commit", "-F", "-"], { cwd: ctx.directory, stdin: stdinText(input.message) })
+        if (committed.exitCode !== 0)
+          return yield* publishError("failed", firstLine(committed) || "Couldn't commit the changes")
+        const sha = (yield* git.run(["rev-parse", "HEAD"], { cwd: ctx.directory })).text().trim()
+        const current = (yield* git.branch(ctx.directory)) ?? branch ?? ""
+        const value = yield* InstanceState.get(state)
+        if (current && value.current !== current) {
+          value.current = current
+          yield* events.publish(Event.BranchUpdated, { branch: current })
+        }
+        return { sha, branch: current }
+      }),
+      push: Effect.fn("Vcs.push")(function* () {
+        const ctx = yield* InstanceState.context
+        if (ctx.project.vcs !== "git") return yield* publishError("non-git", "This folder isn't a git repository")
+        const branch = yield* git.branch(ctx.directory)
+        if (!branch) return yield* publishError("detached", "Switch to a branch before pushing")
+        const remote = yield* git.run(["remote", "get-url", "origin"], { cwd: ctx.directory })
+        if (remote.exitCode !== 0) return yield* publishError("no-remote", "This repository has no origin remote")
+        const pushed = yield* git.run(["push", "-u", "origin", branch], {
+          cwd: ctx.directory,
+          env: { GIT_TERMINAL_PROMPT: "0" },
+        })
+        if (pushed.exitCode !== 0) return yield* publishError("failed", firstLine(pushed) || `Couldn't push ${branch}`)
+        return { branch }
+      }),
+      pullRequest: Effect.fn("Vcs.pullRequest")(function* (input: PullRequestInput) {
+        const ctx = yield* InstanceState.context
+        if (ctx.project.vcs !== "git") return yield* publishError("non-git", "This folder isn't a git repository")
+        if (!input.title.trim()) return yield* publishError("invalid", "Give the pull request a title")
+        const gh = GithubWork.findGh()
+        if (!gh)
+          return yield* publishError("gh-missing", "Install the GitHub CLI (gh) and sign in to open pull requests")
+        const args = yield* Effect.try({
+          try: () => VcsPublish.prCreateArgs({ ...input, title: input.title.trim() }),
+          catch: () => new PublishError({ message: "That base branch isn't valid", reason: "invalid-branch" }),
+        })
+        const output = yield* Effect.tryPromise({
+          try: () => runGh(gh, args, ctx.directory),
+          catch: (error) =>
+            new PublishError({
+              message: (error instanceof Error ? error.message : String(error)).split("\n")[0]!.slice(0, 300),
+              reason: "failed",
+            }),
+        })
+        const url = VcsPublish.prUrl(output)
+        if (!url) return yield* publishError("failed", "gh didn't return a pull request link")
+        return { url }
+      }),
     })
   }),
 )
+
+const publishError = (reason: Schema.Schema.Type<typeof PublishReason>, message: string) =>
+  Effect.fail(new PublishError({ message, reason }))
+
+const firstLine = (result: Git.Result) =>
+  (result.stderr.toString("utf8").trim() || result.text().trim()).split(/\r?\n/)[0]?.slice(0, 300) ?? ""
+
+const stdinText = (text: string) => Stream.make(new TextEncoder().encode(text))
+
+const runGh = (gh: string, args: string[], cwd: string) =>
+  new Promise<string>((resolve, reject) => {
+    execFile(
+      gh,
+      args,
+      {
+        cwd,
+        windowsHide: true,
+        timeout: 120_000,
+        maxBuffer: 1024 * 1024,
+        env: { ...process.env, GH_PROMPT_DISABLED: "1" },
+      },
+      (error, stdout, stderr) => {
+        if (error) reject(new Error(String(stderr || error.message)))
+        else resolve(`${stdout}\n${stderr}`)
+      },
+    )
+  })
 
 const localBranches = Effect.fnUntraced(function* (git: Git.Interface, cwd: string) {
   const result = yield* git.run(["for-each-ref", "--format=%(refname:short)", "refs/heads"], { cwd })

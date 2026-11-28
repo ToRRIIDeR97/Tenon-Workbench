@@ -18,6 +18,7 @@ import {
   createCommandPaletteCommandEntry,
   createCommandPaletteFileEntry,
   createCommandPaletteModel,
+  createEverywhereEntries,
   createServerSessionEntries,
   createVaultEntries,
   uniqueCommandPaletteEntries,
@@ -42,16 +43,18 @@ export function DialogCommandPaletteV2(props: { onOpenFile?: (path: string) => v
     const q = text.trim()
     if (!q) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
 
-    const [files, nextSessions, vault] = await Promise.all([
+    const [files, nextSessions, vault, everywhere] = await Promise.all([
       palette.file.searchFiles(q),
       Promise.resolve(palette.sessions(q)),
       palette.vault(q),
+      palette.everywhere(q),
     ])
     const category = palette.language.t("palette.group.files")
     return [
       ...palette.commandEntries().filter((entry) => matchesEntry(entry, q)),
       ...nextSessions,
       ...vault,
+      ...everywhere,
       ...files.map((path) => createCommandPaletteFileEntry(path, category)),
     ]
   }
@@ -91,6 +94,7 @@ export function DialogHomeCommandPaletteV2(props: {
     category: () => language.t("command.category.session"),
   })
   const vault = createVaultEntries(() => props.server)
+  const everywhere = createEverywhereEntries(() => props.server)
 
   const highlight = (item: CommandPaletteEntry | undefined) => {
     state.cleanup?.()
@@ -113,8 +117,8 @@ export function DialogHomeCommandPaletteV2(props: {
   const loadItems = async (text: string) => {
     const query = text.trim()
     if (!query) return commandEntries().slice(0, 5)
-    const [nextSessions, pages] = await Promise.all([sessions(query), vault(query)])
-    return [...commandEntries().filter((entry) => matchesEntry(entry, query)), ...nextSessions, ...pages]
+    const [nextSessions, pages, found] = await Promise.all([sessions(query), vault(query), everywhere(query)])
+    return [...commandEntries().filter((entry) => matchesEntry(entry, query)), ...nextSessions, ...pages, ...found]
   }
 
   onCleanup(() => {
@@ -310,10 +314,25 @@ function PaletteRow(props: {
             <KeybindV2 keys={formatKeybindParts(props.item.keybind ?? "", props.language.t)} variant="neutral" />
           </Show>
         </Match>
-        <Match when={props.item.type === "page" || props.item.type === "project"}>
+        <Match
+          when={
+            props.item.type === "page" ||
+            props.item.type === "project" ||
+            props.item.type === "task" ||
+            props.item.type === "event"
+          }
+        >
           <div class="command-palette-v2-row-main">
             <Icon
-              name={props.item.type === "page" ? "book" : "workspace"}
+              name={
+                props.item.type === "page"
+                  ? "book"
+                  : props.item.type === "task"
+                    ? "task"
+                    : props.item.type === "event"
+                      ? "calendar"
+                      : "workspace"
+              }
               size="small"
               class="command-palette-v2-row-icon shrink-0"
             />

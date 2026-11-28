@@ -20,6 +20,15 @@ Design and security notes: [architecture](../../../docs/architecture/README.md#m
 
 The link is plain HTTP. Use it only on a network you trust.
 
+## Notifications
+
+When a thread needs you (a permission request, a question, a finished turn or an error) and the app is not
+on screen, the phone shows a local notification (`@capacitor/local-notifications`, `src/notifications.ts`);
+tapping it opens the thread. Android 13 and later asks for the notification permission the first time. The
+event stream only runs while the app process lives, so a phone that has closed the app gets nothing until it
+is opened again; push with the app closed needs FCM/APNs and a relay (not built). After adding or upgrading a
+native plugin run `node scripts/cap.cjs sync android` (and `sync ios` on a Mac).
+
 ## Build for Android
 
 Needs: Bun 1.3.14, Node.js 22+, JDK 17 (Capacitor 6; Capacitor 7 needs JDK 21), the Android SDK with

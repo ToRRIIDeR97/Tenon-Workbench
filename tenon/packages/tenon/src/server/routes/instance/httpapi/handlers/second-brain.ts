@@ -13,6 +13,8 @@ import { LLM } from "@/session/llm"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
 import { KnowledgeVault } from "@/knowledge/vault"
+import { KnowledgeSearch } from "@/knowledge/search"
+import { ThreadSearch } from "@tenon/core/thread-search"
 import { AgentAppTools } from "@/agents/app-tools"
 import { PlannerCalendar } from "@/planner/calendar"
 import { PlannerCalendarStore } from "@/planner/calendar-store"
@@ -344,6 +346,28 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           KnowledgeVault.listPages(opened, { project: ctx.query.project, search: ctx.query.search }),
         ),
       )
+      .handle("moveVaultPage", (ctx) =>
+        vault("moveVaultPage", (opened) => KnowledgeVault.movePage(opened, ctx.payload), ctx.payload.path),
+      )
+      .handle("readVaultBacklinks", (ctx) =>
+        vault("readVaultBacklinks", (opened) => KnowledgeVault.backlinks(opened, ctx.query.path), ctx.query.path),
+      )
+      .handle("searchEverywhere", (ctx) => {
+        const query = ctx.query.q
+        if (!KnowledgeSearch.validQuery(query)) return Effect.succeed(KnowledgeSearch.empty)
+        const limit = KnowledgeSearch.limitOf(ctx.query.limit)
+        return Effect.gen(function* () {
+          const pages = yield* vault("searchEverywhere", (opened) => KnowledgeVault.searchPages(opened, query, limit))
+          const snapshot = yield* filesystem(PlannerCalendarStore.read()).pipe(
+            Effect.orElseSucceed(() => ({ events: [], tasks: [] })),
+          )
+          const threads = yield* ThreadSearch.search(query, limit).pipe(
+            Effect.provideService(Database.Service, database),
+            Effect.catch(() => Effect.succeed([] as ThreadSearch.Hit[])),
+          )
+          return { pages, ...KnowledgeSearch.calendar(snapshot, query, limit), threads }
+        })
+      })
       .handle("readVaultPage", (ctx) =>
         vault("readVaultPage", (opened) => KnowledgeVault.readPage(opened, ctx.query.path), ctx.query.path),
       )

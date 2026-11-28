@@ -1043,6 +1043,24 @@ or workspace (`{ error: "inside_workspace" }`).
   `log/<machine>.md`, so sync never merges one file from two machines. Reads
   merge every `log/*.md`, newest first (at most 1,000). A log over the 5 MB read
   cap drops out of the list with a warning in the server log.
+- Links: `[[target]]`, `[[target#heading]]` and `[[target|alias]]` name a page
+  by title, path or file name, folded (case, spaces to dashes, `.md` dropped);
+  links in code spans and fenced blocks don't count (`knowledge/wiki-links.ts`).
+  `GET /second-brain/vault/backlinks?path=` lists the pages that link to a page.
+- `POST /second-brain/vault/page/move` renames a page (its title becomes the
+  file name) or moves it into a Project folder or back to the workspace root
+  (`projectId: null`). It keeps the page id, moves its `.history` versions,
+  needs the current revision, refuses a taken name (409) and a move that changes
+  nothing (400), and rewrites links in other pages that pointed at the old page
+  and would no longer resolve, each of those pages saving a version first.
+- `GET /second-brain/search?q=` (2+ characters) answers pages (title and body),
+  this workspace's tasks and events, and threads (`core/src/thread-search.ts`):
+  bounded `LIKE` scans over `session_message.data` and `part.data`, kept only
+  when the user's or assistant's visible text holds the query, archived threads
+  left out. No full-text index yet ([deferred work](../deferred-work.md)).
+- Templates are ordinary pages under `Templates/`; Daily notes are
+  `Daily/YYYY-MM-DD.md`. Both are created by the renderer through the page
+  route; placeholders are filled in `app/.../second-brain/templates.ts`.
 - Conflict copies are files whose name contains `conflicted copy`,
   `(conflict` or `.sync-conflict-` (Dropbox, OneDrive, Syncthing). They are left
   in place, excluded from the page list and reported with the file they came
@@ -1158,6 +1176,54 @@ to it.
   outside the app can show up to 30 seconds late on a revisit.
 - The Projects page Map and `/projects/overview` list vault pages (as note
   summaries without links) and open them at `/notes?page=`.
+
+### Find, search everywhere, reminders and turn undo
+
+- **Find** (`app/src/features/find/`): `FindProvider` in the layout keeps a list
+  of find targets and one find bar; `find.open` (Ctrl/Cmd+F) picks the target
+  holding the last focused or clicked element, else the highest layer, else the
+  most recent. DOM targets (page main, note editor, Settings, side panel) walk
+  visible text nodes and paint matches with the CSS Custom Highlight API
+  (`::highlight(tenon-page-find)`); the note editor's textarea selects the match.
+  File viewers (`session-ui/src/pierre/file-find.ts`) keep their own find and
+  highlights (`tenon-find`) and take Ctrl/Cmd+F only when focus is inside one.
+  The thread target searches message data, because the timeline is virtualized:
+  it reveals the turn with `setRevealMessage`, then highlights inside that
+  turn's rendered rows, and loads older history while a query is open. The
+  terminal target reads ghostty-web's buffer lines and uses `select` and
+  `scrollToLine`. Settings handles the key itself because command keybinds are
+  suspended while a dialog is open.
+- **Search everywhere**: the command palette adds `GET /second-brain/search`
+  results (tasks, events, thread messages, page bodies) to its own command,
+  title and file results; Ctrl/Cmd+Shift+F opens the palette.
+- **Reminders** (`second-brain/calendar-reminders.tsx`): while the app runs it
+  reads the selected workspace's calendar every 5 minutes (and when the
+  calendar changes or the window gains focus) and checks every 30 seconds.
+  Fired keys stay in `localStorage` (`tenon.reminders.fired.v1`, three days).
+  In view: a toast; otherwise `platform.notify` (system notification on the
+  desktop, a local notification on the phone).
+- **Turn undo**: the last row of a finished turn offers Undo turn when the turn
+  has file diffs (`userMessage.summary.diffs`) or undoable agent writes. The
+  diffs are relative to the repository root, so the app rebases them onto the
+  thread's folder (`folderPrefix`) and skips files outside it.
+  `POST /file/revert` reverses each patch inside the folder
+  (`tenon/src/file/revert.ts`: reverse-apply, or a narrowed re-diff for
+  full-context patches; a file changed since keeps its text); agent writes go
+  through their own undo route.
+- **Commit and pull request**: the review panel's Commit… dialog calls
+  `POST /vcs/commit` (`git add -A`, `git commit -F -`, optionally on a new
+  branch), `POST /vcs/push` (`git push -u origin <branch>`,
+  `GIT_TERMINAL_PROMPT=0`) and `POST /vcs/pr` (`gh pr create` with an argument
+  array, `GH_PROMPT_DISABLED=1`). `gh` is found on PATH (`.exe` on Windows).
+- **Settings backup** (Settings › Backup, `features/settings-backup/`): exports
+  the `settings.v3` groups and the MCP server config with `environment`,
+  `headers` and `oauth` values blanked; an import replaces only the chosen
+  groups and adds MCP servers switched off.
+- **Inbox**: `/projects?inbox=1` parses `Inbox.md` sections
+  (`## <label> · <ISO time>`) and removes a section only after its action (task,
+  Project page, thread draft) succeeded.
+- **Weekly review** (`/review`): built in the renderer from the calendar, the
+  vault page list, the Projects list and the last 200 root threads.
 
 ### Workspace instructions
 

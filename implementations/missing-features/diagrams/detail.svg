@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>Implementation detail: how mod+F reaches a find target, and how thread find reveals virtualized rows</title>
+  <rect width="900" height="360" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="600" fill="#1c1b1f">Detail: find routing and thread find</text>
+  <g fill="#e8def8" stroke="#6750a4">
+    <rect x="20" y="56" width="150" height="48" rx="6"/>
+    <rect x="200" y="56" width="200" height="48" rx="6"/>
+    <rect x="430" y="56" width="200" height="48" rx="6"/>
+    <rect x="660" y="56" width="220" height="48" rx="6"/>
+  </g>
+  <g fill="#1c1b1f">
+    <text x="30" y="78">keydown mod+F</text><text x="30" y="94" font-size="11" fill="#49454f">command "find.open"</text>
+    <text x="210" y="78">find-target registry</text><text x="210" y="94" font-size="11" fill="#49454f">focused &gt; topmost &gt; page main</text>
+    <text x="440" y="78">FindBar (one at a time)</text><text x="440" y="94" font-size="11" fill="#49454f">query, n of m, Enter / Esc</text>
+    <text x="670" y="78">target.search / step / clear</text><text x="670" y="94" font-size="11" fill="#49454f">DOM, textarea, terminal, thread</text>
+  </g>
+  <g stroke="#6750a4" stroke-width="1.5" fill="none">
+    <line x1="170" y1="80" x2="200" y2="80"/><line x1="400" y1="80" x2="430" y2="80"/><line x1="630" y1="80" x2="660" y2="80"/>
+  </g>
+  <text x="20" y="150" font-weight="600" fill="#1c1b1f">Thread target (rows are virtualized, so the DOM is incomplete)</text>
+  <g fill="#ffffff" stroke="#79747e">
+    <rect x="20" y="166" width="200" height="60" rx="6"/>
+    <rect x="250" y="166" width="200" height="60" rx="6"/>
+    <rect x="480" y="166" width="190" height="60" rx="6"/>
+    <rect x="700" y="166" width="180" height="60" rx="6"/>
+  </g>
+  <g fill="#1c1b1f">
+    <text x="30" y="188">sync.data.message + part</text><text x="30" y="206" font-size="11" fill="#49454f">text parts per turn</text>
+    <text x="260" y="188">threadFindMatches()</text><text x="260" y="206" font-size="11" fill="#49454f">[{turnID, occurrence}] (AC-2)</text>
+    <text x="490" y="188">revealMessage(turnID)</text><text x="490" y="206" font-size="11" fill="#49454f">virtualizer.scrollToIndex</text>
+    <text x="710" y="188">highlightIn(row DOM)</text><text x="710" y="206" font-size="11" fill="#49454f">CSS.highlights (AC-1)</text>
+  </g>
+  <g stroke="#79747e" stroke-width="1.5" fill="none">
+    <line x1="220" y1="196" x2="250" y2="196"/><line x1="450" y1="196" x2="480" y2="196"/><line x1="670" y1="196" x2="700" y2="196"/>
+  </g>
+  <text x="20" y="270" font-weight="600" fill="#1c1b1f">Turn undo</text>
+  <g fill="#ffffff" stroke="#79747e">
+    <rect x="20" y="286" width="220" height="56" rx="6"/>
+    <rect x="270" y="286" width="250" height="56" rx="6"/>
+    <rect x="550" y="286" width="330" height="56" rx="6"/>
+  </g>
+  <g fill="#1c1b1f">
+    <text x="30" y="308">userMessage.summary.diffs</text><text x="30" y="326" font-size="11" fill="#49454f">file, patch, status per turn</text>
+    <text x="280" y="308">POST /file/revert (AC-27)</text><text x="280" y="326" font-size="11" fill="#49454f">revertFileChange per file (AC-26)</text>
+    <text x="560" y="308">agentWrites.undo(id) for writeTurn === turn</text><text x="560" y="326" font-size="11" fill="#49454f">then one toast: reverted / changed / failed (AC-28)</text>
+  </g>
+  <g stroke="#79747e" stroke-width="1.5" fill="none">
+    <line x1="240" y1="314" x2="270" y2="314"/><line x1="520" y1="314" x2="550" y2="314"/>
+  </g>
+</svg>
