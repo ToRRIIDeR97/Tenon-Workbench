@@ -2,6 +2,7 @@
 
 import {
   ACCEPTED_FILE_EXTENSIONS,
+  pickerExtensions,
   AppBaseProviders,
   AppInterface,
   loadLocaleDict,
@@ -181,16 +182,20 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
       })
     },
 
-    async openAttachmentPickerDialog(opts, onFile) {
+    async openAttachmentPickerDialog(opts, onFile, onReference) {
       const result = await window.api.openFilePicker({
         multiple: opts?.multiple ?? false,
         title: opts?.title,
         defaultPath: opts?.defaultPath,
-        extensions: opts?.extensions ?? ACCEPTED_FILE_EXTENSIONS,
+        extensions: opts?.extensions ?? pickerExtensions(opts?.accept) ?? ACCEPTED_FILE_EXTENSIONS,
       })
       if (!result) return
       try {
         for (const file of result.files) {
+          if (!file.inline) {
+            await onReference?.({ name: file.name, path: file.path, size: file.size })
+            continue
+          }
           const selected = new File([await window.api.readPickedFile(result.token, file.path)], file.name)
           attachmentPaths.set(selected, file.path)
           await onFile(selected)

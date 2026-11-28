@@ -22,7 +22,7 @@ import { resolveAppPath } from "./apps"
 import { readClipboardImage } from "./clipboard-image"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
-import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
+import { createPickedFileAuthorizations, planAttachments } from "./attachment-picker"
 import { getStore, rendererStore, removeStoreFileIfEmpty } from "./store"
 import { VAULT_FOLDER_KEY } from "./store-keys"
 import { insideCodeFolder, moveVault, vaultFolder } from "./vault-folder"
@@ -412,15 +412,19 @@ export function registerIpcHandlers(deps: Deps) {
         filters: pickerFilters(opts?.extensions),
       })
       if (result.canceled) return null
-      const files = await Promise.all(
-        result.filePaths.map(async (filePath) => ({
-          path: filePath,
-          name: basename(filePath),
-          size: (await stat(filePath)).size,
-        })),
+      const files = planAttachments(
+        await Promise.all(
+          result.filePaths.map(async (filePath) => ({
+            path: filePath,
+            name: basename(filePath),
+            size: (await stat(filePath)).size,
+          })),
+        ),
       )
-      assertAttachmentBudget(files)
-      const token = pickedFiles.add(event.sender.id, result.filePaths)
+      const token = pickedFiles.add(
+        event.sender.id,
+        files.filter((file) => file.inline).map((file) => file.path),
+      )
       return { token, files }
     },
   )

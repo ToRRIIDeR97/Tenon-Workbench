@@ -2551,6 +2551,11 @@ fix lands.
   keeps cmd metacharacters out of that command line.
 - Draft IPC accepts only string keys and values and caps one attachment blob
   at 64 MiB (`draft-store.ts`).
+- The attachment picker authorizes reads only for the files it plans to read
+  (one selection shares a 20 MiB budget, `planAttachments`). A file past the
+  budget comes back as name, path and size only and is never read by the
+  app; the composer sends that path to the agent as text, and the agent's own
+  permissions decide whether it may open it.
 - Renderer store IPC (`store-get`/`store-set`/`store-delete`) takes only
   non-empty string keys other than `__proto__`, `constructor` and `prototype`,
   and string values (`assertStoreKey` in `store-name.ts`). The stores behind it

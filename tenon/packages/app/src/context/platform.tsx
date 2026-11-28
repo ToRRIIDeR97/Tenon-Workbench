@@ -277,6 +277,7 @@ type PlatformBase = {
   openAttachmentPickerDialog?(
     opts: OpenAttachmentPickerOptions,
     onFile: (file: File) => Promise<unknown>,
+    onReference?: (reference: { name: string; path: string; size: number }) => Promise<unknown>,
   ): Promise<void>
 
   getPathForFile?(file: File): string

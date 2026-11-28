@@ -53,6 +53,7 @@ import {
   createPromptInputV2Controller,
   createPromptInputV2State,
   type PromptInputV2Interaction,
+  sizeLabel,
 } from "@tenon/session-ui/v2/prompt-input/interaction"
 
 export type PromptInputV2ComposerProps = {
@@ -598,6 +599,20 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
           description: language.t("prompt.toast.pasteUnsupported.description"),
         }),
       duplicate: () => showToast({ title: language.t("prompt.toast.attachmentDuplicate.title") }),
+      referenced: (reference) =>
+        showToast({
+          title: language.t("secondBrain.attachment.referenced.title"),
+          description: language.t("secondBrain.attachment.referenced.description", {
+            name: reference.name,
+            size: sizeLabel(reference.size),
+          }),
+        }),
+      tooLarge: (name) =>
+        showToast({
+          variant: "error",
+          title: language.t("secondBrain.attachment.tooLarge.title"),
+          description: language.t("secondBrain.attachment.tooLarge.description", { name }),
+        }),
       onError: (error) =>
         showToast({
           variant: "error",

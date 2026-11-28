@@ -4,6 +4,26 @@ import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 const FOLDER_MIME = "application/x-directory"
 
+export const MAX_INLINE_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+export type AttachmentReference = { name: string; path: string; size: number }
+
+export function sizeLabel(bytes: number) {
+  const units = ["bytes", "KB", "MB", "GB", "TB"]
+  const power = Math.min(units.length - 1, bytes < 1024 ? 0 : Math.floor(Math.log(bytes) / Math.log(1024)))
+  const value = bytes / 1024 ** power
+  return `${power === 0 || value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[power]}`
+}
+
+export function locationNote(reference: AttachmentReference) {
+  return `[Attached ${reference.name} (${sizeLabel(reference.size)}) by location: ${reference.path}
+It is too large to send, so its contents are not included. Read or process it from that path with your tools if you need what is inside.]`
+}
+
+export function referenceFile(reference: AttachmentReference) {
+  return new File([locationNote(reference)], `${reference.name} (location).txt`, { type: "text/plain" })
+}
+
 const mediaExtensions = new Map([
   ["mp4", "video/mp4"],
   ["m4v", "video/x-m4v"],
@@ -108,7 +128,10 @@ export type PromptInputV2AttachmentConfig = {
   picker?: (
     options: { defaultPath?: string; multiple?: boolean; accept?: string[] },
     onFile: (file: File) => Promise<unknown>,
+    onReference?: (reference: AttachmentReference) => Promise<unknown>,
   ) => Promise<void>
+  referenced?: (reference: AttachmentReference) => void
+  tooLarge?: (name: string) => void
   directory: () => string
   isDialogActive: () => boolean
   warn: () => void
@@ -160,15 +183,32 @@ export function createPromptInputV2Attachments(
     if (!editor) return
     return { prompt, cursor: prompt.cursor() ?? cursorPosition(editor) }
   }
-  const add = async (file: File, toast = true, target = capture(), clipboard = false) => {
+  const addReference = async (reference: AttachmentReference, target = capture()) => {
+    const added = await add(referenceFile(reference), false, target, false, reference.path)
+    if (added) input.referenced?.(reference)
+    return added
+  }
+  const add = async (
+    file: File,
+    toast = true,
+    target = capture(),
+    clipboard = false,
+    source?: string,
+  ): Promise<boolean> => {
     if (!target) return false
+    if (file.size > MAX_INLINE_ATTACHMENT_BYTES) {
+      const path = input.getPathForFile?.(file) || undefined
+      if (path) return addReference({ name: file.name, path, size: file.size }, target)
+      input.tooLarge?.(file.name)
+      return true
+    }
     const mime = await attachmentMime(file)
     if (!mime) {
       if (toast) input.warn()
       return false
     }
     const blob = input.store ? await input.store(file) : await blobReference(file)
-    const sourcePath = input.getPathForFile?.(file) || undefined
+    const sourcePath = source ?? (input.getPathForFile?.(file) || undefined)
     const duplicate = target.prompt
       .current()
       .some(
@@ -298,7 +338,11 @@ export function createPromptInputV2Attachments(
         return
       }
       void input
-        .picker({ defaultPath: input.directory(), multiple: true, accept: acceptedAttachments }, (file) => add(file))
+        .picker(
+          { defaultPath: input.directory(), multiple: true, accept: acceptedAttachments },
+          (file) => add(file),
+          (reference) => addReference(reference),
+        )
         .catch(input.onError)
     },
   }

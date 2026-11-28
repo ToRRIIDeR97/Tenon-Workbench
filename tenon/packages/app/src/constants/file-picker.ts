@@ -83,6 +83,17 @@ export const ACCEPTED_FILE_EXTENSIONS = Array.from(
   ),
 ).sort()
 
+export function pickerExtensions(accept: readonly string[] | undefined) {
+  if (!accept || accept.length === 0) return undefined
+  const found = accept.flatMap((item) => {
+    if (item.startsWith(".")) return [item.slice(1).toLowerCase()]
+    if (item === "text/*") return TEXT_EXT
+    const known = MIME_EXT.get(item)
+    return known ? [known] : []
+  })
+  return found.length > 0 ? Array.from(new Set(found)).sort() : undefined
+}
+
 export function filePickerFilters(name: string, ext?: string[]) {
   if (!ext || ext.length === 0) return undefined
   return [{ name, extensions: ext }]

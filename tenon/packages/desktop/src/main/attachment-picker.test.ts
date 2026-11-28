@@ -3,21 +3,40 @@ import { mkdtemp, rm, truncate, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
-  assertAttachmentBudget,
   createPickedFileAuthorizations,
   MAX_ATTACHMENT_BYTES,
+  planAttachments,
   readAttachment,
 } from "./attachment-picker"
 
-describe("assertAttachmentBudget", () => {
-  test("accepts selections within the media ingest limit", () => {
-    expect(() =>
-      assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES / 2 }, { size: MAX_ATTACHMENT_BYTES / 2 }]),
-    ).not.toThrow()
+describe("planAttachments", () => {
+  test("reads every file of a selection within the media ingest limit", () => {
+    expect(
+      planAttachments([{ size: MAX_ATTACHMENT_BYTES / 2 }, { size: MAX_ATTACHMENT_BYTES / 2 }]).map(
+        (file) => file.inline,
+      ),
+    ).toEqual([true, true])
   })
 
-  test("rejects the selection before files are read when its total exceeds the limit", () => {
-    expect(() => assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES }, { size: 1 }])).toThrow("20 MB limit")
+  test("a file over the limit is attached by location and the others are still read", () => {
+    const plan = planAttachments([
+      { name: "notes.md", size: 10 },
+      { name: "recording.mp4", size: MAX_ATTACHMENT_BYTES * 250 },
+      { name: "shot.png", size: 20 },
+    ])
+    expect(plan.map((file) => [file.name, file.inline])).toEqual([
+      ["notes.md", true],
+      ["recording.mp4", false],
+      ["shot.png", true],
+    ])
+  })
+
+  test("files are read in order until the shared budget runs out", () => {
+    expect(planAttachments([{ size: 6 }, { size: 6 }, { size: 4 }], 10).map((file) => file.inline)).toEqual([
+      true,
+      false,
+      true,
+    ])
   })
 
   test("reads an approved file through a bounded buffer", async () => {
