@@ -1980,6 +1980,23 @@ Other harness output is mapped onto the built-in views:
   `session-ui/.../prompt-input/attachments.ts`); the built-in loop reads it as
   a listing, as for any directory mention. A browser, which has no path for a
   dropped folder, shows the unsupported-file toast.
+- A file over 20 MB is attached by location, not by content
+  (`MAX_INLINE_ATTACHMENT_BYTES`, `locationNote`, `referenceFile` in the same
+  file). The composer adds a small `text/plain` attachment named
+  `<file> (location).txt` whose text gives the name, size and full path and
+  says the contents were not sent, so an agent with file or shell tools can
+  read the file itself; a toast says so. A picked file takes this path when
+  the desktop picker marks it `inline: false` (`planAttachments` in
+  `desktop/src/main/attachment-picker.ts` reads files in order until the
+  20 MB budget for one selection runs out, and authorizes reads only for
+  those); a dropped file takes it by its size, before any bytes are read. A
+  large file with no path (a browser, or a pasted blob) shows a "File too
+  large" toast. No frames or transcript are made for a video attached this
+  way.
+- The desktop file dialog offers the composer's own accept list
+  (`pickerExtensions` in `app/src/constants/file-picker.ts` maps
+  `acceptedAttachments` to extensions), so video, audio and office files can
+  be picked; it used to offer only images, PDFs and text.
 The child's updates are attached to the subagent call (`acp_subagent`) that
 started it:
 

@@ -31,10 +31,13 @@ export function createPickedFileAuthorizations(
   }
 }
 
-export function assertAttachmentBudget(files: { size: number }[]) {
-  const total = files.reduce((sum, file) => sum + file.size, 0)
-  if (total <= MAX_ATTACHMENT_BYTES) return
-  throw new Error(nativeT("desktop.picker.error.sizeLimit", { limit: MAX_ATTACHMENT_BYTES / 1024 / 1024 }))
+export function planAttachments<T extends { size: number }>(files: readonly T[], budget = MAX_ATTACHMENT_BYTES) {
+  const state = { remaining: budget }
+  return files.map((file) => {
+    const inline = file.size <= state.remaining
+    if (inline) state.remaining -= file.size
+    return { ...file, inline }
+  })
 }
 
 export async function readAttachment(filePath: string, maxBytes = MAX_ATTACHMENT_BYTES) {

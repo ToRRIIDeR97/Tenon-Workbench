@@ -6,7 +6,12 @@ export { useServer } from "./context/server"
 export { useSettings } from "./context/settings"
 export { useDrafts } from "./context/drafts"
 export { useProviders } from "./hooks/use-providers"
-export { ACCEPTED_FILE_EXTENSIONS, ACCEPTED_FILE_TYPES, filePickerFilters } from "./constants/file-picker"
+export {
+  ACCEPTED_FILE_EXTENSIONS,
+  ACCEPTED_FILE_TYPES,
+  filePickerFilters,
+  pickerExtensions,
+} from "./constants/file-picker"
 export { useCommand } from "./context/command"
 export { loadLocaleDict, normalizeLocale, type Locale, useLanguage } from "./context/language"
 export { useWslServers } from "./wsl/context"

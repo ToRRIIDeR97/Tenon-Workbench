@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { folderMention, sortDrop } from "./attachments"
+import {
+  folderMention,
+  locationNote,
+  MAX_INLINE_ATTACHMENT_BYTES,
+  referenceFile,
+  sizeLabel,
+  sortDrop,
+} from "./attachments"
 
 const item = (file: File, folder: boolean) =>
   ({
@@ -37,5 +44,32 @@ describe("dropping a folder onto the composer", () => {
     })
     expect(folderMention(folder, undefined)).toBeUndefined()
     expect(folderMention(folder, "")).toBeUndefined()
+  })
+})
+
+describe("attaching a file that is too large to send", () => {
+  const recording = { name: "Recording.mp4", path: "C:\Users\me\Desktop\Recording.mp4", size: 5_130_988_443 }
+
+  test("sizes read in the unit a person would use", () => {
+    expect(sizeLabel(512)).toBe("512 bytes")
+    expect(sizeLabel(1536)).toBe("1.5 KB")
+    expect(sizeLabel(MAX_INLINE_ATTACHMENT_BYTES)).toBe("20.0 MB")
+    expect(sizeLabel(recording.size)).toBe("4.8 GB")
+    expect(sizeLabel(250 * 1024 ** 3)).toBe("250 GB")
+  })
+
+  test("the note gives the agent the name, size and full path, and says the contents are missing", () => {
+    const note = locationNote(recording)
+    expect(note).toContain("Recording.mp4 (4.8 GB)")
+    expect(note).toContain("by location: C:\Users\me\Desktop\Recording.mp4")
+    expect(note).toContain("contents are not included")
+  })
+
+  test("the attachment is a small text file named after the original", async () => {
+    const file = referenceFile(recording)
+    expect(file.name).toBe("Recording.mp4 (location).txt")
+    expect(file.type.startsWith("text/plain")).toBe(true)
+    expect(file.size).toBeLessThan(1024)
+    expect(await file.text()).toBe(locationNote(recording))
   })
 })
